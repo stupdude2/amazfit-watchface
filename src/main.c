@@ -281,7 +281,7 @@ static void init(void) {
   });
   window_stack_push(s_window, true);
 
-  tick_timer_service_subscribe(MINUTE_UNITS, tick_handler);
+  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
 
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
