@@ -9,6 +9,7 @@
     "longName": "Amazfit Bip Port",
     "shortName": "BipPort",
     "versionLabel": "1.0",
+    "author": "Bradford",
     "watchapp": {
       "watchface": true
     },
