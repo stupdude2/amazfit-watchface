@@ -1,23 +1,25 @@
 {
   "name": "amazfit-bip-port",
+  "author": "Bradford",
   "version": "1.0.0",
-  "keywords": ["watchface"],
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
   "pebble": {
-    "sdkVersion": "4",
     "displayName": "Amazfit Bip Port",
     "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "sdkVersion": "4",
+    "enableMultiJS": true,
     "longName": "Amazfit Bip Port",
     "shortName": "BipPort",
     "versionLabel": "1.0",
-    "author": "Bradford",
+    "targetPlatforms": ["basalt"],
     "watchapp": {
       "watchface": true
     },
     "capabilities": ["health"],
     "resources": {
       "media": []
-    },
-    "targetPlatforms": ["basalt"],
-    "enableMultiJS": true
+    }
   }
 }
