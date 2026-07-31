@@ -13,11 +13,15 @@
     "longName": "Amazfit Bip Port",
     "shortName": "BipPort",
     "versionLabel": "1.0",
-    "targetPlatforms": ["basalt"],
+    "targetPlatforms": ["emery"],
     "watchapp": {
       "watchface": true
     },
     "capabilities": ["health"],
+    "messageKeys": [
+      "TEMPERATURE",
+      "WEATHER_ICON"
+    ],
     "resources": {
       "media": []
     }
