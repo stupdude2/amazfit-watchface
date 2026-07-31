@@ -1,175 +1,353 @@
 #include <pebble.h>
 
-// ── Layout constants (Emery: 200 × 228 px) ───────────────────────────────────
+// ── Screen ────────────────────────────────────────────────────────────────────
 #define SCREEN_W        200
 #define SCREEN_H        228
-#define HEADER_H         34    // day/date/month bar
-#define STEPBAR_H        10    // step progress bar strip
-#define FOOTER_H         56    // weather + hr + steps
+
+// ── Zone heights ──────────────────────────────────────────────────────────────
+#define HEADER_H         48
+#define STEPBAR_H        12
+#define FOOTER_H         46
 #define CLOCK_Y          HEADER_H
-#define CLOCK_H          (SCREEN_H - HEADER_H - STEPBAR_H - FOOTER_H)  // 128 px
+#define CLOCK_H          (SCREEN_H - HEADER_H - STEPBAR_H - FOOTER_H)
 #define STEPBAR_Y        (SCREEN_H - FOOTER_H - STEPBAR_H)
 #define FOOTER_Y         (SCREEN_H - FOOTER_H)
 
-// Date box dimensions (blue square behind date number)
-#define DATEBOX_W        34
-#define DATEBOX_H        28
-#define DATEBOX_X        ((SCREEN_W - DATEBOX_W) / 2)
-#define DATEBOX_Y         3
+// ── Footer thirds ─────────────────────────────────────────────────────────────
+#define THIRD            (SCREEN_W / 3)
 
-// Step goal
+// ── Blue boxes ────────────────────────────────────────────────────────────────
+#define BOX_W            50
+#define BOX_GAP           3
+#define DATEBOX_W        BOX_W
+#define DATEBOX_Y         4
+#define DATEBOX_H        (HEADER_H - DATEBOX_Y - BOX_GAP - 2)
+#define DATEBOX_X        ((SCREEN_W - DATEBOX_W) / 2)
+#define HRBOX_X          (THIRD + (THIRD - BOX_W) / 2)
+#define HRBOX_Y           0
+#define UNDERLINE_GAP    BOX_GAP
+
+// ── Step bar ──────────────────────────────────────────────────────────────────
 #define STEP_GOAL        10000
+#define BAR_MARGIN        8
+
+// ── Digit drawing ─────────────────────────────────────────────────────────────
+#define DIGIT_WIDTH      40
+#define STK              13
+#define DIGIT_MARGIN      6
+#define COLON_WIDTH      12
+#define COLON_MARGIN     DIGIT_MARGIN
+#define ONE_X_OFFSET      8
+#define COLON_DOT         9
+#define DIGIT_HEIGHT    106
+#define H1_ONE_X          5
+#define H1_WIDTH         (H1_ONE_X + STK + DIGIT_MARGIN)
+#define HALF_V           (DIGIT_HEIGHT / 2)
+
+#define CLOCK_TOTAL_W    (H1_WIDTH + DIGIT_MARGIN + DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + DIGIT_WIDTH + DIGIT_MARGIN + DIGIT_WIDTH)
+#define CLOCK_ORIGIN_X   ((SCREEN_W - CLOCK_TOTAL_W) / 2)
+#define H1_X             (CLOCK_ORIGIN_X)
+#define H2_X             (H1_X + H1_WIDTH + DIGIT_MARGIN)
+#define COL_X            (H2_X + DIGIT_WIDTH + COLON_MARGIN)
+#define M1_X             (COL_X + COLON_WIDTH + COLON_MARGIN)
+#define M2_X             (M1_X + DIGIT_WIDTH + DIGIT_MARGIN)
+
+// ── AppMessage keys ───────────────────────────────────────────────────────────
+#define KEY_TEMPERATURE  0    // integer °F (or °C depending on JS)
+#define KEY_WEATHER_ICON 1    // integer: 0=clear, 1=cloudy, 2=rain, 3=snow, 4=thunder
+
+// ── Segment bitmasks ──────────────────────────────────────────────────────────
+#define SEG_TOP    (1<<0)
+#define SEG_TL     (1<<1)
+#define SEG_TR     (1<<2)
+#define SEG_MID    (1<<3)
+#define SEG_BL     (1<<4)
+#define SEG_BR     (1<<5)
+#define SEG_BOT    (1<<6)
+
+static const uint8_t DIGIT_SEGS[10] = {
+  SEG_TOP|SEG_TL|SEG_TR|SEG_BL|SEG_BR|SEG_BOT,
+  SEG_TR|SEG_BR,
+  SEG_TOP|SEG_TR|SEG_MID|SEG_BL|SEG_BOT,
+  SEG_TOP|SEG_TR|SEG_MID|SEG_BR|SEG_BOT,
+  SEG_TL|SEG_TR|SEG_MID|SEG_BR,
+  SEG_TOP|SEG_TL|SEG_MID|SEG_BR|SEG_BOT,
+  SEG_TOP|SEG_TL|SEG_MID|SEG_BL|SEG_BR|SEG_BOT,
+  SEG_TOP|SEG_TR|SEG_BR,
+  SEG_TOP|SEG_TL|SEG_TR|SEG_MID|SEG_BL|SEG_BR|SEG_BOT,
+  SEG_TOP|SEG_TL|SEG_TR|SEG_MID|SEG_BR|SEG_BOT,
+};
 
 // ── Colors ────────────────────────────────────────────────────────────────────
-#define COL_BG           GColorBlack
-#define COL_BLUE         GColorCobaltBlue
-#define COL_WHITE        GColorWhite
-#define COL_SUNDAY       GColorCobaltBlue
-#define COL_WEEKDAY      GColorWhite
+#define COL_BG      GColorBlack
+#define COL_BLUE    GColorCobaltBlue
+#define COL_WHITE   GColorWhite
+#define COL_SUNDAY  GColorCobaltBlue
+#define COL_WEEKDAY GColorWhite
 
 // ── Layers ────────────────────────────────────────────────────────────────────
-static Window        *s_window;
-
-static Layer         *s_header_layer;
-static TextLayer     *s_day_layer;
-static TextLayer     *s_date_num_layer;
-static TextLayer     *s_month_layer;
-
-static TextLayer     *s_time_layer;
-
-static Layer         *s_stepbar_layer;
-
-static Layer         *s_footer_layer;
-static TextLayer     *s_weather_label;
-static TextLayer     *s_weather_val;
-static TextLayer     *s_hr_label;
-static TextLayer     *s_hr_val;
-static TextLayer     *s_steps_label;
-static TextLayer     *s_steps_val;
+static Window    *s_window;
+static Layer     *s_header_layer;
+static TextLayer *s_day_layer;
+static TextLayer *s_date_num_layer;
+static TextLayer *s_month_layer;
+static Layer     *s_clock_layer;
+static Layer     *s_stepbar_layer;
+static Layer     *s_footer_layer;
+static TextLayer *s_weather_label;
+static TextLayer *s_weather_val;
+static TextLayer *s_hr_label;
+static TextLayer *s_hr_val;
+static TextLayer *s_steps_label;
+static TextLayer *s_steps_val;
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 static GFont s_font_header;
-static GFont s_font_clock;
 static GFont s_font_label;
 static GFont s_font_value;
 
 // ── State ─────────────────────────────────────────────────────────────────────
-static char s_time_buf[8];
 static char s_day_buf[4];
 static char s_date_buf[3];
 static char s_month_buf[4];
 static char s_hr_buf[6];
 static char s_steps_buf[8];
-static char s_weather_buf[8];
-static int  s_step_count = 0;
+static char s_weather_buf[12];  // e.g. "72°" or "--"
+static int  s_step_count  = 0;
+static int  s_hour        = 0;
+static int  s_minute      = 0;
+static int  s_weather_icon = -1;  // -1 = no data yet
 
-// ── Uppercase helper ──────────────────────────────────────────────────────────
 static void to_upper(char *s) {
-  for (; *s; s++) {
-    if (*s >= 'a' && *s <= 'z') *s -= 32;
+  for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
+}
+
+// ── Segment drawing ───────────────────────────────────────────────────────────
+static void draw_h(GContext *ctx, int ox, int oy) {
+  graphics_fill_rect(ctx, GRect(ox, oy, DIGIT_WIDTH, STK), 0, GCornerNone);
+}
+static void draw_v(GContext *ctx, int ox, int oy, int len) {
+  graphics_fill_rect(ctx, GRect(ox, oy, STK, len), 0, GCornerNone);
+}
+static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
+  if (digit < 0 || digit > 9) return;
+  uint8_t s = DIGIT_SEGS[digit];
+  graphics_context_set_fill_color(ctx, COL_WHITE);
+  int top_y = oy;
+  int mid_y = oy + HALF_V - STK / 2;
+  int bot_y = oy + DIGIT_HEIGHT - STK;
+  int lx    = ox;
+  int rx    = ox + DIGIT_WIDTH - STK;
+  if (s & SEG_TOP) draw_h(ctx, ox, top_y);
+  if (s & SEG_MID) draw_h(ctx, ox, mid_y);
+  if (s & SEG_BOT) draw_h(ctx, ox, bot_y);
+  if (s & SEG_TL) draw_v(ctx, lx, top_y, mid_y - top_y + STK);
+  if (s & SEG_TR) draw_v(ctx, rx, top_y, mid_y - top_y + STK);
+  if (s & SEG_BL) draw_v(ctx, lx, mid_y, bot_y - mid_y + STK);
+  if (s & SEG_BR) draw_v(ctx, rx, mid_y, bot_y - mid_y + STK);
+}
+static void draw_one_h1(GContext *ctx, int oy) {
+  graphics_context_set_fill_color(ctx, COL_WHITE);
+  int ox    = H1_X + H1_ONE_X;
+  int mid_y = oy + HALF_V - STK / 2;
+  int bot_y = oy + DIGIT_HEIGHT - STK;
+  draw_v(ctx, ox, oy,    mid_y - oy + STK);
+  draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
+}
+static void draw_one(GContext *ctx, int cell_x, int oy) {
+  graphics_context_set_fill_color(ctx, COL_WHITE);
+  int ox    = cell_x + ONE_X_OFFSET;
+  int mid_y = oy + HALF_V - STK / 2;
+  int bot_y = oy + DIGIT_HEIGHT - STK;
+  draw_v(ctx, ox, oy,    mid_y - oy + STK);
+  draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
+}
+static void draw_colon(GContext *ctx, int ox, int oy) {
+  graphics_context_set_fill_color(ctx, COL_WHITE);
+  int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
+  int upper_y = oy + DIGIT_HEIGHT / 3 - COLON_DOT / 2;
+  int lower_y = oy + (DIGIT_HEIGHT * 2) / 3 - COLON_DOT / 2;
+  graphics_fill_rect(ctx, GRect(cx, upper_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
+}
+
+// ── Weather icon drawing ──────────────────────────────────────────────────────
+// Draws a small icon in the weather zone of the footer.
+// cx/cy = centre of icon, r = radius
+static void draw_weather_icon(GContext *ctx, int cx, int cy, int icon) {
+  graphics_context_set_fill_color(ctx, COL_WHITE);
+  switch (icon) {
+    case 0:  // Clear / sun — circle with rays
+      graphics_fill_circle(ctx, GPoint(cx, cy), 5);
+      for (int i = 0; i < 8; i++) {
+        int angle = i * TRIG_MAX_ANGLE / 8;
+        int x1 = cx + (sin_lookup(angle) * 7 / TRIG_MAX_RATIO);
+        int y1 = cy - (cos_lookup(angle) * 7 / TRIG_MAX_RATIO);
+        int x2 = cx + (sin_lookup(angle) * 9 / TRIG_MAX_RATIO);
+        int y2 = cy - (cos_lookup(angle) * 9 / TRIG_MAX_RATIO);
+        graphics_context_set_stroke_color(ctx, COL_WHITE);
+        graphics_context_set_stroke_width(ctx, 1);
+        graphics_draw_line(ctx, GPoint(x1, y1), GPoint(x2, y2));
+      }
+      break;
+    case 1:  // Cloudy
+      graphics_fill_circle(ctx, GPoint(cx - 4, cy + 2), 4);
+      graphics_fill_circle(ctx, GPoint(cx + 4, cy + 2), 4);
+      graphics_fill_circle(ctx, GPoint(cx,     cy - 1), 5);
+      graphics_fill_rect(ctx, GRect(cx - 8, cy + 2, 16, 4), 0, GCornerNone);
+      break;
+    case 2:  // Rain — cloud + drops
+      graphics_fill_circle(ctx, GPoint(cx - 3, cy), 3);
+      graphics_fill_circle(ctx, GPoint(cx + 3, cy), 3);
+      graphics_fill_circle(ctx, GPoint(cx,     cy - 3), 4);
+      graphics_fill_rect(ctx, GRect(cx - 6, cy, 12, 3), 0, GCornerNone);
+      // Rain drops
+      graphics_context_set_stroke_color(ctx, COL_WHITE);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, GPoint(cx - 4, cy + 5), GPoint(cx - 5, cy + 8));
+      graphics_draw_line(ctx, GPoint(cx,     cy + 5), GPoint(cx - 1, cy + 8));
+      graphics_draw_line(ctx, GPoint(cx + 4, cy + 5), GPoint(cx + 3, cy + 8));
+      break;
+    case 3:  // Snow — snowflake
+      graphics_context_set_stroke_color(ctx, COL_WHITE);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, GPoint(cx, cy - 7), GPoint(cx, cy + 7));
+      graphics_draw_line(ctx, GPoint(cx - 6, cy - 3), GPoint(cx + 6, cy + 3));
+      graphics_draw_line(ctx, GPoint(cx - 6, cy + 3), GPoint(cx + 6, cy - 3));
+      break;
+    case 4:  // Thunder — lightning bolt
+      graphics_fill_rect(ctx, GRect(cx - 1, cy - 7, 4, 7), 0, GCornerNone);
+      graphics_fill_rect(ctx, GRect(cx - 4, cy,     4, 7), 0, GCornerNone);
+      break;
+    default: // No data — dash
+      graphics_context_set_stroke_color(ctx, COL_WHITE);
+      graphics_context_set_stroke_width(ctx, 2);
+      graphics_draw_line(ctx, GPoint(cx - 4, cy), GPoint(cx + 4, cy));
+      break;
   }
 }
 
-// ── Header draw callback ──────────────────────────────────────────────────────
-static void header_update_proc(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
+// ── Clock layer ───────────────────────────────────────────────────────────────
+static void clock_update_proc(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
-  graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  int h1 = s_hour / 10;
+  int h2 = s_hour % 10;
+  int m1 = s_minute / 10;
+  int m2 = s_minute % 10;
+  int sy = (b.size.h - DIGIT_HEIGHT) / 2;
+  if (h1 == 1) draw_one_h1(ctx, sy);
+  if (h2 == 1) draw_one(ctx, H2_X, sy); else draw_digit(ctx, H2_X, sy, h2);
+  draw_colon(ctx, COL_X, sy);
+  if (m1 == 1) draw_one(ctx, M1_X, sy); else draw_digit(ctx, M1_X, sy, m1);
+  if (m2 == 1) draw_one(ctx, M2_X, sy); else draw_digit(ctx, M2_X, sy, m2);
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+static void header_update_proc(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+  graphics_context_set_fill_color(ctx, COL_BG);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, COL_BLUE);
   graphics_fill_rect(ctx, GRect(DATEBOX_X, DATEBOX_Y, DATEBOX_W, DATEBOX_H), 0, GCornerNone);
+  int line_y = DATEBOX_Y + DATEBOX_H;
+  graphics_context_set_fill_color(ctx, COL_BLUE);
+  graphics_fill_rect(ctx, GRect(0, line_y, DATEBOX_X - UNDERLINE_GAP, 2), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(DATEBOX_X + DATEBOX_W + UNDERLINE_GAP, line_y, SCREEN_W - DATEBOX_X - DATEBOX_W - UNDERLINE_GAP, 2), 0, GCornerNone);
 }
 
-// ── Step bar draw callback ────────────────────────────────────────────────────
+// ── Step bar ──────────────────────────────────────────────────────────────────
 static void stepbar_update_proc(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
-  int w = bounds.size.w;
-  int h = bounds.size.h;
-  int cx = w / 2;
-
-  int steps = s_step_count < 0 ? 0 : s_step_count;
-  int goal  = STEP_GOAL > 0 ? STEP_GOAL : 1;
-  int fill_half = (steps >= goal) ? cx : (steps * cx / goal);
-
+  GRect b   = layer_get_bounds(layer);
+  int bar_w = b.size.w - BAR_MARGIN * 2;
+  int bar_x = BAR_MARGIN;
+  int cy    = b.size.h / 2;
   graphics_context_set_fill_color(ctx, COL_BG);
-  graphics_fill_rect(ctx, bounds, 0, GCornerNone);
-
-  if (steps >= goal) {
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  int steps     = s_step_count < 0 ? 0 : s_step_count;
+  int fill_half = (steps >= STEP_GOAL) ? bar_w / 2 : (steps * (bar_w / 2) / STEP_GOAL);
+  int bar_cx    = bar_x + bar_w / 2;
+  if (steps >= STEP_GOAL) {
     graphics_context_set_fill_color(ctx, COL_BLUE);
-    graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 3), 0, GCornerNone);
   } else {
-    if (fill_half > 0) {
-      graphics_context_set_fill_color(ctx, COL_WHITE);
-      graphics_fill_rect(ctx, GRect(cx - fill_half, 0, fill_half * 2, h), 0, GCornerNone);
-    }
     graphics_context_set_stroke_color(ctx, COL_BLUE);
     graphics_context_set_stroke_width(ctx, 1);
-    for (int x = 0; x < w; x += 4) {
-      graphics_draw_pixel(ctx, GPoint(x,     0));
-      graphics_draw_pixel(ctx, GPoint(x + 1, 0));
-      graphics_draw_pixel(ctx, GPoint(x,     h - 1));
-      graphics_draw_pixel(ctx, GPoint(x + 1, h - 1));
+    for (int x = bar_x; x < bar_x + bar_w; x += 4) {
+      graphics_draw_pixel(ctx, GPoint(x,     cy));
+      graphics_draw_pixel(ctx, GPoint(x + 1, cy));
     }
-    graphics_draw_line(ctx, GPoint(0, 0),     GPoint(0, h - 1));
-    graphics_draw_line(ctx, GPoint(w - 1, 0), GPoint(w - 1, h - 1));
+    if (fill_half > 0) {
+      graphics_context_set_fill_color(ctx, COL_WHITE);
+      graphics_fill_rect(ctx, GRect(bar_cx - fill_half, cy - 1, fill_half * 2, 3), 0, GCornerNone);
+    }
   }
 }
 
-// ── Footer draw callback ──────────────────────────────────────────────────────
+// ── Footer ────────────────────────────────────────────────────────────────────
 static void footer_update_proc(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
-  int third = SCREEN_W / 3;  // 66px each zone
-
+  GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
-  graphics_fill_rect(ctx, bounds, 0, GCornerNone);
-
-  // Blue box behind HR (centre zone)
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, COL_BLUE);
-  graphics_fill_rect(ctx, GRect(third, 0, third, bounds.size.h), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(HRBOX_X, HRBOX_Y, BOX_W, b.size.h), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, COL_BLUE);
+  graphics_fill_rect(ctx, GRect(0, 0, HRBOX_X - BOX_GAP, 2), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(HRBOX_X + BOX_W + BOX_GAP, 0, SCREEN_W - HRBOX_X - BOX_W - BOX_GAP, 2), 0, GCornerNone);
 
-  // Zone dividers
-  graphics_context_set_stroke_color(ctx, GColorDarkGray);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, GPoint(third,     0), GPoint(third,     bounds.size.h));
-  graphics_draw_line(ctx, GPoint(third * 2, 0), GPoint(third * 2, bounds.size.h));
+  // Weather icon — drawn to the left of the temperature text
+  // Icon sits in the left zone, centred vertically, left of centre of zone
+  int icon_cx = 10;
+  int icon_cy = b.size.h / 2 + 4;
+  draw_weather_icon(ctx, icon_cx, icon_cy, s_weather_icon);
+}
 
-  // Cloud icon in left zone
-  int cx = third / 2, cy = bounds.size.h / 2 + 6;
-  graphics_context_set_fill_color(ctx, COL_WHITE);
-  graphics_fill_circle(ctx, GPoint(cx - 5, cy + 2), 5);
-  graphics_fill_circle(ctx, GPoint(cx + 5, cy + 2), 5);
-  graphics_fill_circle(ctx, GPoint(cx,     cy - 3), 6);
-  graphics_fill_rect(ctx, GRect(cx - 10, cy + 2, 20, 6), 0, GCornerNone);
+// ── AppMessage ────────────────────────────────────────────────────────────────
+static void inbox_received_handler(DictionaryIterator *iter, void *context) {
+  Tuple *temp_tuple = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
+  Tuple *icon_tuple = dict_find(iter, MESSAGE_KEY_WEATHER_ICON);
+
+  if (temp_tuple) {
+    int temp = (int)temp_tuple->value->int32;
+    snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
+    text_layer_set_text(s_weather_val, s_weather_buf);
+  }
+  if (icon_tuple) {
+    s_weather_icon = (int)icon_tuple->value->int32;
+    // Redraw footer to update icon
+    layer_mark_dirty(s_footer_layer);
+  }
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
 static void update_time(struct tm *tick_time) {
-  strftime(s_time_buf, sizeof(s_time_buf), "%l:%M", tick_time);
-  char *t = s_time_buf;
-  while (*t == ' ') t++;
-  text_layer_set_text(s_time_layer, t);
+  s_hour   = tick_time->tm_hour % 12;
+  if (s_hour == 0) s_hour = 12;
+  s_minute = tick_time->tm_min;
+  layer_mark_dirty(s_clock_layer);
 
-  strftime(s_day_buf, sizeof(s_day_buf), "%a", tick_time);
-  to_upper(s_day_buf);
-  text_layer_set_text_color(s_day_layer,
-    (tick_time->tm_wday == 0) ? COL_SUNDAY : COL_WEEKDAY);
+  strftime(s_day_buf,   sizeof(s_day_buf),   "%a", tick_time); to_upper(s_day_buf);
+  strftime(s_date_buf,  sizeof(s_date_buf),  "%e", tick_time);
+  strftime(s_month_buf, sizeof(s_month_buf), "%b", tick_time); to_upper(s_month_buf);
+
+  text_layer_set_text_color(s_day_layer, tick_time->tm_wday == 0 ? COL_SUNDAY : COL_WEEKDAY);
   text_layer_set_text(s_day_layer, s_day_buf);
-
-  strftime(s_date_buf, sizeof(s_date_buf), "%e", tick_time);
-  char *d = s_date_buf;
-  while (*d == ' ') d++;
+  char *d = s_date_buf; while (*d == ' ') d++;
   text_layer_set_text(s_date_num_layer, d);
-
-  strftime(s_month_buf, sizeof(s_month_buf), "%b", tick_time);
-  to_upper(s_month_buf);
   text_layer_set_text(s_month_layer, s_month_buf);
+
+  // Fetch weather every 30 minutes
+  if (tick_time->tm_min % 30 == 0) {
+    DictionaryIterator *iter;
+    app_message_outbox_begin(&iter);
+    dict_write_uint8(iter, 0, 0);
+    app_message_outbox_send();
+  }
 }
 
-// ── Tick handler ──────────────────────────────────────────────────────────────
-static void tick_handler(struct tm *tick_time, TimeUnits changed) {
-  update_time(tick_time);
-}
+static void tick_handler(struct tm *tick_time, TimeUnits changed) { update_time(tick_time); }
 
-// ── Health handler ────────────────────────────────────────────────────────────
 #if defined(PBL_HEALTH)
 static void health_handler(HealthEventType event, void *context) {
   if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate) {
@@ -191,19 +369,16 @@ static void health_handler(HealthEventType event, void *context) {
 // ── Window load ───────────────────────────────────────────────────────────────
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
-  int third = SCREEN_W / 3;
 
-  s_font_header = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-  s_font_clock  = fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49);
-  s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_09);
-  s_font_value  = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
+  s_font_header = fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK);
+  s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  s_font_value  = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
 
-  // ── HEADER ────────────────────────────────────────────────────────────────
   s_header_layer = layer_create(GRect(0, 0, SCREEN_W, HEADER_H));
   layer_set_update_proc(s_header_layer, header_update_proc);
   layer_add_child(root, s_header_layer);
 
-  s_day_layer = text_layer_create(GRect(0, 4, DATEBOX_X, 26));
+  s_day_layer = text_layer_create(GRect(2, DATEBOX_Y, DATEBOX_X - 2, DATEBOX_H));
   text_layer_set_background_color(s_day_layer, GColorClear);
   text_layer_set_text_color(s_day_layer, COL_WEEKDAY);
   text_layer_set_font(s_day_layer, s_font_header);
@@ -217,51 +392,45 @@ static void window_load(Window *window) {
   text_layer_set_text_alignment(s_date_num_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_date_num_layer));
 
-  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W, 4, DATEBOX_X, 26));
+  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W + 2, DATEBOX_Y, DATEBOX_X - 2, DATEBOX_H));
   text_layer_set_background_color(s_month_layer, GColorClear);
   text_layer_set_text_color(s_month_layer, COL_WHITE);
   text_layer_set_font(s_month_layer, s_font_header);
   text_layer_set_text_alignment(s_month_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_month_layer));
 
-  // ── CLOCK ─────────────────────────────────────────────────────────────────
-  s_time_layer = text_layer_create(GRect(4, CLOCK_Y, SCREEN_W - 8, CLOCK_H));
-  text_layer_set_background_color(s_time_layer, COL_BG);
-  text_layer_set_text_color(s_time_layer, COL_WHITE);
-  text_layer_set_font(s_time_layer, s_font_clock);
-  text_layer_set_text_alignment(s_time_layer, GTextAlignmentCenter);
-  layer_add_child(root, text_layer_get_layer(s_time_layer));
+  s_clock_layer = layer_create(GRect(0, CLOCK_Y, SCREEN_W, CLOCK_H));
+  layer_set_update_proc(s_clock_layer, clock_update_proc);
+  layer_add_child(root, s_clock_layer);
 
-  // ── STEP BAR ──────────────────────────────────────────────────────────────
   s_stepbar_layer = layer_create(GRect(0, STEPBAR_Y, SCREEN_W, STEPBAR_H));
   layer_set_update_proc(s_stepbar_layer, stepbar_update_proc);
   layer_add_child(root, s_stepbar_layer);
 
-  // ── FOOTER ────────────────────────────────────────────────────────────────
   s_footer_layer = layer_create(GRect(0, FOOTER_Y, SCREEN_W, FOOTER_H));
   layer_set_update_proc(s_footer_layer, footer_update_proc);
   layer_add_child(root, s_footer_layer);
 
-  // WEATHER label
-  s_weather_label = text_layer_create(GRect(0, 2, third, 12));
+  // Weather label + value — icon is drawn in footer_update_proc at x=0..20
+  // Value starts at x=20 to leave room for icon
+  s_weather_label = text_layer_create(GRect(4, 2, HRBOX_X - BOX_GAP - 4, 14));
   text_layer_set_background_color(s_weather_label, GColorClear);
   text_layer_set_text_color(s_weather_label, COL_WHITE);
   text_layer_set_font(s_weather_label, s_font_label);
-  text_layer_set_text_alignment(s_weather_label, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_weather_label, GTextAlignmentLeft);
   text_layer_set_text(s_weather_label, "WEATHER");
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_label));
 
-  s_weather_val = text_layer_create(GRect(0, 14, third, 38));
+  s_weather_val = text_layer_create(GRect(22, 14, HRBOX_X - BOX_GAP - 22, 38));
   text_layer_set_background_color(s_weather_val, GColorClear);
   text_layer_set_text_color(s_weather_val, COL_WHITE);
   text_layer_set_font(s_weather_val, s_font_value);
-  text_layer_set_text_alignment(s_weather_val, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_weather_val, GTextAlignmentLeft);
   snprintf(s_weather_buf, sizeof(s_weather_buf), "--");
   text_layer_set_text(s_weather_val, s_weather_buf);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_val));
 
-  // HR label + value (centre, blue bg)
-  s_hr_label = text_layer_create(GRect(third, 2, third, 12));
+  s_hr_label = text_layer_create(GRect(HRBOX_X, 2, BOX_W, 14));
   text_layer_set_background_color(s_hr_label, GColorClear);
   text_layer_set_text_color(s_hr_label, COL_WHITE);
   text_layer_set_font(s_hr_label, s_font_label);
@@ -269,7 +438,7 @@ static void window_load(Window *window) {
   text_layer_set_text(s_hr_label, "HR");
   layer_add_child(s_footer_layer, text_layer_get_layer(s_hr_label));
 
-  s_hr_val = text_layer_create(GRect(third, 14, third, 38));
+  s_hr_val = text_layer_create(GRect(HRBOX_X, 14, BOX_W, 38));
   text_layer_set_background_color(s_hr_val, GColorClear);
   text_layer_set_text_color(s_hr_val, COL_WHITE);
   text_layer_set_font(s_hr_val, s_font_value);
@@ -278,25 +447,26 @@ static void window_load(Window *window) {
   text_layer_set_text(s_hr_val, s_hr_buf);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_hr_val));
 
-  // STEPS label + value
-  s_steps_label = text_layer_create(GRect(third * 2, 2, third, 12));
+  int steps_x = HRBOX_X + BOX_W + BOX_GAP;
+  int steps_w = SCREEN_W - steps_x - 4;
+
+  s_steps_label = text_layer_create(GRect(steps_x, 2, steps_w, 14));
   text_layer_set_background_color(s_steps_label, GColorClear);
   text_layer_set_text_color(s_steps_label, COL_WHITE);
   text_layer_set_font(s_steps_label, s_font_label);
-  text_layer_set_text_alignment(s_steps_label, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_steps_label, GTextAlignmentRight);
   text_layer_set_text(s_steps_label, "STEPS");
   layer_add_child(s_footer_layer, text_layer_get_layer(s_steps_label));
 
-  s_steps_val = text_layer_create(GRect(third * 2, 14, third, 38));
+  s_steps_val = text_layer_create(GRect(steps_x, 14, steps_w, 38));
   text_layer_set_background_color(s_steps_val, GColorClear);
   text_layer_set_text_color(s_steps_val, COL_WHITE);
   text_layer_set_font(s_steps_val, s_font_value);
-  text_layer_set_text_alignment(s_steps_val, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_steps_val, GTextAlignmentRight);
   snprintf(s_steps_buf, sizeof(s_steps_buf), "0");
   text_layer_set_text(s_steps_val, s_steps_buf);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_steps_val));
 
-  // ── Seed initial values ───────────────────────────────────────────────────
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   update_time(t);
@@ -305,7 +475,6 @@ static void window_load(Window *window) {
   s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
   snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", s_step_count);
   text_layer_set_text(s_steps_val, s_steps_buf);
-
   HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
   if (hr > 0) {
     snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", (int)hr);
@@ -320,7 +489,7 @@ static void window_unload(Window *window) {
   text_layer_destroy(s_day_layer);
   text_layer_destroy(s_date_num_layer);
   text_layer_destroy(s_month_layer);
-  text_layer_destroy(s_time_layer);
+  layer_destroy(s_clock_layer);
   layer_destroy(s_stepbar_layer);
   layer_destroy(s_footer_layer);
   text_layer_destroy(s_weather_label);
@@ -331,17 +500,18 @@ static void window_unload(Window *window) {
   text_layer_destroy(s_steps_val);
 }
 
-// ── App lifecycle ─────────────────────────────────────────────────────────────
 static void init(void) {
   s_window = window_create();
   window_set_background_color(s_window, COL_BG);
   window_set_window_handlers(s_window, (WindowHandlers){
-    .load   = window_load,
-    .unload = window_unload,
+    .load = window_load, .unload = window_unload,
   });
   window_stack_push(s_window, true);
-
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+
+  // AppMessage — receive weather from phone
+  app_message_register_inbox_received(inbox_received_handler);
+  app_message_open(128, 128);
 
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
@@ -350,14 +520,11 @@ static void init(void) {
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
+  app_message_deregister_callbacks();
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
 #endif
   window_destroy(s_window);
 }
 
-int main(void) {
-  init();
-  app_event_loop();
-  deinit();
-}
+int main(void) { init(); app_event_loop(); deinit(); }
