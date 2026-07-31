@@ -51,7 +51,7 @@ static TextLayer     *s_steps_val;
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 static GFont s_font_header;    // day / month text
-static GFont s_font_clock;     // large time digits — LECO 38 (tall, narrow)
+static GFont s_font_clock;     // large time digits
 static GFont s_font_label;     // tiny WEATHER / HR / STEPS labels
 static GFont s_font_value;     // footer values (larger)
 
@@ -221,7 +221,7 @@ static void window_load(Window *window) {
 
   // Fonts
   s_font_header = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-  s_font_clock  = fonts_get_system_font(FONT_KEY_LECO_38_BOLD_NUMBERS);
+  s_font_clock  = fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49);
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_09);
   s_font_value  = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
 
@@ -255,7 +255,7 @@ static void window_load(Window *window) {
   layer_add_child(s_header_layer, text_layer_get_layer(s_month_layer));
 
   // ── CLOCK ─────────────────────────────────────────────────────────────────
-  s_time_layer = text_layer_create(GRect(0, CLOCK_Y, 144, CLOCK_H));
+  s_time_layer = text_layer_create(GRect(4, CLOCK_Y, 136, CLOCK_H));
   text_layer_set_background_color(s_time_layer, COL_BG);
   text_layer_set_text_color(s_time_layer, COL_WHITE);
   text_layer_set_font(s_time_layer, s_font_clock);
