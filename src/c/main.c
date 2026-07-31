@@ -28,20 +28,20 @@
 #define UNDERLINE_GAP    BOX_GAP
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
-#define STEP_GOAL        10000
+#define STEP_GOAL        5000
 #define BAR_MARGIN        8
 
 // ── Digit drawing ─────────────────────────────────────────────────────────────
 #define DIGIT_WIDTH      40
-#define STK              13
+#define STK              15
 #define DIGIT_MARGIN      6
-#define COLON_WIDTH      12
+#define COLON_WIDTH      9
 #define COLON_MARGIN     DIGIT_MARGIN
 #define ONE_X_OFFSET      8
 #define COLON_DOT         9
 #define DIGIT_HEIGHT    106
 #define H1_ONE_X          5
-#define H1_WIDTH         (H1_ONE_X + STK + DIGIT_MARGIN)
+#define H1_WIDTH         (H1_ONE_X + STK)
 #define HALF_V           (DIGIT_HEIGHT / 2)
 
 #define CLOCK_TOTAL_W    (H1_WIDTH + DIGIT_MARGIN + DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + DIGIT_WIDTH + DIGIT_MARGIN + DIGIT_WIDTH)
@@ -96,6 +96,8 @@ static Layer     *s_stepbar_layer;
 static Layer     *s_footer_layer;
 static TextLayer *s_weather_label;
 static TextLayer *s_weather_val;
+static BitmapLayer *s_weather_icon_layer;
+static GBitmap     *s_weather_icon_bitmap;
 static TextLayer *s_hr_label;
 static TextLayer *s_hr_val;
 static TextLayer *s_steps_label;
@@ -110,7 +112,7 @@ static GFont s_font_value;
 static char s_day_buf[4];
 static char s_date_buf[3];
 static char s_month_buf[4];
-static char s_hr_buf[6];
+static char s_hr_buf[12];
 static char s_steps_buf[8];
 static char s_weather_buf[12];  // e.g. "72°" or "--"
 static int  s_step_count  = 0;
@@ -171,63 +173,24 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
 }
 
-// ── Weather icon drawing ──────────────────────────────────────────────────────
-// Draws a small icon in the weather zone of the footer.
-// cx/cy = centre of icon, r = radius
-static void draw_weather_icon(GContext *ctx, int cx, int cy, int icon) {
-  graphics_context_set_fill_color(ctx, COL_WHITE);
-  switch (icon) {
-    case 0:  // Clear / sun — circle with rays
-      graphics_fill_circle(ctx, GPoint(cx, cy), 5);
-      for (int i = 0; i < 8; i++) {
-        int angle = i * TRIG_MAX_ANGLE / 8;
-        int x1 = cx + (sin_lookup(angle) * 7 / TRIG_MAX_RATIO);
-        int y1 = cy - (cos_lookup(angle) * 7 / TRIG_MAX_RATIO);
-        int x2 = cx + (sin_lookup(angle) * 9 / TRIG_MAX_RATIO);
-        int y2 = cy - (cos_lookup(angle) * 9 / TRIG_MAX_RATIO);
-        graphics_context_set_stroke_color(ctx, COL_WHITE);
-        graphics_context_set_stroke_width(ctx, 1);
-        graphics_draw_line(ctx, GPoint(x1, y1), GPoint(x2, y2));
-      }
-      break;
-    case 1:  // Cloudy
-      graphics_fill_circle(ctx, GPoint(cx - 4, cy + 2), 4);
-      graphics_fill_circle(ctx, GPoint(cx + 4, cy + 2), 4);
-      graphics_fill_circle(ctx, GPoint(cx,     cy - 1), 5);
-      graphics_fill_rect(ctx, GRect(cx - 8, cy + 2, 16, 4), 0, GCornerNone);
-      break;
-    case 2:  // Rain — cloud + drops
-      graphics_fill_circle(ctx, GPoint(cx - 3, cy), 3);
-      graphics_fill_circle(ctx, GPoint(cx + 3, cy), 3);
-      graphics_fill_circle(ctx, GPoint(cx,     cy - 3), 4);
-      graphics_fill_rect(ctx, GRect(cx - 6, cy, 12, 3), 0, GCornerNone);
-      // Rain drops
-      graphics_context_set_stroke_color(ctx, COL_WHITE);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, GPoint(cx - 4, cy + 5), GPoint(cx - 5, cy + 8));
-      graphics_draw_line(ctx, GPoint(cx,     cy + 5), GPoint(cx - 1, cy + 8));
-      graphics_draw_line(ctx, GPoint(cx + 4, cy + 5), GPoint(cx + 3, cy + 8));
-      break;
-    case 3:  // Snow — snowflake
-      graphics_context_set_stroke_color(ctx, COL_WHITE);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, GPoint(cx, cy - 7), GPoint(cx, cy + 7));
-      graphics_draw_line(ctx, GPoint(cx - 6, cy - 3), GPoint(cx + 6, cy + 3));
-      graphics_draw_line(ctx, GPoint(cx - 6, cy + 3), GPoint(cx + 6, cy - 3));
-      break;
-    case 4:  // Thunder — lightning bolt
-      graphics_fill_rect(ctx, GRect(cx - 1, cy - 7, 4, 7), 0, GCornerNone);
-      graphics_fill_rect(ctx, GRect(cx - 4, cy,     4, 7), 0, GCornerNone);
-      break;
-    default: // No data — dash
-      graphics_context_set_stroke_color(ctx, COL_WHITE);
-      graphics_context_set_stroke_width(ctx, 2);
-      graphics_draw_line(ctx, GPoint(cx - 4, cy), GPoint(cx + 4, cy));
-      break;
+// ── Weather icon bitmap update ────────────────────────────────────────────────
+static void update_weather_icon(int icon_code) {
+  if (s_weather_icon_bitmap) {
+    gbitmap_destroy(s_weather_icon_bitmap);
+    s_weather_icon_bitmap = NULL;
   }
+  uint32_t resource_id;
+  switch (icon_code) {
+    case 0:  resource_id = RESOURCE_ID_IMAGE_ICON_CLEAR;   break;
+    case 1:  resource_id = RESOURCE_ID_IMAGE_ICON_CLOUDY;  break;
+    case 2:  resource_id = RESOURCE_ID_IMAGE_ICON_RAIN;    break;
+    case 3:  resource_id = RESOURCE_ID_IMAGE_ICON_SNOW;    break;
+    case 4:  resource_id = RESOURCE_ID_IMAGE_ICON_THUNDER; break;
+    default: resource_id = RESOURCE_ID_IMAGE_ICON_NA;      break;
+  }
+  s_weather_icon_bitmap = gbitmap_create_with_resource(resource_id);
+  bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon_bitmap);
 }
-
-// ── Clock layer ───────────────────────────────────────────────────────────────
 static void clock_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
@@ -251,7 +214,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, COL_BLUE);
   graphics_fill_rect(ctx, GRect(DATEBOX_X, DATEBOX_Y, DATEBOX_W, DATEBOX_H), 0, GCornerNone);
-  int line_y = DATEBOX_Y + DATEBOX_H;
+  int line_y = DATEBOX_Y + DATEBOX_H - 2;
   graphics_context_set_fill_color(ctx, COL_BLUE);
   graphics_fill_rect(ctx, GRect(0, line_y, DATEBOX_X - UNDERLINE_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(DATEBOX_X + DATEBOX_W + UNDERLINE_GAP, line_y, SCREEN_W - DATEBOX_X - DATEBOX_W - UNDERLINE_GAP, 2), 0, GCornerNone);
@@ -273,14 +236,14 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 3), 0, GCornerNone);
   } else {
     graphics_context_set_stroke_color(ctx, COL_BLUE);
-    graphics_context_set_stroke_width(ctx, 1);
+    graphics_context_set_stroke_width(ctx, 2);
     for (int x = bar_x; x < bar_x + bar_w; x += 4) {
       graphics_draw_pixel(ctx, GPoint(x,     cy));
       graphics_draw_pixel(ctx, GPoint(x + 1, cy));
     }
     if (fill_half > 0) {
       graphics_context_set_fill_color(ctx, COL_WHITE);
-      graphics_fill_rect(ctx, GRect(bar_cx - fill_half, cy - 1, fill_half * 2, 3), 0, GCornerNone);
+      graphics_fill_rect(ctx, GRect(bar_cx - fill_half, cy - 1, fill_half * 2, 4), 0, GCornerNone);
     }
   }
 }
@@ -295,12 +258,6 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, COL_BLUE);
   graphics_fill_rect(ctx, GRect(0, 0, HRBOX_X - BOX_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(HRBOX_X + BOX_W + BOX_GAP, 0, SCREEN_W - HRBOX_X - BOX_W - BOX_GAP, 2), 0, GCornerNone);
-
-  // Weather icon — drawn to the left of the temperature text
-  // Icon sits in the left zone, centred vertically, left of centre of zone
-  int icon_cx = 10;
-  int icon_cy = b.size.h / 2 + 4;
-  draw_weather_icon(ctx, icon_cx, icon_cy, s_weather_icon);
 }
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
@@ -315,8 +272,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if (icon_tuple) {
     s_weather_icon = (int)icon_tuple->value->int32;
-    // Redraw footer to update icon
-    layer_mark_dirty(s_footer_layer);
+    update_weather_icon(s_weather_icon);
   }
 }
 
@@ -421,7 +377,7 @@ static void window_load(Window *window) {
   text_layer_set_text(s_weather_label, "WEATHER");
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_label));
 
-  s_weather_val = text_layer_create(GRect(22, 14, HRBOX_X - BOX_GAP - 22, 38));
+  s_weather_val = text_layer_create(GRect(4, 14, HRBOX_X - BOX_GAP - 4, 38));
   text_layer_set_background_color(s_weather_val, GColorClear);
   text_layer_set_text_color(s_weather_val, COL_WHITE);
   text_layer_set_font(s_weather_val, s_font_value);
@@ -429,6 +385,13 @@ static void window_load(Window *window) {
   snprintf(s_weather_buf, sizeof(s_weather_buf), "--");
   text_layer_set_text(s_weather_val, s_weather_buf);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_val));
+
+  // Weather icon — BitmapLayer, 25x25px, right of temperature text
+  s_weather_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_NA);
+  s_weather_icon_layer  = bitmap_layer_create(GRect(40, 18, 25, 25));
+  bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon_bitmap);
+  bitmap_layer_set_compositing_mode(s_weather_icon_layer, GCompOpSet);
+  layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_weather_icon_layer));
 
   s_hr_label = text_layer_create(GRect(HRBOX_X, 2, BOX_W, 14));
   text_layer_set_background_color(s_hr_label, GColorClear);
@@ -494,6 +457,8 @@ static void window_unload(Window *window) {
   layer_destroy(s_footer_layer);
   text_layer_destroy(s_weather_label);
   text_layer_destroy(s_weather_val);
+  bitmap_layer_destroy(s_weather_icon_layer);
+  if (s_weather_icon_bitmap) gbitmap_destroy(s_weather_icon_bitmap);
   text_layer_destroy(s_hr_label);
   text_layer_destroy(s_hr_val);
   text_layer_destroy(s_steps_label);

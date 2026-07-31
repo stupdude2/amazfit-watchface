@@ -1,29 +1,69 @@
 {
-  "name": "amazfit-bip-port",
-  "author": "Bradford",
-  "version": "1.0.0",
-  "keywords": ["pebble-app"],
-  "private": true,
-  "dependencies": {},
-  "pebble": {
-    "displayName": "Amazfit Bip Port",
-    "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "sdkVersion": "4",
-    "enableMultiJS": true,
-    "longName": "Amazfit Bip Port",
-    "shortName": "BipPort",
-    "versionLabel": "1.0",
-    "targetPlatforms": ["emery"],
-    "watchapp": {
-      "watchface": true
-    },
-    "capabilities": ["health"],
-    "messageKeys": [
-      "TEMPERATURE",
-      "WEATHER_ICON"
+    "author": "Bradford",
+    "dependencies": {},
+    "keywords": [
+        "pebble-app"
     ],
-    "resources": {
-      "media": []
-    }
-  }
+    "name": "amazfit-bip-port",
+    "pebble": {
+        "capabilities": [
+            "health"
+        ],
+        "displayName": "Amazfit Bip Port",
+        "enableMultiJS": true,
+        "messageKeys": [
+            "TEMPERATURE",
+            "WEATHER_ICON"
+        ],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "file": "images/icons8-storm-25.png",
+                    "name": "IMAGE_ICON_THUNDER",
+                    "targetPlatforms": null,
+                    "type": "png"
+                },
+                {
+                    "file": "images/icons8-sun-25.png",
+                    "name": "IMAGE_ICON_CLEAR",
+                    "targetPlatforms": null,
+                    "type": "png"
+                },
+                {
+                    "file": "images/icons8-winter-25.png",
+                    "name": "IMAGE_ICON_SNOW",
+                    "targetPlatforms": null,
+                    "type": "png"
+                },
+                {
+                    "file": "images/icons8-cloud-25.png",
+                    "name": "IMAGE_ICON_CLOUDY",
+                    "targetPlatforms": null,
+                    "type": "png"
+                },
+                {
+                    "file": "images/icons8-empty-25.png",
+                    "name": "IMAGE_ICON_NA",
+                    "targetPlatforms": null,
+                    "type": "pbi"
+                },
+                {
+                    "file": "images/icons8-rain-25.png",
+                    "name": "IMAGE_ICON_RAIN",
+                    "targetPlatforms": null,
+                    "type": "png"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "emery"
+        ],
+        "uuid": "e46902d5-5ef3-4ed2-aad9-fb7deacd56d2",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "1.0.0"
 }
