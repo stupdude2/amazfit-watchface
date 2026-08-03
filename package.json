@@ -19,6 +19,12 @@
         "resources": {
             "media": [
                 {
+                    "file": "fonts/Helvetica-Narrow Bold.ttf",
+                    "name": "FONT_HEADER_28",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
                     "file": "images/icons8-storm-25.png",
                     "name": "IMAGE_ICON_THUNDER",
                     "targetPlatforms": null,

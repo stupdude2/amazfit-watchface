@@ -20,8 +20,8 @@
 #define BOX_W            50
 #define BOX_GAP           3
 #define DATEBOX_W        BOX_W
-#define DATEBOX_Y         4
-#define DATEBOX_H        (HEADER_H - DATEBOX_Y - BOX_GAP - 2)
+#define DATEBOX_Y         0    // extends to top of screen
+#define DATEBOX_H        (HEADER_H - BOX_GAP - 2)
 #define DATEBOX_X        ((SCREEN_W - DATEBOX_W) / 2)
 #define HRBOX_X          (THIRD + (THIRD - BOX_W) / 2)
 #define HRBOX_Y           0
@@ -53,8 +53,8 @@
 #define M2_X             (M1_X + DIGIT_WIDTH + DIGIT_MARGIN)
 
 // ── AppMessage keys ───────────────────────────────────────────────────────────
-#define KEY_TEMPERATURE  0    // integer °F (or °C depending on JS)
-#define KEY_WEATHER_ICON 1    // integer: 0=clear, 1=cloudy, 2=rain, 3=snow, 4=thunder
+#define KEY_TEMPERATURE  0
+#define KEY_WEATHER_ICON 1
 
 // ── Segment bitmasks ──────────────────────────────────────────────────────────
 #define SEG_TOP    (1<<0)
@@ -114,11 +114,11 @@ static char s_date_buf[3];
 static char s_month_buf[4];
 static char s_hr_buf[12];
 static char s_steps_buf[8];
-static char s_weather_buf[12];  // e.g. "72°" or "--"
+static char s_weather_buf[12];
 static int  s_step_count  = 0;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
-static int  s_weather_icon = -1;  // -1 = no data yet
+static int  s_weather_icon = -1;
 
 static void to_upper(char *s) {
   for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
@@ -173,7 +173,7 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
 }
 
-// ── Weather icon bitmap update ────────────────────────────────────────────────
+// ── Weather icon ──────────────────────────────────────────────────────────────
 static void update_weather_icon(int icon_code) {
   if (s_weather_icon_bitmap) {
     gbitmap_destroy(s_weather_icon_bitmap);
@@ -191,6 +191,8 @@ static void update_weather_icon(int icon_code) {
   s_weather_icon_bitmap = gbitmap_create_with_resource(resource_id);
   bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon_bitmap);
 }
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
 static void clock_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
@@ -208,6 +210,8 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
+// Datebox starts at y=0 (top of screen) and extends to the underline row.
+// The header layer itself starts at y=0 so DATEBOX_Y=0 reaches the screen top.
 static void header_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
@@ -249,6 +253,7 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
 }
 
 // ── Footer ────────────────────────────────────────────────────────────────────
+// HR box fills from y=0 to bottom of screen (footer layer extends to screen bottom).
 static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
@@ -264,7 +269,6 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *temp_tuple = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   Tuple *icon_tuple = dict_find(iter, MESSAGE_KEY_WEATHER_ICON);
-
   if (temp_tuple) {
     int temp = (int)temp_tuple->value->int32;
     snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
@@ -277,15 +281,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
-
 static void update_time(struct tm *tick_time) {
-  
-  // TEMP: force time for testing — remove before release
-  //s_hour   = 12;  // change this to test different hours
-  //s_minute = 59;  // change this to test different minutes
-  //layer_mark_dirty(s_clock_layer);
-  // ... rest of function
-  
   s_hour   = tick_time->tm_hour % 12;
   if (s_hour == 0) s_hour = 12;
   s_minute = tick_time->tm_min;
@@ -301,7 +297,6 @@ static void update_time(struct tm *tick_time) {
   text_layer_set_text(s_date_num_layer, d);
   text_layer_set_text(s_month_layer, s_month_buf);
 
-  // Fetch weather every 30 minutes
   if (tick_time->tm_min % 30 == 0) {
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -334,49 +329,54 @@ static void health_handler(HealthEventType event, void *context) {
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
 
-  s_font_header = fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK);
+  s_font_header = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEADER_28));
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   s_font_value  = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
 
+  // Header — full height, datebox starts at y=0
   s_header_layer = layer_create(GRect(0, 0, SCREEN_W, HEADER_H));
   layer_set_update_proc(s_header_layer, header_update_proc);
   layer_add_child(root, s_header_layer);
 
-  s_day_layer = text_layer_create(GRect(0, DATEBOX_Y, DATEBOX_X - 0, DATEBOX_H));
+  // Text layers vertically centred in the datebox
+  int text_y = DATEBOX_Y + (DATEBOX_H - 34) / 2;
+
+  s_day_layer = text_layer_create(GRect(0, text_y, DATEBOX_X, 32));
   text_layer_set_background_color(s_day_layer, GColorClear);
   text_layer_set_text_color(s_day_layer, COL_WEEKDAY);
   text_layer_set_font(s_day_layer, s_font_header);
   text_layer_set_text_alignment(s_day_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_day_layer));
 
-  s_date_num_layer = text_layer_create(GRect(DATEBOX_X, DATEBOX_Y, DATEBOX_W, DATEBOX_H));
+  s_date_num_layer = text_layer_create(GRect(DATEBOX_X, text_y, DATEBOX_W, 32));
   text_layer_set_background_color(s_date_num_layer, GColorClear);
   text_layer_set_text_color(s_date_num_layer, COL_WHITE);
   text_layer_set_font(s_date_num_layer, s_font_header);
   text_layer_set_text_alignment(s_date_num_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_date_num_layer));
 
-  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W + 1, DATEBOX_Y, DATEBOX_X - 1, DATEBOX_H));
+  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W, text_y, DATEBOX_X, 32));
   text_layer_set_background_color(s_month_layer, GColorClear);
   text_layer_set_text_color(s_month_layer, COL_WHITE);
   text_layer_set_font(s_month_layer, s_font_header);
   text_layer_set_text_alignment(s_month_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_month_layer));
 
+  // Clock
   s_clock_layer = layer_create(GRect(0, CLOCK_Y, SCREEN_W, CLOCK_H));
   layer_set_update_proc(s_clock_layer, clock_update_proc);
   layer_add_child(root, s_clock_layer);
 
+  // Step bar
   s_stepbar_layer = layer_create(GRect(0, STEPBAR_Y, SCREEN_W, STEPBAR_H));
   layer_set_update_proc(s_stepbar_layer, stepbar_update_proc);
   layer_add_child(root, s_stepbar_layer);
 
-  s_footer_layer = layer_create(GRect(0, FOOTER_Y, SCREEN_W, FOOTER_H));
+  // Footer — extends to bottom of screen
+  s_footer_layer = layer_create(GRect(0, FOOTER_Y, SCREEN_W, SCREEN_H - FOOTER_Y));
   layer_set_update_proc(s_footer_layer, footer_update_proc);
   layer_add_child(root, s_footer_layer);
 
-  // Weather label + value — icon is drawn in footer_update_proc at x=0..20
-  // Value starts at x=20 to leave room for icon
   s_weather_label = text_layer_create(GRect(4, 2, HRBOX_X - BOX_GAP - 4, 14));
   text_layer_set_background_color(s_weather_label, GColorClear);
   text_layer_set_text_color(s_weather_label, COL_WHITE);
@@ -394,7 +394,6 @@ static void window_load(Window *window) {
   text_layer_set_text(s_weather_val, s_weather_buf);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_val));
 
-  // Weather icon — BitmapLayer, 25x25px, right of temperature text
   s_weather_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_NA);
   s_weather_icon_layer  = bitmap_layer_create(GRect(40, 18, 25, 25));
   bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon_bitmap);
@@ -456,6 +455,7 @@ static void window_load(Window *window) {
 
 // ── Window unload ─────────────────────────────────────────────────────────────
 static void window_unload(Window *window) {
+  fonts_unload_custom_font(s_font_header);
   layer_destroy(s_header_layer);
   text_layer_destroy(s_day_layer);
   text_layer_destroy(s_date_num_layer);
@@ -481,11 +481,8 @@ static void init(void) {
   });
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
-
-  // AppMessage — receive weather from phone
   app_message_register_inbox_received(inbox_received_handler);
   app_message_open(128, 128);
-
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif
