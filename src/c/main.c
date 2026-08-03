@@ -5,7 +5,7 @@
 #define SCREEN_H        228
 
 // ── Zone heights ──────────────────────────────────────────────────────────────
-#define HEADER_H         48
+#define HEADER_H         52
 #define STEPBAR_H        12
 #define FOOTER_H         46
 #define CLOCK_Y          HEADER_H
@@ -32,15 +32,15 @@
 #define BAR_MARGIN        8
 
 // ── Digit drawing ─────────────────────────────────────────────────────────────
-#define DIGIT_WIDTH      40
+#define DIGIT_WIDTH      46
 #define STK              15
 #define DIGIT_MARGIN      6
 #define COLON_WIDTH      9
 #define COLON_MARGIN     DIGIT_MARGIN
 #define ONE_X_OFFSET      8
 #define COLON_DOT         9
-#define DIGIT_HEIGHT    106
-#define H1_ONE_X          5
+#define DIGIT_HEIGHT    110
+#define H1_ONE_X          1
 #define H1_WIDTH         (H1_ONE_X + STK)
 #define HALF_V           (DIGIT_HEIGHT / 2)
 
@@ -232,8 +232,8 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   int fill_half = (steps >= STEP_GOAL) ? bar_w / 2 : (steps * (bar_w / 2) / STEP_GOAL);
   int bar_cx    = bar_x + bar_w / 2;
   if (steps >= STEP_GOAL) {
-    graphics_context_set_fill_color(ctx, COL_BLUE);
-    graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 3), 0, GCornerNone);
+    graphics_context_set_fill_color(ctx, COL_WHITE);
+    graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
   } else {
     graphics_context_set_stroke_color(ctx, COL_BLUE);
     graphics_context_set_stroke_width(ctx, 2);
@@ -277,7 +277,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
+
 static void update_time(struct tm *tick_time) {
+  
+  // TEMP: force time for testing — remove before release
+  //s_hour   = 12;  // change this to test different hours
+  //s_minute = 59;  // change this to test different minutes
+  //layer_mark_dirty(s_clock_layer);
+  // ... rest of function
+  
   s_hour   = tick_time->tm_hour % 12;
   if (s_hour == 0) s_hour = 12;
   s_minute = tick_time->tm_min;
@@ -334,7 +342,7 @@ static void window_load(Window *window) {
   layer_set_update_proc(s_header_layer, header_update_proc);
   layer_add_child(root, s_header_layer);
 
-  s_day_layer = text_layer_create(GRect(2, DATEBOX_Y, DATEBOX_X - 2, DATEBOX_H));
+  s_day_layer = text_layer_create(GRect(0, DATEBOX_Y, DATEBOX_X - 0, DATEBOX_H));
   text_layer_set_background_color(s_day_layer, GColorClear);
   text_layer_set_text_color(s_day_layer, COL_WEEKDAY);
   text_layer_set_font(s_day_layer, s_font_header);
@@ -348,7 +356,7 @@ static void window_load(Window *window) {
   text_layer_set_text_alignment(s_date_num_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_date_num_layer));
 
-  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W + 2, DATEBOX_Y, DATEBOX_X - 2, DATEBOX_H));
+  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W + 1, DATEBOX_Y, DATEBOX_X - 1, DATEBOX_H));
   text_layer_set_background_color(s_month_layer, GColorClear);
   text_layer_set_text_color(s_month_layer, COL_WHITE);
   text_layer_set_font(s_month_layer, s_font_header);
