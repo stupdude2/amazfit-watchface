@@ -106,9 +106,15 @@ if (edition.isPro) {
         "serializeValueAs": "integer",
         "label": "Progress Style",
         "options": [
-          { "label": "Mirrored from Center", "value": "0" },
-          { "label": "Left to Right", "value": "1" },
-          { "label": "Hidden", "value": "2" }
+          { "label": "Mirrored Below Time", "value": "0" },
+          { "label": "Left to Right Below Time", "value": "1" },
+          { "label": "Hidden", "value": "2" },
+          { "label": "Mirrored Above Time", "value": "3" },
+          { "label": "Left to Right Above Time", "value": "4" },
+          { "label": "Mirrored Below Time — With Backlight", "value": "5" },
+          { "label": "Left to Right Below Time — With Backlight", "value": "6" },
+          { "label": "Mirrored Above Time — With Backlight", "value": "7" },
+          { "label": "Left to Right Above Time — With Backlight", "value": "8" }
         ]
       }
     ]

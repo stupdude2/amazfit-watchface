@@ -92,7 +92,13 @@ typedef enum {
 typedef enum {
   STEPBAR_MIRRORED = 0,
   STEPBAR_LEFT_TO_RIGHT = 1,
-  STEPBAR_HIDDEN = 2
+  STEPBAR_HIDDEN = 2,
+  STEPBAR_MIRRORED_ABOVE = 3,
+  STEPBAR_LEFT_TO_RIGHT_ABOVE = 4,
+  STEPBAR_MIRRORED_BACKLIGHT = 5,
+  STEPBAR_LEFT_TO_RIGHT_BACKLIGHT = 6,
+  STEPBAR_MIRRORED_ABOVE_BACKLIGHT = 7,
+  STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT = 8
 } StepbarMode;
 
 typedef struct {
@@ -127,7 +133,7 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->right_slot <= SLOT_BLUETOOTH &&
          settings->footer_mode <= BAR_BACKLIGHT &&
          settings->header_mode <= BAR_BACKLIGHT &&
-         settings->stepbar_mode <= STEPBAR_HIDDEN;
+         settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
 }
 
 static void settings_load(void) {
@@ -404,13 +410,63 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
 
   if (fill_w <= 0) return;
   graphics_context_set_fill_color(ctx, COL_WHITE);
-  if (s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT) {
+  if (stepbar_is_left_to_right()) {
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, fill_w, 4), 0, GCornerNone);
   } else {
     int half_fill = fill_w / 2;
     int bar_cx = bar_x + bar_w / 2;
     graphics_fill_rect(ctx, GRect(bar_cx - half_fill, cy - 1, half_fill * 2, 4), 0, GCornerNone);
   }
+}
+
+// Reflow the clock and step-progress zones when the bar moves or is hidden.
+// With the step bar hidden, the clock gets the full space between header/footer,
+// so its existing centering math automatically centers the digits vertically.
+static bool stepbar_is_backlight_only(void) {
+  return s_settings.stepbar_mode >= STEPBAR_MIRRORED_BACKLIGHT &&
+         s_settings.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+}
+
+static bool stepbar_is_above(void) {
+  return s_settings.stepbar_mode == STEPBAR_MIRRORED_ABOVE ||
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE ||
+         s_settings.stepbar_mode == STEPBAR_MIRRORED_ABOVE_BACKLIGHT ||
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+}
+
+static bool stepbar_is_left_to_right(void) {
+  return s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT ||
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE ||
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_BACKLIGHT ||
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+}
+
+// With the step bar hidden (either permanently or while the backlight is off),
+// the clock gets the full space between header/footer and stays vertically centered.
+static void update_stepbar_layout(void) {
+  if (!s_clock_layer || !s_stepbar_layer) return;
+
+  const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
+  const bool visible = s_settings.stepbar_mode != STEPBAR_HIDDEN &&
+                       (!stepbar_is_backlight_only() || s_backlight_on);
+
+  if (!visible) {
+    layer_set_hidden(s_stepbar_layer, true);
+    layer_set_frame(s_clock_layer, GRect(0, HEADER_H, SCREEN_W, available_h));
+  } else if (stepbar_is_above()) {
+    layer_set_hidden(s_stepbar_layer, false);
+    layer_set_frame(s_stepbar_layer, GRect(0, HEADER_H, SCREEN_W, STEPBAR_H));
+    layer_set_frame(s_clock_layer,
+                    GRect(0, HEADER_H + STEPBAR_H, SCREEN_W, available_h - STEPBAR_H));
+  } else {
+    layer_set_hidden(s_stepbar_layer, false);
+    layer_set_frame(s_clock_layer, GRect(0, HEADER_H, SCREEN_W, available_h - STEPBAR_H));
+    layer_set_frame(s_stepbar_layer,
+                    GRect(0, HEADER_H + available_h - STEPBAR_H, SCREEN_W, STEPBAR_H));
+  }
+
+  layer_mark_dirty(s_clock_layer);
+  if (!layer_get_hidden(s_stepbar_layer)) layer_mark_dirty(s_stepbar_layer);
 }
 
 // ── Footer icon helpers ──────────────────────────────────────────────────────
@@ -633,6 +689,7 @@ static void apply_bar_visibility(void) {
 static void backlight_handler(bool on) {
   s_backlight_on = on;
   apply_bar_visibility();
+  update_stepbar_layout();
 }
 
 static void focus_handler(bool in_focus) {
@@ -644,12 +701,14 @@ static void focus_handler(bool in_focus) {
   // backlight-controlled bars immediately match what the user can actually see.
   s_backlight_on = light_is_on();
   apply_bar_visibility();
+  update_stepbar_layout();
 }
 
 static void update_bar_input_services(void) {
   const bool want_backlight =
       s_settings.footer_mode == BAR_BACKLIGHT ||
-      s_settings.header_mode == BAR_BACKLIGHT;
+      s_settings.header_mode == BAR_BACKLIGHT ||
+      stepbar_is_backlight_only();
 
   if (want_backlight && !s_backlight_subscribed) {
     backlight_service_subscribe(backlight_handler);
@@ -662,6 +721,7 @@ static void update_bar_input_services(void) {
   // Synchronize immediately rather than waiting for the next on/off transition.
   s_backlight_on = light_is_on();
   apply_bar_visibility();
+  update_stepbar_layout();
 }
 
 static void battery_handler(BatteryChargeState charge) {
@@ -789,7 +849,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_STEPBAR_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.stepbar_mode);
-        if (value >= STEPBAR_MIRRORED && value <= STEPBAR_HIDDEN) {
+        if (value >= STEPBAR_MIRRORED && value <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT) {
           s_settings.stepbar_mode = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar mode -> %ld", (long)value);
           layout_changed = true;
@@ -844,9 +904,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   if (layout_changed) {
     update_footer_content();
+    update_stepbar_layout();
     update_bar_input_services();
     apply_bar_visibility();
-    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
   }
 #endif
 }
@@ -943,6 +1003,7 @@ static void window_load(Window *window) {
   s_stepbar_layer = layer_create(GRect(0, STEPBAR_Y, SCREEN_W, STEPBAR_H));
   layer_set_update_proc(s_stepbar_layer, stepbar_update_proc);
   layer_add_child(root, s_stepbar_layer);
+  update_stepbar_layout();
 
   // Footer — extends to bottom of screen
   s_footer_layer = layer_create(GRect(0, FOOTER_Y, SCREEN_W, SCREEN_H - FOOTER_Y));
