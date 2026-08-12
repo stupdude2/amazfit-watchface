@@ -465,25 +465,34 @@ static void draw_bluetooth_icon(GContext *ctx, GPoint c, int size,
 }
 
 static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
-                           GColor color) {
-  int cx = area.origin.x + area.size.w / 2;
+                           GColor color, bool is_right_slot) {
   if (slot == SLOT_BATTERY) {
-    draw_battery_icon(ctx, GRect(cx - 9, 4, 18, 9),
+    // Keep the original battery shape, but make it wider and move it down.
+    // Side batteries align with the same edge as their percentage value.
+    const int icon_w = 36;
+    const int icon_h = 9;
+    const int icon_y = 7;
+    int icon_x = is_right_slot
+                   ? (area.origin.x + area.size.w - icon_w)
+                   : area.origin.x;
+    draw_battery_icon(ctx, GRect(icon_x, icon_y, icon_w, icon_h),
                       s_battery_percent, color);
-  } else if (slot == SLOT_BLUETOOTH) {
-    draw_bluetooth_icon(ctx, GPoint(cx, 8), 12,
-                        color, s_bluetooth_connected);
+  } else if (slot == SLOT_BLUETOOTH && s_bluetooth_connected) {
+    // Connected Bluetooth is icon-only and fills most of the footer height.
+    int cx = area.origin.x + area.size.w / 2;
+    draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, color, true);
   }
 }
 
 static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
   int cx = HRBOX_X + BOX_W / 2;
   if (slot == CENTER_BATTERY) {
-    draw_battery_icon(ctx, GRect(cx - 9, 4, 18, 9),
+    // Center battery remains centered above the percentage value.
+    draw_battery_icon(ctx, GRect(cx - 18, 7, 36, 9),
                       s_battery_percent, color);
-  } else if (slot == CENTER_BLUETOOTH) {
-    draw_bluetooth_icon(ctx, GPoint(cx, 8), 12,
-                        color, s_bluetooth_connected);
+  } else if (slot == CENTER_BLUETOOTH && s_bluetooth_connected) {
+    // Connected Bluetooth is icon-only and spans the label/value area.
+    draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, color, true);
   }
 }
 
@@ -502,9 +511,9 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect left_area = GRect(4, 0, HRBOX_X - BOX_GAP - 4, 14);
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, 14);
-  draw_slot_icon(ctx, s_settings.left_slot, left_area, COL_WHITE);
+  draw_slot_icon(ctx, s_settings.left_slot, left_area, COL_WHITE, false);
   draw_center_icon(ctx, s_settings.center_slot, center_fg);
-  draw_slot_icon(ctx, s_settings.right_slot, right_area, COL_WHITE);
+  draw_slot_icon(ctx, s_settings.right_slot, right_area, COL_WHITE, true);
 }
 
 static void update_time(struct tm *tick_time);
@@ -514,7 +523,7 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_STEPS: return "STEPS";
     case SLOT_BATTERY: return "";
     case SLOT_HEART_RATE: return "HR";
-    case SLOT_BLUETOOTH: return "";
+    case SLOT_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
     case SLOT_WEATHER:
     default: return "WEATHER";
   }
@@ -533,7 +542,7 @@ static const char *side_slot_value(uint8_t slot) {
       else snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
       return s_hr_buf;
     case SLOT_BLUETOOTH:
-      return s_bluetooth_connected ? "ON" : "OFF";
+      return "";
     case SLOT_WEATHER:
     default:
       return s_weather_buf;
@@ -543,7 +552,7 @@ static const char *side_slot_value(uint8_t slot) {
 static const char *center_slot_label(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY: return "";
-    case CENTER_BLUETOOTH: return "";
+    case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
     case CENTER_HEART_RATE:
     default: return "HR";
   }
@@ -552,10 +561,15 @@ static const char *center_slot_label(void) {
 static const char *center_slot_value(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY:
-      snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
+      // 100% is one character too wide for the center box; omit % only there.
+      if (s_battery_percent == 100) {
+        snprintf(s_battery_buf, sizeof(s_battery_buf), "100");
+      } else {
+        snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
+      }
       return s_battery_buf;
     case CENTER_BLUETOOTH:
-      return s_bluetooth_connected ? "ON" : "OFF";
+      return "";
     case CENTER_HEART_RATE:
     default:
       if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
@@ -574,6 +588,19 @@ static void update_footer_content(void) {
   text_layer_set_text(s_center_val, center_slot_value());
   text_layer_set_text(s_right_label, side_slot_label(s_settings.right_slot));
   text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
+
+  // Disconnected Bluetooth is a simple centered "BT" label with no value.
+  // Restore the normal edge alignment automatically for every other option.
+  text_layer_set_text_alignment(
+      s_left_label,
+      (s_settings.left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
+          ? GTextAlignmentCenter : GTextAlignmentLeft);
+  text_layer_set_text_alignment(s_left_val, GTextAlignmentLeft);
+  text_layer_set_text_alignment(
+      s_right_label,
+      (s_settings.right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
+          ? GTextAlignmentCenter : GTextAlignmentRight);
+  text_layer_set_text_alignment(s_right_val, GTextAlignmentRight);
 
   bool weather_left = s_settings.left_slot == SLOT_WEATHER;
   bool weather_right = s_settings.right_slot == SLOT_WEATHER;

@@ -53,9 +53,3 @@ Or paste the `src/main.c` and `package.json` into [CloudPebble](https://cloudpeb
 - **Weather icon**: swap the procedural drawing in `footer_update_proc` for a `GBitmap` resource to match the Amazfit cloud icon exactly. Add the PNG to `resources/images/` and register it in `package.json` under `resources.media`.
 - **24h vs 12h**: change `%k:%M` to `%I:%M` and add an AM/PM indicator layer.
 - **Font**: `FONT_KEY_LECO_42_NUMBERS` is the closest built-in to the Amazfit segmented display style. For an exact match, embed a custom `.ttf` as a resource font.
-
-
-## v2.0.6
-- Battery footer slots now use a drawn battery icon plus percentage.
-- Bluetooth footer slots now use a drawn Bluetooth icon plus ON/OFF status, with a slash when disconnected.
-- Version bumped to 1.1.6. CloudPebble metadata must be updated manually if it does not sync package.json.
