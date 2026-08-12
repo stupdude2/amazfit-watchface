@@ -440,28 +440,37 @@ static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color)
 
 static void draw_bluetooth_icon(GContext *ctx, GPoint c, int size,
                                 GColor color, bool connected) {
+  (void)connected;
   graphics_context_set_stroke_color(ctx, color);
   graphics_context_set_stroke_width(ctx, 2);
 
-  int half = size / 2;
-  int top = c.y - half;
-  int bot = c.y + half;
-  int left = c.x - half / 2;
-  int right = c.x + half / 2;
+  // Bluetooth rune based directly on the 24x24 SVG polyline:
+  // 6.5,6.5 -> 17.5,17.5 -> 12,23 -> 12,1 ->
+  // 17.5,6.5 -> 6.5,17.5
+  //
+  // Scale the SVG's 24x24 coordinate space into the requested square while
+  // preserving the exact proportions of the supplied path.
+  const int left = c.x - size / 2;
+  const int top  = c.y - size / 2;
 
-  // Classic Bluetooth rune: vertical spine with upper/lower wedges.
-  graphics_draw_line(ctx, GPoint(c.x, top), GPoint(c.x, bot));
-  graphics_draw_line(ctx, GPoint(c.x, top), GPoint(right, c.y - 2));
-  graphics_draw_line(ctx, GPoint(right, c.y - 2), GPoint(left, c.y + 3));
-  graphics_draw_line(ctx, GPoint(left, c.y - 3), GPoint(right, c.y + 2));
-  graphics_draw_line(ctx, GPoint(right, c.y + 2), GPoint(c.x, bot));
+  #define BT_X2(x2) (left + (((x2) * size) + 24) / 48)
+  #define BT_Y2(y2) (top  + (((y2) * size) + 24) / 48)
 
-  if (!connected) {
-    // A small slash makes the disconnected state obvious even if text is hidden.
-    graphics_draw_line(ctx,
-                       GPoint(c.x - half, c.y - half),
-                       GPoint(c.x + half, c.y + half));
+  GPoint points[] = {
+    GPoint(BT_X2(13), BT_Y2(13)),  //  6.5,  6.5
+    GPoint(BT_X2(35), BT_Y2(35)),  // 17.5, 17.5
+    GPoint(BT_X2(24), BT_Y2(46)),  // 12.0, 23.0
+    GPoint(BT_X2(24), BT_Y2(2)),   // 12.0,  1.0
+    GPoint(BT_X2(35), BT_Y2(13)),  // 17.5,  6.5
+    GPoint(BT_X2(13), BT_Y2(35))   //  6.5, 17.5
+  };
+
+  for (unsigned int i = 0; i < (sizeof(points) / sizeof(points[0])) - 1; ++i) {
+    graphics_draw_line(ctx, points[i], points[i + 1]);
   }
+
+  #undef BT_X2
+  #undef BT_Y2
 }
 
 static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
