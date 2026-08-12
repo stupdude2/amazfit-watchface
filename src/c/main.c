@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include <stdlib.h>
 #include "edition.h"
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -308,53 +309,80 @@ static void update_time(struct tm *tick_time);
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage inbox received");
 
-  // Log every incoming tuple.  The IDs are intentionally pinned in
-  // package.json so CloudPebble, Clay and C all share the same values.
+  // Process tuples in the same pass that reads them. Do not consume the
+  // DictionaryIterator and then search it again afterward.
   for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
     APP_LOG(APP_LOG_LEVEL_INFO, "RX tuple key=%lu type=%d len=%u",
             (unsigned long)t->key, (int)t->type, (unsigned)t->length);
-  }
 
-  Tuple *temp_tuple = dict_find(iter, KEY_TEMPERATURE);
-  Tuple *icon_tuple = dict_find(iter, KEY_WEATHER_ICON);
-#if WATCHFACE_PRO
-  Tuple *accent_tuple = dict_find(iter, KEY_ACCENT_COLOR);
-#endif
-  if (temp_tuple) {
-    int temp = (int)temp_tuple->value->int32;
-    snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
-    text_layer_set_text(s_weather_val, s_weather_buf);
-  }
-  if (icon_tuple) {
-    s_weather_icon = (int)icon_tuple->value->int32;
-    update_weather_icon(s_weather_icon);
-  }
-#if WATCHFACE_PRO
-  if (accent_tuple) {
-    int32_t accent_hex = accent_tuple->value->int32;
-    APP_LOG(APP_LOG_LEVEL_INFO, "ACCENT_COLOR received: %ld (0x%06lX)",
-            (long)accent_hex, (unsigned long)accent_hex);
-    s_settings.accent_color = GColorFromHEX(accent_hex);
-    settings_save();
-
-    if (s_header_layer) layer_mark_dirty(s_header_layer);
-    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
-    if (s_footer_layer) layer_mark_dirty(s_footer_layer);
-
-    // Refresh Sunday/day text color immediately if the setting changes today.
-    time_t now = time(NULL);
-    struct tm *current = localtime(&now);
-    if (current) update_time(current);
-
-    DictionaryIterator *out = NULL;
-    if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
-      dict_write_int32(out, KEY_CONFIG_ACK, accent_hex);
-      app_message_outbox_send();
+    if (t->key == KEY_TEMPERATURE) {
+      int temp = 0;
+      if (t->type == TUPLE_INT) {
+        temp = (int)t->value->int32;
+      } else if (t->type == TUPLE_UINT) {
+        temp = (int)t->value->uint32;
+      }
+      snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
+      text_layer_set_text(s_weather_val, s_weather_buf);
+      continue;
     }
-  } else {
-    APP_LOG(APP_LOG_LEVEL_WARNING, "No ACCENT_COLOR tuple in AppMessage");
-  }
+
+    if (t->key == KEY_WEATHER_ICON) {
+      if (t->type == TUPLE_INT) {
+        s_weather_icon = (int)t->value->int32;
+      } else if (t->type == TUPLE_UINT) {
+        s_weather_icon = (int)t->value->uint32;
+      }
+      update_weather_icon(s_weather_icon);
+      continue;
+    }
+
+#if WATCHFACE_PRO
+    if (t->key == KEY_ACCENT_COLOR) {
+      uint32_t accent_hex = 0;
+      bool valid_color = false;
+
+      if (t->type == TUPLE_INT) {
+        accent_hex = (uint32_t)t->value->int32;
+        valid_color = true;
+      } else if (t->type == TUPLE_UINT) {
+        accent_hex = t->value->uint32;
+        valid_color = true;
+      } else if (t->type == TUPLE_CSTRING && t->value->cstring) {
+        // Be tolerant if a configuration implementation sends "0xRRGGBB"
+        // or "RRGGBB" as text instead of a number.
+        const char *str = t->value->cstring;
+        if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) str += 2;
+        accent_hex = (uint32_t)strtoul(str, NULL, 16);
+        valid_color = true;
+      }
+
+      if (valid_color) {
+        APP_LOG(APP_LOG_LEVEL_INFO, "ACCENT_COLOR applied: 0x%06lX type=%d",
+                (unsigned long)accent_hex, (int)t->type);
+        s_settings.accent_color = GColorFromHEX(accent_hex & 0xFFFFFF);
+        settings_save();
+
+        if (s_header_layer) layer_mark_dirty(s_header_layer);
+        if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+        if (s_footer_layer) layer_mark_dirty(s_footer_layer);
+
+        time_t now = time(NULL);
+        struct tm *current = localtime(&now);
+        if (current) update_time(current);
+
+        DictionaryIterator *out = NULL;
+        if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
+          dict_write_int32(out, KEY_CONFIG_ACK, (int32_t)accent_hex);
+          app_message_outbox_send();
+        }
+      } else {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "ACCENT_COLOR unsupported tuple type=%d", (int)t->type);
+      }
+      continue;
+    }
 #endif
+  }
 }
 
 static void inbox_dropped_handler(AppMessageResult reason, void *context) {
