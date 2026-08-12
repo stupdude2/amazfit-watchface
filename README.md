@@ -72,6 +72,6 @@ Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single 
 - When the step bar is hidden, the clock automatically expands into the freed space and vertically centers the time.
 
 
-### v1.2.6 layout refinement
+### v1.2.7 layout refinement
 - Backlight-only step bars reserve their layout space so the clock does not move when the light changes.
 - Fully hidden step bar expands the clock area and biases the time 3 px upward.

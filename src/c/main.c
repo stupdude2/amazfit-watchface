@@ -466,10 +466,11 @@ static void update_stepbar_layout(void) {
     layer_set_hidden(s_stepbar_layer, true);
     layer_set_frame(s_clock_layer, GRect(0, HEADER_H, SCREEN_W, available_h));
   } else if (stepbar_is_above()) {
-    // Raise the above-time bar 5 px and leave a 1 px gap between it and the clock.
-    // Backlight-only modes keep these frames fixed so the time never jumps.
+    // Raise the above-time bar 5 px. The clock begins 1 px below the bar,
+    // moving the time 5 px upward versus v2.1.6. Backlight-only modes keep
+    // these frames fixed so the time never jumps.
     const int16_t above_bar_y = HEADER_H - 5;
-    const int16_t above_clock_y = HEADER_H + STEPBAR_H + 1;
+    const int16_t above_clock_y = HEADER_H + STEPBAR_H - 4;
     layer_set_hidden(s_stepbar_layer, !bar_visible);
     layer_set_frame(s_stepbar_layer, GRect(0, above_bar_y, SCREEN_W, STEPBAR_H));
     layer_set_frame(s_clock_layer,
