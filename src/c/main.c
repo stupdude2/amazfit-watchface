@@ -412,6 +412,81 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   }
 }
 
+// ── Footer icon helpers ──────────────────────────────────────────────────────
+static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_fill_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+
+  // Battery body and positive terminal.
+  graphics_draw_rect(ctx, GRect(r.origin.x, r.origin.y, r.size.w - 3, r.size.h));
+  graphics_fill_rect(ctx,
+                     GRect(r.origin.x + r.size.w - 2,
+                           r.origin.y + (r.size.h / 2) - 2,
+                           2, 4),
+                     0, GCornerNone);
+
+  // Fill reflects the current charge level while leaving a 1 px inset.
+  int inner_w = r.size.w - 5;
+  int clamped = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+  int fill_w = (inner_w * clamped) / 100;
+  if (fill_w > 0) {
+    graphics_fill_rect(ctx,
+                       GRect(r.origin.x + 2, r.origin.y + 2,
+                             fill_w, r.size.h - 4),
+                       0, GCornerNone);
+  }
+}
+
+static void draw_bluetooth_icon(GContext *ctx, GPoint c, int size,
+                                GColor color, bool connected) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+
+  int half = size / 2;
+  int top = c.y - half;
+  int bot = c.y + half;
+  int left = c.x - half / 2;
+  int right = c.x + half / 2;
+
+  // Classic Bluetooth rune: vertical spine with upper/lower wedges.
+  graphics_draw_line(ctx, GPoint(c.x, top), GPoint(c.x, bot));
+  graphics_draw_line(ctx, GPoint(c.x, top), GPoint(right, c.y - 2));
+  graphics_draw_line(ctx, GPoint(right, c.y - 2), GPoint(left, c.y + 3));
+  graphics_draw_line(ctx, GPoint(left, c.y - 3), GPoint(right, c.y + 2));
+  graphics_draw_line(ctx, GPoint(right, c.y + 2), GPoint(c.x, bot));
+
+  if (!connected) {
+    // A small slash makes the disconnected state obvious even if text is hidden.
+    graphics_draw_line(ctx,
+                       GPoint(c.x - half, c.y - half),
+                       GPoint(c.x + half, c.y + half));
+  }
+}
+
+static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
+                           GColor color) {
+  int cx = area.origin.x + area.size.w / 2;
+  if (slot == SLOT_BATTERY) {
+    draw_battery_icon(ctx, GRect(cx - 9, 4, 18, 9),
+                      s_battery_percent, color);
+  } else if (slot == SLOT_BLUETOOTH) {
+    draw_bluetooth_icon(ctx, GPoint(cx, 8), 12,
+                        color, s_bluetooth_connected);
+  }
+}
+
+static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
+  int cx = HRBOX_X + BOX_W / 2;
+  if (slot == CENTER_BATTERY) {
+    draw_battery_icon(ctx, GRect(cx - 9, 4, 18, 9),
+                      s_battery_percent, color);
+  } else if (slot == CENTER_BLUETOOTH) {
+    draw_bluetooth_icon(ctx, GPoint(cx, 8), 12,
+                        color, s_bluetooth_connected);
+  }
+}
+
 // ── Footer ────────────────────────────────────────────────────────────────────
 // HR box fills from y=0 to bottom of screen (footer layer extends to screen bottom).
 static void footer_update_proc(Layer *layer, GContext *ctx) {
@@ -422,6 +497,14 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, GRect(HRBOX_X, HRBOX_Y, BOX_W, b.size.h), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(0, 0, HRBOX_X - BOX_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(HRBOX_X + BOX_W + BOX_GAP, 0, SCREEN_W - HRBOX_X - BOX_W - BOX_GAP, 2), 0, GCornerNone);
+
+  GColor center_fg = gcolor_legible_over(s_settings.accent_color);
+  GRect left_area = GRect(4, 0, HRBOX_X - BOX_GAP - 4, 14);
+  int right_x = HRBOX_X + BOX_W + BOX_GAP;
+  GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, 14);
+  draw_slot_icon(ctx, s_settings.left_slot, left_area, COL_WHITE);
+  draw_center_icon(ctx, s_settings.center_slot, center_fg);
+  draw_slot_icon(ctx, s_settings.right_slot, right_area, COL_WHITE);
 }
 
 static void update_time(struct tm *tick_time);
@@ -429,9 +512,9 @@ static void update_time(struct tm *tick_time);
 static const char *side_slot_label(uint8_t slot) {
   switch (slot) {
     case SLOT_STEPS: return "STEPS";
-    case SLOT_BATTERY: return "BATTERY";
+    case SLOT_BATTERY: return "";
     case SLOT_HEART_RATE: return "HR";
-    case SLOT_BLUETOOTH: return "BT";
+    case SLOT_BLUETOOTH: return "";
     case SLOT_WEATHER:
     default: return "WEATHER";
   }
@@ -459,8 +542,8 @@ static const char *side_slot_value(uint8_t slot) {
 
 static const char *center_slot_label(void) {
   switch (s_settings.center_slot) {
-    case CENTER_BATTERY: return "BATTERY";
-    case CENTER_BLUETOOTH: return "BT";
+    case CENTER_BATTERY: return "";
+    case CENTER_BLUETOOTH: return "";
     case CENTER_HEART_RATE:
     default: return "HR";
   }
@@ -496,6 +579,7 @@ static void update_footer_content(void) {
   bool weather_right = s_settings.right_slot == SLOT_WEATHER;
   layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_left_layer), !weather_left);
   layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_right_layer), !weather_right);
+  if (s_footer_layer) layer_mark_dirty(s_footer_layer);
 }
 
 static void apply_footer_visibility(void) {

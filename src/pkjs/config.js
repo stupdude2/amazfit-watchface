@@ -3,15 +3,15 @@ var edition = require('./edition');
 var sideOptions = [
   { "label": "Weather", "value": "0" },
   { "label": "Steps", "value": "1" },
-  { "label": "Battery", "value": "2" },
+  { "label": "Battery (icon + %)", "value": "2" },
   { "label": "Heart Rate", "value": "3" },
-  { "label": "Bluetooth Connected", "value": "4" }
+  { "label": "Bluetooth (icon + status)", "value": "4" }
 ];
 
 var centerOptions = [
   { "label": "Heart Rate", "value": "0" },
-  { "label": "Battery", "value": "1" },
-  { "label": "Bluetooth Connected", "value": "2" }
+  { "label": "Battery (icon + %)", "value": "1" },
+  { "label": "Bluetooth (icon + status)", "value": "2" }
 ];
 
 var config = [

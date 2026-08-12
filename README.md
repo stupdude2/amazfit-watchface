@@ -54,8 +54,8 @@ Or paste the `src/main.c` and `package.json` into [CloudPebble](https://cloudpeb
 - **24h vs 12h**: change `%k:%M` to `%I:%M` and add an AM/PM indicator layer.
 - **Font**: `FONT_KEY_LECO_42_NUMBERS` is the closest built-in to the Amazfit segmented display style. For an exact match, embed a custom `.ttf` as a resource font.
 
-## Pro footer customization (v1.1.5)
 
-Pro builds can configure the left, center, and right footer slots. Side slots support Weather, Steps, Battery, Heart Rate, and Bluetooth status. The center accent box supports Heart Rate, Battery, or Bluetooth status. Footer visibility can be Always, Off, or reveal for 5 seconds after two accelerometer tap events within 700 ms. The step progress bar supports mirrored-from-center, left-to-right, or hidden modes.
-
-CloudPebble users must ensure message keys 4-8 are present in project Settings: LEFT_SLOT=4, CENTER_SLOT=5, RIGHT_SLOT=6, FOOTER_MODE=7, STEPBAR_MODE=8.
+## v2.0.6
+- Battery footer slots now use a drawn battery icon plus percentage.
+- Bluetooth footer slots now use a drawn Bluetooth icon plus ON/OFF status, with a slash when disconnected.
+- Version bumped to 1.1.6. CloudPebble metadata must be updated manually if it does not sync package.json.
