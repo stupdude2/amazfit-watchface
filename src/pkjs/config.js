@@ -5,13 +5,13 @@ var sideOptions = [
   { "label": "Steps", "value": "1" },
   { "label": "Battery (icon + %)", "value": "2" },
   { "label": "Heart Rate", "value": "3" },
-  { "label": "Bluetooth (icon + status)", "value": "4" }
+  { "label": "Bluetooth", "value": "4" }
 ];
 
 var centerOptions = [
   { "label": "Heart Rate", "value": "0" },
   { "label": "Battery (icon + %)", "value": "1" },
-  { "label": "Bluetooth (icon + status)", "value": "2" }
+  { "label": "Bluetooth", "value": "2" }
 ];
 
 var config = [
@@ -31,6 +31,24 @@ if (edition.isPro) {
         "messageKey": "ACCENT_COLOR",
         "defaultValue": "0x0000AA",
         "label": "Accent Color"
+      }
+    ]
+  });
+
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Top Bar" },
+      {
+        "type": "select",
+        "messageKey": "HEADER_MODE",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Top Bar Visibility",
+        "options": [
+          { "label": "Always Visible", "value": "0" },
+          { "label": "Show With Backlight", "value": "1" }
+        ]
       }
     ]
   });
@@ -71,10 +89,7 @@ if (edition.isPro) {
         "label": "Bottom Bar Visibility",
         "options": [
           { "label": "Always Visible", "value": "0" },
-          { "label": "Show 5 Seconds on Double Wrist Tap", "value": "1" },
-          { "label": "Show 5 Seconds on Single Screen Tap", "value": "3" },
-          { "label": "Show While Backlight Is On", "value": "4" },
-          { "label": "Off", "value": "2" }
+          { "label": "Show With Backlight", "value": "1" }
         ]
       }
     ]

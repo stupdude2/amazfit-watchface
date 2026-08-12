@@ -1,97 +1,98 @@
 {
-    "author": "Bradford",
-    "dependencies": {
-        "@rebble/clay": "^1.0.0"
-    },
-    "keywords": [
-        "pebble-app"
+  "author": "Bradford",
+  "dependencies": {
+    "@rebble/clay": "^1.0.0"
+  },
+  "keywords": [
+    "pebble-app"
+  ],
+  "name": "amazfit-bip-port",
+  "pebble": {
+    "capabilities": [
+      "health",
+      "configurable"
     ],
-    "name": "amazfit-bip-port",
-    "pebble": {
-        "capabilities": [
-            "health",
-            "configurable"
-        ],
-        "displayName": "Amazfit Bip Port Pro",
-        "enableMultiJS": true,
-        "messageKeys": {
-            "TEMPERATURE": 0,
-            "WEATHER_ICON": 1,
-            "ACCENT_COLOR": 2,
-            "CONFIG_ACK": 3,
-            "LEFT_SLOT": 4,
-            "CENTER_SLOT": 5,
-            "RIGHT_SLOT": 6,
-            "FOOTER_MODE": 7,
-            "STEPBAR_MODE": 8
-        },
-        "projectType": "native",
-        "resources": {
-            "media": [
-                {
-                    "file": "fonts/Helvetica-Narrow Bold.ttf",
-                    "name": "FONT_HEADER_BACKUP_28",
-                    "targetPlatforms": null,
-                    "type": "font"
-                },
-                {
-                    "file": "fonts/BarlowSemiCondensed-SemiBold.ttf",
-                    "name": "FONT_HEADER_BACKUP_32",
-                    "targetPlatforms": null,
-                    "type": "font"
-                },
-                {
-                    "file": "fonts/Roboto Condensed Bold.ttf",
-                    "name": "FONT_HEADER_31",
-                    "targetPlatforms": null,
-                    "type": "font"
-                },
-                {
-                    "file": "images/icons8-storm-25.png",
-                    "name": "IMAGE_ICON_THUNDER",
-                    "targetPlatforms": null,
-                    "type": "png"
-                },
-                {
-                    "file": "images/icons8-sun-25.png",
-                    "name": "IMAGE_ICON_CLEAR",
-                    "targetPlatforms": null,
-                    "type": "png"
-                },
-                {
-                    "file": "images/icons8-winter-25.png",
-                    "name": "IMAGE_ICON_SNOW",
-                    "targetPlatforms": null,
-                    "type": "png"
-                },
-                {
-                    "file": "images/icons8-cloud-25.png",
-                    "name": "IMAGE_ICON_CLOUDY",
-                    "targetPlatforms": null,
-                    "type": "png"
-                },
-                {
-                    "file": "images/icons8-empty-25.png",
-                    "name": "IMAGE_ICON_NA",
-                    "targetPlatforms": null,
-                    "type": "pbi"
-                },
-                {
-                    "file": "images/icons8-rain-25.png",
-                    "name": "IMAGE_ICON_RAIN",
-                    "targetPlatforms": null,
-                    "type": "png"
-                }
-            ]
-        },
-        "sdkVersion": "3",
-        "targetPlatforms": [
-            "emery"
-        ],
-        "uuid": "ced51275-d445-4b7e-89f6-9e41110ed4da",
-        "watchapp": {
-            "watchface": true
-        }
+    "displayName": "Amazfit Bip Port Pro",
+    "enableMultiJS": true,
+    "messageKeys": {
+      "TEMPERATURE": 0,
+      "WEATHER_ICON": 1,
+      "ACCENT_COLOR": 2,
+      "CONFIG_ACK": 3,
+      "LEFT_SLOT": 4,
+      "CENTER_SLOT": 5,
+      "RIGHT_SLOT": 6,
+      "FOOTER_MODE": 7,
+      "STEPBAR_MODE": 8,
+      "HEADER_MODE": 9
     },
-    "version": "1.2.0"
+    "projectType": "native",
+    "resources": {
+      "media": [
+        {
+          "file": "fonts/Helvetica-Narrow Bold.ttf",
+          "name": "FONT_HEADER_BACKUP_28",
+          "targetPlatforms": null,
+          "type": "font"
+        },
+        {
+          "file": "fonts/BarlowSemiCondensed-SemiBold.ttf",
+          "name": "FONT_HEADER_BACKUP_32",
+          "targetPlatforms": null,
+          "type": "font"
+        },
+        {
+          "file": "fonts/Roboto Condensed Bold.ttf",
+          "name": "FONT_HEADER_31",
+          "targetPlatforms": null,
+          "type": "font"
+        },
+        {
+          "file": "images/icons8-storm-25.png",
+          "name": "IMAGE_ICON_THUNDER",
+          "targetPlatforms": null,
+          "type": "png"
+        },
+        {
+          "file": "images/icons8-sun-25.png",
+          "name": "IMAGE_ICON_CLEAR",
+          "targetPlatforms": null,
+          "type": "png"
+        },
+        {
+          "file": "images/icons8-winter-25.png",
+          "name": "IMAGE_ICON_SNOW",
+          "targetPlatforms": null,
+          "type": "png"
+        },
+        {
+          "file": "images/icons8-cloud-25.png",
+          "name": "IMAGE_ICON_CLOUDY",
+          "targetPlatforms": null,
+          "type": "png"
+        },
+        {
+          "file": "images/icons8-empty-25.png",
+          "name": "IMAGE_ICON_NA",
+          "targetPlatforms": null,
+          "type": "pbi"
+        },
+        {
+          "file": "images/icons8-rain-25.png",
+          "name": "IMAGE_ICON_RAIN",
+          "targetPlatforms": null,
+          "type": "png"
+        }
+      ]
+    },
+    "sdkVersion": "3",
+    "targetPlatforms": [
+      "emery"
+    ],
+    "uuid": "ced51275-d445-4b7e-89f6-9e41110ed4da",
+    "watchapp": {
+      "watchface": true
+    }
+  },
+  "version": "1.2.1"
 }
