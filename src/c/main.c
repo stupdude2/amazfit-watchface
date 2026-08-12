@@ -133,7 +133,7 @@ static void settings_load(void) {
 
 
 static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
-  if (!tuple || !tuple->value) return fallback;
+  if (!tuple) return fallback;
 
   switch (tuple->type) {
     case TUPLE_INT:
