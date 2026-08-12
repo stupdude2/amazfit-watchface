@@ -30,6 +30,12 @@
 #define UNDERLINE_GAP    BOX_GAP
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
+// Step-bar layout helpers are declared before the draw proc because C99 does not
+// allow implicit function declarations.
+static bool stepbar_is_backlight_only(void);
+static bool stepbar_is_above(void);
+static bool stepbar_is_left_to_right(void);
+
 #define STEP_GOAL        5000
 #define BAR_MARGIN        8
 
@@ -745,19 +751,6 @@ static void update_accent_text_contrast(void) {
   if (s_center_val) text_layer_set_text_color(s_center_val, text_color);
 }
 
-static void apply_accent_color(GColor color, bool persist_setting) {
-  s_settings.accent_color = color;
-  update_accent_text_contrast();
-  if (persist_setting) settings_save();
-
-  if (s_header_layer) layer_mark_dirty(s_header_layer);
-  if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
-  if (s_footer_layer) layer_mark_dirty(s_footer_layer);
-
-  time_t now = time(NULL);
-  struct tm *current = localtime(&now);
-  if (current) update_time(current);
-}
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
