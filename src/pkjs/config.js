@@ -3,32 +3,26 @@ var edition = require('./edition');
 var config = [
   {
     "type": "heading",
-    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro — Diagnostic v1.7" : "Amazfit Bip Port"
+    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro" : "Amazfit Bip Port"
   }
 ];
 
 if (edition.isPro) {
-  config.push(
-    {
-      "type": "text",
-      "defaultValue": "Diagnostic build: the watch should launch RED immediately and show V1.7 on the face. After that, choose a color here and Save Settings."
-    },
-    {
-      "type": "section",
-      "items": [
-        {
-          "type": "heading",
-          "defaultValue": "Appearance"
-        },
-        {
-          "type": "color",
-          "messageKey": "ACCENT_COLOR",
-          "defaultValue": "FF0000",
-          "label": "Accent Color"
-        }
-      ]
-    }
-  );
+  config.push({
+    "type": "section",
+    "items": [
+      {
+        "type": "heading",
+        "defaultValue": "Appearance"
+      },
+      {
+        "type": "color",
+        "messageKey": "ACCENT_COLOR",
+        "defaultValue": "0x0000AA",
+        "label": "Accent Color"
+      }
+    ]
+  });
 } else {
   config.push({
     "type": "text",

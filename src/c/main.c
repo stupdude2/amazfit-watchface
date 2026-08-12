@@ -62,7 +62,7 @@
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     2
+#define SETTINGS_VERSION     3
 
 typedef struct {
   uint8_t version;
@@ -73,7 +73,7 @@ static WatchfaceSettings s_settings;
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
-  s_settings.accent_color = GColorRed;
+  s_settings.accent_color = GColorCobaltBlue;
 }
 
 static void settings_load(void) {
@@ -305,7 +305,7 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 
 static void update_time(struct tm *tick_time);
 
-// ── Accent helpers / v1.6 visual diagnostic ───────────────────────────────────
+// ── Accent color helper ─────────────────────────────────────────────────────
 static void apply_accent_color(GColor color, bool persist_setting) {
   s_settings.accent_color = color;
   if (persist_setting) settings_save();
@@ -319,84 +319,38 @@ static void apply_accent_color(GColor color, bool persist_setting) {
   if (current) update_time(current);
 }
 
-// Diagnostic stage 1: if this build is really running and watch-side drawing works,
-// the blue accent will turn RED about two seconds after launch.
-static void diagnostic_local_color_callback(void *context) {
-#if WATCHFACE_PRO
-  APP_LOG(APP_LOG_LEVEL_INFO, "DIAG v1.6: local watch color -> RED");
-  apply_accent_color(GColorRed, false);
-#endif
-}
-
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage inbox received");
+  Tuple *temperature_t = dict_find(iter, KEY_TEMPERATURE);
+  if (temperature_t) {
+    int temp = (int)temperature_t->value->int32;
+    snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
+    text_layer_set_text(s_weather_val, s_weather_buf);
+  }
 
-  // Process tuples in the same pass that reads them. Do not consume the
-  // DictionaryIterator and then search it again afterward.
-  for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "RX tuple key=%lu type=%d len=%u",
-            (unsigned long)t->key, (int)t->type, (unsigned)t->length);
-
-    if (t->key == KEY_TEMPERATURE) {
-      int temp = 0;
-      if (t->type == TUPLE_INT) {
-        temp = (int)t->value->int32;
-      } else if (t->type == TUPLE_UINT) {
-        temp = (int)t->value->uint32;
-      }
-      snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
-      text_layer_set_text(s_weather_val, s_weather_buf);
-      continue;
-    }
-
-    if (t->key == KEY_WEATHER_ICON) {
-      if (t->type == TUPLE_INT) {
-        s_weather_icon = (int)t->value->int32;
-      } else if (t->type == TUPLE_UINT) {
-        s_weather_icon = (int)t->value->uint32;
-      }
-      update_weather_icon(s_weather_icon);
-      continue;
-    }
+  Tuple *weather_icon_t = dict_find(iter, KEY_WEATHER_ICON);
+  if (weather_icon_t) {
+    s_weather_icon = (int)weather_icon_t->value->int32;
+    update_weather_icon(s_weather_icon);
+  }
 
 #if WATCHFACE_PRO
-    if (t->key == KEY_ACCENT_COLOR) {
-      uint32_t accent_hex = 0;
-      bool valid_color = false;
+  // Clay color controls arrive as a 32-bit RGB integer. This is the
+  // documented Pebble/Clay path: tuple -> GColorFromHEX() -> persist/redraw.
+  Tuple *accent_color_t = dict_find(iter, KEY_ACCENT_COLOR);
+  if (accent_color_t) {
+    uint32_t accent_hex = (uint32_t)accent_color_t->value->int32 & 0xFFFFFF;
+    apply_accent_color(GColorFromHEX(accent_hex), true);
+    APP_LOG(APP_LOG_LEVEL_INFO, "Accent color applied: 0x%06lX",
+            (unsigned long)accent_hex);
 
-      if (t->type == TUPLE_INT) {
-        accent_hex = (uint32_t)t->value->int32;
-        valid_color = true;
-      } else if (t->type == TUPLE_UINT) {
-        accent_hex = t->value->uint32;
-        valid_color = true;
-      } else if (t->type == TUPLE_CSTRING && t->length > 1) {
-        // Be tolerant if a configuration implementation sends "0xRRGGBB"
-        // or "RRGGBB" as text instead of a number.
-        const char *str = t->value->cstring;
-        if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) str += 2;
-        accent_hex = (uint32_t)strtoul(str, NULL, 16);
-        valid_color = true;
-      }
-
-      if (valid_color) {
-        APP_LOG(APP_LOG_LEVEL_INFO, "ACCENT_COLOR applied: 0x%06lX type=%d",
-                (unsigned long)accent_hex, (int)t->type);
-        apply_accent_color(GColorFromHEX(accent_hex & 0xFFFFFF), true);
-
-        DictionaryIterator *out = NULL;
-        if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
-          dict_write_int32(out, KEY_CONFIG_ACK, (int32_t)accent_hex);
-          app_message_outbox_send();
-        }
-      } else {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "ACCENT_COLOR unsupported tuple type=%d", (int)t->type);
-      }
-      continue;
+    DictionaryIterator *out = NULL;
+    if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
+      dict_write_int32(out, KEY_CONFIG_ACK, (int32_t)accent_hex);
+      app_message_outbox_send();
     }
-#endif
   }
+#endif
 }
 
 static void inbox_dropped_handler(AppMessageResult reason, void *context) {
@@ -505,7 +459,7 @@ static void window_load(Window *window) {
   text_layer_set_text_color(s_weather_label, COL_WHITE);
   text_layer_set_font(s_weather_label, s_font_label);
   text_layer_set_text_alignment(s_weather_label, GTextAlignmentLeft);
-  text_layer_set_text(s_weather_label, "V1.7");
+  text_layer_set_text(s_weather_label, "WEATHER");
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_label));
 
   s_weather_val = text_layer_create(GRect(4, 14, HRBOX_X - BOX_GAP - 4, 38));

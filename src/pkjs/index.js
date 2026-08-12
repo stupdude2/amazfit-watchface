@@ -5,9 +5,8 @@
 // SETUP: Replace YOUR_API_KEY below with a free key from openweathermap.org
 
 // ── Configuration ────────────────────────────────────────────────────────────
-// Use Clay's documented automatic event handling. Clay opens the settings
-// page and, when Save Settings is pressed, sends each configured messageKey
-// directly to the watch via AppMessage.
+// Clay automatically opens the settings page and sends configured messageKey
+// values to the watch when Save Settings is pressed.
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var clay = new Clay(clayConfig);
