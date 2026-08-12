@@ -7,7 +7,33 @@
 // ── Configuration ────────────────────────────────────────────────────────────
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
-var clay = new Clay(clayConfig);
+var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
+
+// Handle Clay explicitly so configuration delivery can be logged and diagnosed.
+Pebble.addEventListener('showConfiguration', function() {
+  console.log('Opening watchface configuration');
+  Pebble.openURL(clay.generateUrl());
+});
+
+Pebble.addEventListener('webviewclosed', function(e) {
+  if (!e || !e.response) {
+    console.log('Configuration closed without saving');
+    return;
+  }
+
+  var settings = clay.getSettings(e.response);
+  console.log('Sending configuration to watch: ' + JSON.stringify(settings));
+
+  Pebble.sendAppMessage(
+    settings,
+    function() {
+      console.log('Configuration sent successfully');
+    },
+    function(err) {
+      console.log('Configuration send FAILED: ' + JSON.stringify(err));
+    }
+  );
+});
 
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
 var UNITS   = 'imperial';   // 'imperial' for °F, 'metric' for °C
