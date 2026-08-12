@@ -59,14 +59,50 @@
 #define KEY_WEATHER_ICON 1
 #define KEY_ACCENT_COLOR 2
 #define KEY_CONFIG_ACK   3
+#define KEY_LEFT_SLOT    4
+#define KEY_CENTER_SLOT  5
+#define KEY_RIGHT_SLOT   6
+#define KEY_FOOTER_MODE  7
+#define KEY_STEPBAR_MODE 8
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     3
+#define SETTINGS_VERSION     4
+
+typedef enum {
+  SLOT_WEATHER = 0,
+  SLOT_STEPS = 1,
+  SLOT_BATTERY = 2,
+  SLOT_HEART_RATE = 3,
+  SLOT_BLUETOOTH = 4
+} SideSlotContent;
+
+typedef enum {
+  CENTER_HEART_RATE = 0,
+  CENTER_BATTERY = 1,
+  CENTER_BLUETOOTH = 2
+} CenterSlotContent;
+
+typedef enum {
+  FOOTER_ALWAYS = 0,
+  FOOTER_DOUBLE_TAP = 1,
+  FOOTER_OFF = 2
+} FooterMode;
+
+typedef enum {
+  STEPBAR_MIRRORED = 0,
+  STEPBAR_LEFT_TO_RIGHT = 1,
+  STEPBAR_HIDDEN = 2
+} StepbarMode;
 
 typedef struct {
   uint8_t version;
   GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t stepbar_mode;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -74,6 +110,11 @@ static WatchfaceSettings s_settings;
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
   s_settings.accent_color = GColorCobaltBlue;
+  s_settings.left_slot = SLOT_WEATHER;
+  s_settings.center_slot = CENTER_HEART_RATE;
+  s_settings.right_slot = SLOT_STEPS;
+  s_settings.footer_mode = FOOTER_ALWAYS;
+  s_settings.stepbar_mode = STEPBAR_MIRRORED;
 }
 
 static void settings_load(void) {
@@ -132,14 +173,15 @@ static TextLayer *s_month_layer;
 static Layer     *s_clock_layer;
 static Layer     *s_stepbar_layer;
 static Layer     *s_footer_layer;
-static TextLayer *s_weather_label;
-static TextLayer *s_weather_val;
-static BitmapLayer *s_weather_icon_layer;
+static TextLayer *s_left_label;
+static TextLayer *s_left_val;
+static TextLayer *s_center_label;
+static TextLayer *s_center_val;
+static TextLayer *s_right_label;
+static TextLayer *s_right_val;
+static BitmapLayer *s_weather_icon_left_layer;
+static BitmapLayer *s_weather_icon_right_layer;
 static GBitmap     *s_weather_icon_bitmap;
-static TextLayer *s_hr_label;
-static TextLayer *s_hr_val;
-static TextLayer *s_steps_label;
-static TextLayer *s_steps_val;
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 static GFont s_font_header;
@@ -153,10 +195,18 @@ static char s_month_buf[4];
 static char s_hr_buf[12];
 static char s_steps_buf[8];
 static char s_weather_buf[12];
+static char s_battery_buf[12];
 static int  s_step_count  = 0;
+static int  s_heart_rate  = 0;
+static int  s_battery_percent = 0;
+static bool s_bluetooth_connected = false;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
 static int  s_weather_icon = -1;
+static bool s_footer_temporarily_visible = false;
+static bool s_waiting_for_second_tap = false;
+static AppTimer *s_tap_reset_timer = NULL;
+static AppTimer *s_footer_hide_timer = NULL;
 
 static void to_upper(char *s) {
   for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
@@ -227,7 +277,8 @@ static void update_weather_icon(int icon_code) {
     default: resource_id = RESOURCE_ID_IMAGE_ICON_NA;      break;
   }
   s_weather_icon_bitmap = gbitmap_create_with_resource(resource_id);
-  bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon_bitmap);
+  if (s_weather_icon_left_layer) bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
+  if (s_weather_icon_right_layer) bitmap_layer_set_bitmap(s_weather_icon_right_layer, s_weather_icon_bitmap);
 }
 
 // ── Clock ─────────────────────────────────────────────────────────────────────
@@ -270,23 +321,33 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   int cy    = b.size.h / 2;
   graphics_context_set_fill_color(ctx, COL_BG);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
-  int steps     = s_step_count < 0 ? 0 : s_step_count;
-  int fill_half = (steps >= STEP_GOAL) ? bar_w / 2 : (steps * (bar_w / 2) / STEP_GOAL);
-  int bar_cx    = bar_x + bar_w / 2;
+
+  if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return;
+
+  int steps = s_step_count < 0 ? 0 : s_step_count;
+  int fill_w = (steps >= STEP_GOAL) ? bar_w : (steps * bar_w / STEP_GOAL);
+
   if (steps >= STEP_GOAL) {
     graphics_context_set_fill_color(ctx, COL_WHITE);
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
+    return;
+  }
+
+  graphics_context_set_stroke_color(ctx, s_settings.accent_color);
+  graphics_context_set_stroke_width(ctx, 2);
+  for (int x = bar_x; x < bar_x + bar_w; x += 4) {
+    graphics_draw_pixel(ctx, GPoint(x, cy));
+    if (x + 1 < bar_x + bar_w) graphics_draw_pixel(ctx, GPoint(x + 1, cy));
+  }
+
+  if (fill_w <= 0) return;
+  graphics_context_set_fill_color(ctx, COL_WHITE);
+  if (s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT) {
+    graphics_fill_rect(ctx, GRect(bar_x, cy - 1, fill_w, 4), 0, GCornerNone);
   } else {
-    graphics_context_set_stroke_color(ctx, s_settings.accent_color);
-    graphics_context_set_stroke_width(ctx, 2);
-    for (int x = bar_x; x < bar_x + bar_w; x += 4) {
-      graphics_draw_pixel(ctx, GPoint(x,     cy));
-      graphics_draw_pixel(ctx, GPoint(x + 1, cy));
-    }
-    if (fill_half > 0) {
-      graphics_context_set_fill_color(ctx, COL_WHITE);
-      graphics_fill_rect(ctx, GRect(bar_cx - fill_half, cy - 1, fill_half * 2, 4), 0, GCornerNone);
-    }
+    int half_fill = fill_w / 2;
+    int bar_cx = bar_x + bar_w / 2;
+    graphics_fill_rect(ctx, GRect(bar_cx - half_fill, cy - 1, half_fill * 2, 4), 0, GCornerNone);
   }
 }
 
@@ -298,12 +359,127 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(HRBOX_X, HRBOX_Y, BOX_W, b.size.h), 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(0, 0, HRBOX_X - BOX_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(HRBOX_X + BOX_W + BOX_GAP, 0, SCREEN_W - HRBOX_X - BOX_W - BOX_GAP, 2), 0, GCornerNone);
 }
 
 static void update_time(struct tm *tick_time);
+
+static const char *side_slot_label(uint8_t slot) {
+  switch (slot) {
+    case SLOT_STEPS: return "STEPS";
+    case SLOT_BATTERY: return "BATTERY";
+    case SLOT_HEART_RATE: return "HR";
+    case SLOT_BLUETOOTH: return "BT";
+    case SLOT_WEATHER:
+    default: return "WEATHER";
+  }
+}
+
+static const char *side_slot_value(uint8_t slot) {
+  switch (slot) {
+    case SLOT_STEPS:
+      snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", s_step_count);
+      return s_steps_buf;
+    case SLOT_BATTERY:
+      snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
+      return s_battery_buf;
+    case SLOT_HEART_RATE:
+      if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
+      else snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
+      return s_hr_buf;
+    case SLOT_BLUETOOTH:
+      return s_bluetooth_connected ? "ON" : "OFF";
+    case SLOT_WEATHER:
+    default:
+      return s_weather_buf;
+  }
+}
+
+static const char *center_slot_label(void) {
+  switch (s_settings.center_slot) {
+    case CENTER_BATTERY: return "BATTERY";
+    case CENTER_BLUETOOTH: return "BT";
+    case CENTER_HEART_RATE:
+    default: return "HR";
+  }
+}
+
+static const char *center_slot_value(void) {
+  switch (s_settings.center_slot) {
+    case CENTER_BATTERY:
+      snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
+      return s_battery_buf;
+    case CENTER_BLUETOOTH:
+      return s_bluetooth_connected ? "ON" : "OFF";
+    case CENTER_HEART_RATE:
+    default:
+      if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
+      else snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
+      return s_hr_buf;
+  }
+}
+
+static void update_footer_content(void) {
+  if (!s_left_label || !s_center_label || !s_right_label ||
+      !s_weather_icon_left_layer || !s_weather_icon_right_layer) return;
+
+  text_layer_set_text(s_left_label, side_slot_label(s_settings.left_slot));
+  text_layer_set_text(s_left_val, side_slot_value(s_settings.left_slot));
+  text_layer_set_text(s_center_label, center_slot_label());
+  text_layer_set_text(s_center_val, center_slot_value());
+  text_layer_set_text(s_right_label, side_slot_label(s_settings.right_slot));
+  text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
+
+  bool weather_left = s_settings.left_slot == SLOT_WEATHER;
+  bool weather_right = s_settings.right_slot == SLOT_WEATHER;
+  layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_left_layer), !weather_left);
+  layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_right_layer), !weather_right);
+}
+
+static void apply_footer_visibility(void) {
+  if (!s_footer_layer) return;
+  bool visible = s_settings.footer_mode == FOOTER_ALWAYS ||
+                 (s_settings.footer_mode == FOOTER_DOUBLE_TAP && s_footer_temporarily_visible);
+  layer_set_hidden(s_footer_layer, !visible);
+}
+
+static void footer_hide_callback(void *context) {
+  s_footer_hide_timer = NULL;
+  s_footer_temporarily_visible = false;
+  apply_footer_visibility();
+}
+
+static void tap_reset_callback(void *context) {
+  s_tap_reset_timer = NULL;
+  s_waiting_for_second_tap = false;
+}
+
+static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
+  if (s_settings.footer_mode != FOOTER_DOUBLE_TAP) return;
+  if (s_waiting_for_second_tap) {
+    s_waiting_for_second_tap = false;
+    if (s_tap_reset_timer) { app_timer_cancel(s_tap_reset_timer); s_tap_reset_timer = NULL; }
+    s_footer_temporarily_visible = true;
+    apply_footer_visibility();
+    if (s_footer_hide_timer) app_timer_cancel(s_footer_hide_timer);
+    s_footer_hide_timer = app_timer_register(5000, footer_hide_callback, NULL);
+  } else {
+    s_waiting_for_second_tap = true;
+    if (s_tap_reset_timer) app_timer_cancel(s_tap_reset_timer);
+    s_tap_reset_timer = app_timer_register(700, tap_reset_callback, NULL);
+  }
+}
+
+static void battery_handler(BatteryChargeState charge) {
+  s_battery_percent = charge.charge_percent;
+  update_footer_content();
+}
+
+static void connection_handler(bool connected) {
+  s_bluetooth_connected = connected;
+  update_footer_content();
+}
 
 // ── Accent color helper ─────────────────────────────────────────────────────
 static void update_accent_text_contrast(void) {
@@ -312,12 +488,8 @@ static void update_accent_text_contrast(void) {
   if (s_date_num_layer) {
     text_layer_set_text_color(s_date_num_layer, text_color);
   }
-  if (s_hr_label) {
-    text_layer_set_text_color(s_hr_label, text_color);
-  }
-  if (s_hr_val) {
-    text_layer_set_text_color(s_hr_val, text_color);
-  }
+  if (s_center_label) text_layer_set_text_color(s_center_label, text_color);
+  if (s_center_val) text_layer_set_text_color(s_center_val, text_color);
 }
 
 static void apply_accent_color(GColor color, bool persist_setting) {
@@ -340,7 +512,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (temperature_t) {
     int temp = (int)temperature_t->value->int32;
     snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
-    text_layer_set_text(s_weather_val, s_weather_buf);
+    update_footer_content();
   }
 
   Tuple *weather_icon_t = dict_find(iter, KEY_WEATHER_ICON);
@@ -364,6 +536,29 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       dict_write_int32(out, KEY_CONFIG_ACK, (int32_t)accent_hex);
       app_message_outbox_send();
     }
+  }
+
+  bool settings_changed = false;
+  Tuple *left_t = dict_find(iter, KEY_LEFT_SLOT);
+  if (left_t) { s_settings.left_slot = (uint8_t)left_t->value->int32; settings_changed = true; }
+  Tuple *center_t = dict_find(iter, KEY_CENTER_SLOT);
+  if (center_t) { s_settings.center_slot = (uint8_t)center_t->value->int32; settings_changed = true; }
+  Tuple *right_t = dict_find(iter, KEY_RIGHT_SLOT);
+  if (right_t) { s_settings.right_slot = (uint8_t)right_t->value->int32; settings_changed = true; }
+  Tuple *footer_t = dict_find(iter, KEY_FOOTER_MODE);
+  if (footer_t) {
+    s_settings.footer_mode = (uint8_t)footer_t->value->int32;
+    s_footer_temporarily_visible = false;
+    settings_changed = true;
+  }
+  Tuple *stepbar_t = dict_find(iter, KEY_STEPBAR_MODE);
+  if (stepbar_t) { s_settings.stepbar_mode = (uint8_t)stepbar_t->value->int32; settings_changed = true; }
+
+  if (settings_changed) {
+    settings_save();
+    update_footer_content();
+    apply_footer_visibility();
+    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
   }
 #endif
 }
@@ -403,16 +598,13 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) { update_time(
 static void health_handler(HealthEventType event, void *context) {
   if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate) {
     s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
-    snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", s_step_count);
-    text_layer_set_text(s_steps_val, s_steps_buf);
-    layer_mark_dirty(s_stepbar_layer);
+    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+    update_footer_content();
   }
   if (event == HealthEventHeartRateUpdate || event == HealthEventSignificantUpdate) {
     HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
-    if (hr > 0) {
-      snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", (int)hr);
-      text_layer_set_text(s_hr_val, s_hr_buf);
-    }
+    s_heart_rate = hr > 0 ? (int)hr : 0;
+    update_footer_content();
   }
 }
 #endif
@@ -469,80 +661,82 @@ static void window_load(Window *window) {
   layer_set_update_proc(s_footer_layer, footer_update_proc);
   layer_add_child(root, s_footer_layer);
 
-  s_weather_label = text_layer_create(GRect(4, 2, HRBOX_X - BOX_GAP - 4, 14));
-  text_layer_set_background_color(s_weather_label, GColorClear);
-  text_layer_set_text_color(s_weather_label, COL_WHITE);
-  text_layer_set_font(s_weather_label, s_font_label);
-  text_layer_set_text_alignment(s_weather_label, GTextAlignmentLeft);
-  text_layer_set_text(s_weather_label, "WEATHER");
-  layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_label));
+  int left_w = HRBOX_X - BOX_GAP - 4;
+  int right_x = HRBOX_X + BOX_W + BOX_GAP;
+  int right_w = SCREEN_W - right_x - 4;
 
-  s_weather_val = text_layer_create(GRect(4, 14, HRBOX_X - BOX_GAP - 4, 38));
-  text_layer_set_background_color(s_weather_val, GColorClear);
-  text_layer_set_text_color(s_weather_val, COL_WHITE);
-  text_layer_set_font(s_weather_val, s_font_value);
-  text_layer_set_text_alignment(s_weather_val, GTextAlignmentLeft);
-  snprintf(s_weather_buf, sizeof(s_weather_buf), "--");
-  text_layer_set_text(s_weather_val, s_weather_buf);
-  layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_val));
+  s_left_label = text_layer_create(GRect(4, 2, left_w, 14));
+  text_layer_set_background_color(s_left_label, GColorClear);
+  text_layer_set_text_color(s_left_label, COL_WHITE);
+  text_layer_set_font(s_left_label, s_font_label);
+  text_layer_set_text_alignment(s_left_label, GTextAlignmentLeft);
+  layer_add_child(s_footer_layer, text_layer_get_layer(s_left_label));
+
+  s_left_val = text_layer_create(GRect(4, 14, left_w, 38));
+  text_layer_set_background_color(s_left_val, GColorClear);
+  text_layer_set_text_color(s_left_val, COL_WHITE);
+  text_layer_set_font(s_left_val, s_font_value);
+  text_layer_set_text_alignment(s_left_val, GTextAlignmentLeft);
+  layer_add_child(s_footer_layer, text_layer_get_layer(s_left_val));
+
+  s_center_label = text_layer_create(GRect(HRBOX_X, 2, BOX_W, 14));
+  text_layer_set_background_color(s_center_label, GColorClear);
+  text_layer_set_text_color(s_center_label, gcolor_legible_over(s_settings.accent_color));
+  text_layer_set_font(s_center_label, s_font_label);
+  text_layer_set_text_alignment(s_center_label, GTextAlignmentCenter);
+  layer_add_child(s_footer_layer, text_layer_get_layer(s_center_label));
+
+  s_center_val = text_layer_create(GRect(HRBOX_X, 14, BOX_W, 38));
+  text_layer_set_background_color(s_center_val, GColorClear);
+  text_layer_set_text_color(s_center_val, gcolor_legible_over(s_settings.accent_color));
+  text_layer_set_font(s_center_val, s_font_value);
+  text_layer_set_text_alignment(s_center_val, GTextAlignmentCenter);
+  layer_add_child(s_footer_layer, text_layer_get_layer(s_center_val));
+
+  s_right_label = text_layer_create(GRect(right_x, 2, right_w, 14));
+  text_layer_set_background_color(s_right_label, GColorClear);
+  text_layer_set_text_color(s_right_label, COL_WHITE);
+  text_layer_set_font(s_right_label, s_font_label);
+  text_layer_set_text_alignment(s_right_label, GTextAlignmentRight);
+  layer_add_child(s_footer_layer, text_layer_get_layer(s_right_label));
+
+  s_right_val = text_layer_create(GRect(right_x, 14, right_w, 38));
+  text_layer_set_background_color(s_right_val, GColorClear);
+  text_layer_set_text_color(s_right_val, COL_WHITE);
+  text_layer_set_font(s_right_val, s_font_value);
+  text_layer_set_text_alignment(s_right_val, GTextAlignmentRight);
+  layer_add_child(s_footer_layer, text_layer_get_layer(s_right_val));
 
   s_weather_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_NA);
-  s_weather_icon_layer  = bitmap_layer_create(GRect(40, 18, 25, 25));
-  bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon_bitmap);
-  bitmap_layer_set_compositing_mode(s_weather_icon_layer, GCompOpSet);
-  layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_weather_icon_layer));
+  s_weather_icon_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
+  bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
+  bitmap_layer_set_compositing_mode(s_weather_icon_left_layer, GCompOpSet);
+  layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_weather_icon_left_layer));
 
-  s_hr_label = text_layer_create(GRect(HRBOX_X, 2, BOX_W, 14));
-  text_layer_set_background_color(s_hr_label, GColorClear);
-  text_layer_set_text_color(s_hr_label, gcolor_legible_over(s_settings.accent_color));
-  text_layer_set_font(s_hr_label, s_font_label);
-  text_layer_set_text_alignment(s_hr_label, GTextAlignmentCenter);
-  text_layer_set_text(s_hr_label, "HR");
-  layer_add_child(s_footer_layer, text_layer_get_layer(s_hr_label));
+  s_weather_icon_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
+  bitmap_layer_set_bitmap(s_weather_icon_right_layer, s_weather_icon_bitmap);
+  bitmap_layer_set_compositing_mode(s_weather_icon_right_layer, GCompOpSet);
+  layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_weather_icon_right_layer));
 
-  s_hr_val = text_layer_create(GRect(HRBOX_X, 14, BOX_W, 38));
-  text_layer_set_background_color(s_hr_val, GColorClear);
-  text_layer_set_text_color(s_hr_val, gcolor_legible_over(s_settings.accent_color));
-  text_layer_set_font(s_hr_val, s_font_value);
-  text_layer_set_text_alignment(s_hr_val, GTextAlignmentCenter);
-  snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
-  text_layer_set_text(s_hr_val, s_hr_buf);
-  layer_add_child(s_footer_layer, text_layer_get_layer(s_hr_val));
+  snprintf(s_weather_buf, sizeof(s_weather_buf), "--");
+  BatteryChargeState charge = battery_state_service_peek();
+  s_battery_percent = charge.charge_percent;
+  s_bluetooth_connected = connection_service_peek_pebble_app_connection();
 
-  int steps_x = HRBOX_X + BOX_W + BOX_GAP;
-  int steps_w = SCREEN_W - steps_x - 4;
+#if defined(PBL_HEALTH)
+  s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
+  HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
+  s_heart_rate = hr > 0 ? (int)hr : 0;
+#endif
 
-  s_steps_label = text_layer_create(GRect(steps_x, 2, steps_w, 14));
-  text_layer_set_background_color(s_steps_label, GColorClear);
-  text_layer_set_text_color(s_steps_label, COL_WHITE);
-  text_layer_set_font(s_steps_label, s_font_label);
-  text_layer_set_text_alignment(s_steps_label, GTextAlignmentRight);
-  text_layer_set_text(s_steps_label, "STEPS");
-  layer_add_child(s_footer_layer, text_layer_get_layer(s_steps_label));
-
-  s_steps_val = text_layer_create(GRect(steps_x, 14, steps_w, 38));
-  text_layer_set_background_color(s_steps_val, GColorClear);
-  text_layer_set_text_color(s_steps_val, COL_WHITE);
-  text_layer_set_font(s_steps_val, s_font_value);
-  text_layer_set_text_alignment(s_steps_val, GTextAlignmentRight);
-  snprintf(s_steps_buf, sizeof(s_steps_buf), "0");
-  text_layer_set_text(s_steps_val, s_steps_buf);
-  layer_add_child(s_footer_layer, text_layer_get_layer(s_steps_val));
+  update_footer_content();
+  update_accent_text_contrast();
+  apply_footer_visibility();
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   update_time(t);
 
-#if defined(PBL_HEALTH)
-  s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
-  snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", s_step_count);
-  text_layer_set_text(s_steps_val, s_steps_buf);
-  HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
-  if (hr > 0) {
-    snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", (int)hr);
-    text_layer_set_text(s_hr_val, s_hr_buf);
-  }
-#endif
 }
 
 // ── Window unload ─────────────────────────────────────────────────────────────
@@ -555,14 +749,15 @@ static void window_unload(Window *window) {
   layer_destroy(s_clock_layer);
   layer_destroy(s_stepbar_layer);
   layer_destroy(s_footer_layer);
-  text_layer_destroy(s_weather_label);
-  text_layer_destroy(s_weather_val);
-  bitmap_layer_destroy(s_weather_icon_layer);
+  text_layer_destroy(s_left_label);
+  text_layer_destroy(s_left_val);
+  text_layer_destroy(s_center_label);
+  text_layer_destroy(s_center_val);
+  text_layer_destroy(s_right_label);
+  text_layer_destroy(s_right_val);
+  bitmap_layer_destroy(s_weather_icon_left_layer);
+  bitmap_layer_destroy(s_weather_icon_right_layer);
   if (s_weather_icon_bitmap) gbitmap_destroy(s_weather_icon_bitmap);
-  text_layer_destroy(s_hr_label);
-  text_layer_destroy(s_hr_val);
-  text_layer_destroy(s_steps_label);
-  text_layer_destroy(s_steps_val);
 }
 
 static void init(void) {
@@ -578,6 +773,11 @@ static void init(void) {
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);
   app_message_open(256, 256);
+  battery_state_service_subscribe(battery_handler);
+  connection_service_subscribe((ConnectionHandlers){
+    .pebble_app_connection_handler = connection_handler
+  });
+  accel_tap_service_subscribe(accel_tap_handler);
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif
@@ -586,6 +786,11 @@ static void init(void) {
 static void deinit(void) {
   tick_timer_service_unsubscribe();
   app_message_deregister_callbacks();
+  battery_state_service_unsubscribe();
+  connection_service_unsubscribe();
+  accel_tap_service_unsubscribe();
+  if (s_tap_reset_timer) app_timer_cancel(s_tap_reset_timer);
+  if (s_footer_hide_timer) app_timer_cancel(s_footer_hide_timer);
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
 #endif

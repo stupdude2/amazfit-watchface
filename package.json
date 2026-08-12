@@ -18,7 +18,12 @@
             "TEMPERATURE": 0,
             "WEATHER_ICON": 1,
             "ACCENT_COLOR": 2,
-            "CONFIG_ACK": 3
+            "CONFIG_ACK": 3,
+            "LEFT_SLOT": 4,
+            "CENTER_SLOT": 5,
+            "RIGHT_SLOT": 6,
+            "FOOTER_MODE": 7,
+            "STEPBAR_MODE": 8
         },
         "projectType": "native",
         "resources": {
@@ -88,5 +93,5 @@
             "watchface": true
         }
     },
-    "version": "1.1.4"
+    "version": "1.1.5"
 }
