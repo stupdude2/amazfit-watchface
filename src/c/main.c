@@ -329,7 +329,7 @@ static void health_handler(HealthEventType event, void *context) {
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
 
-  s_font_header = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEADER_28));
+  s_font_header = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEADER_31));
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   s_font_value  = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
 

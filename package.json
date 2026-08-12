@@ -20,7 +20,19 @@
             "media": [
                 {
                     "file": "fonts/Helvetica-Narrow Bold.ttf",
-                    "name": "FONT_HEADER_28",
+                    "name": "FONT_HEADER_BACKUP_28",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
+                    "file": "fonts/BarlowSemiCondensed-SemiBold.ttf",
+                    "name": "FONT_HEADER_BACKUP_32",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
+                    "file": "fonts/Roboto Condensed Bold.ttf",
+                    "name": "FONT_HEADER_31",
                     "targetPlatforms": null,
                     "type": "font"
                 },
