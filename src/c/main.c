@@ -438,7 +438,7 @@ static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color)
   }
 }
 
-static void draw_bluetooth_icon(GContext *ctx, GPoint c, int size,
+static void draw_bluetooth_icon(GContext *ctx, GPoint c, int width, int height,
                                 GColor color, bool connected) {
   (void)connected;
   graphics_context_set_stroke_color(ctx, color);
@@ -450,11 +450,11 @@ static void draw_bluetooth_icon(GContext *ctx, GPoint c, int size,
   //
   // Scale the SVG's 24x24 coordinate space into the requested square while
   // preserving the exact proportions of the supplied path.
-  const int left = c.x - size / 2;
-  const int top  = c.y - size / 2;
+  const int left = c.x - width / 2;
+  const int top  = c.y - height / 2;
 
-  #define BT_X2(x2) (left + (((x2) * size) + 24) / 48)
-  #define BT_Y2(y2) (top  + (((y2) * size) + 24) / 48)
+  #define BT_X2(x2) (left + (((x2) * width) + 24) / 48)
+  #define BT_Y2(y2) (top  + (((y2) * height) + 24) / 48)
 
   GPoint points[] = {
     GPoint(BT_X2(13), BT_Y2(13)),  //  6.5,  6.5
@@ -489,7 +489,7 @@ static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
   } else if (slot == SLOT_BLUETOOTH && s_bluetooth_connected) {
     // Connected Bluetooth is icon-only and fills most of the footer height.
     int cx = area.origin.x + area.size.w / 2;
-    draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, color, true);
+    draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, 30, color, true);
   }
 }
 
@@ -501,7 +501,7 @@ static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
                       s_battery_percent, color);
   } else if (slot == CENTER_BLUETOOTH && s_bluetooth_connected) {
     // Connected Bluetooth is icon-only and spans the label/value area.
-    draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, color, true);
+    draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, 30, color, true);
   }
 }
 
