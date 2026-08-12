@@ -62,7 +62,7 @@
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     1
+#define SETTINGS_VERSION     2
 
 typedef struct {
   uint8_t version;
@@ -73,7 +73,7 @@ static WatchfaceSettings s_settings;
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
-  s_settings.accent_color = GColorCobaltBlue;
+  s_settings.accent_color = GColorRed;
 }
 
 static void settings_load(void) {
@@ -505,7 +505,7 @@ static void window_load(Window *window) {
   text_layer_set_text_color(s_weather_label, COL_WHITE);
   text_layer_set_font(s_weather_label, s_font_label);
   text_layer_set_text_alignment(s_weather_label, GTextAlignmentLeft);
-  text_layer_set_text(s_weather_label, "WEATHER");
+  text_layer_set_text(s_weather_label, "V1.7");
   layer_add_child(s_footer_layer, text_layer_get_layer(s_weather_label));
 
   s_weather_val = text_layer_create(GRect(4, 14, HRBOX_X - BOX_GAP - 4, 38));
@@ -605,9 +605,6 @@ static void init(void) {
     .load = window_load, .unload = window_unload,
   });
   window_stack_push(s_window, true);
-#if WATCHFACE_PRO
-  app_timer_register(2000, diagnostic_local_color_callback, NULL);
-#endif
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);

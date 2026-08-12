@@ -84,19 +84,6 @@ Pebble.addEventListener('appmessage', function(e) {
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready');
 
-  // Diagnostic stage 2: six seconds after PKJS starts, send GREEN directly
-  // using the generated numeric ACCENT_COLOR key. If the face went red at
-  // ~2s and then green here, ordinary phone->watch AppMessage is proven.
-  setTimeout(function() {
-    var diagnosticMessage = {};
-    diagnosticMessage[messageKeys.ACCENT_COLOR] = 0x00FF00;
-    Pebble.sendAppMessage(
-      diagnosticMessage,
-      function() { console.log('DIAG v1.6: direct ACCENT_COLOR GREEN sent'); },
-      function(e) { console.log('DIAG v1.6: direct GREEN send failed: ' + JSON.stringify(e)); }
-    );
-  }, 6000);
-
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       fetchWeather(pos.coords.latitude, pos.coords.longitude);

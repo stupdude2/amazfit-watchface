@@ -3,7 +3,7 @@ var edition = require('./edition');
 var config = [
   {
     "type": "heading",
-    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro — Diagnostic v1.6" : "Amazfit Bip Port"
+    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro — Diagnostic v1.7" : "Amazfit Bip Port"
   }
 ];
 
@@ -11,7 +11,7 @@ if (edition.isPro) {
   config.push(
     {
       "type": "text",
-      "defaultValue": "Diagnostic build: the watch should turn red about 2 seconds after launch, then green about 6 seconds after PebbleKit JS starts. After that, choose a color here and Save Settings."
+      "defaultValue": "Diagnostic build: the watch should launch RED immediately and show V1.7 on the face. After that, choose a color here and Save Settings."
     },
     {
       "type": "section",
@@ -23,7 +23,7 @@ if (edition.isPro) {
         {
           "type": "color",
           "messageKey": "ACCENT_COLOR",
-          "defaultValue": "0000AA",
+          "defaultValue": "FF0000",
           "label": "Accent Color"
         }
       ]
