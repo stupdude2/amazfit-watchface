@@ -305,6 +305,29 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 
 static void update_time(struct tm *tick_time);
 
+// ── Accent helpers / v1.6 visual diagnostic ───────────────────────────────────
+static void apply_accent_color(GColor color, bool persist_setting) {
+  s_settings.accent_color = color;
+  if (persist_setting) settings_save();
+
+  if (s_header_layer) layer_mark_dirty(s_header_layer);
+  if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+  if (s_footer_layer) layer_mark_dirty(s_footer_layer);
+
+  time_t now = time(NULL);
+  struct tm *current = localtime(&now);
+  if (current) update_time(current);
+}
+
+// Diagnostic stage 1: if this build is really running and watch-side drawing works,
+// the blue accent will turn RED about two seconds after launch.
+static void diagnostic_local_color_callback(void *context) {
+#if WATCHFACE_PRO
+  APP_LOG(APP_LOG_LEVEL_INFO, "DIAG v1.6: local watch color -> RED");
+  apply_accent_color(GColorRed, false);
+#endif
+}
+
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage inbox received");
@@ -360,16 +383,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       if (valid_color) {
         APP_LOG(APP_LOG_LEVEL_INFO, "ACCENT_COLOR applied: 0x%06lX type=%d",
                 (unsigned long)accent_hex, (int)t->type);
-        s_settings.accent_color = GColorFromHEX(accent_hex & 0xFFFFFF);
-        settings_save();
-
-        if (s_header_layer) layer_mark_dirty(s_header_layer);
-        if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
-        if (s_footer_layer) layer_mark_dirty(s_footer_layer);
-
-        time_t now = time(NULL);
-        struct tm *current = localtime(&now);
-        if (current) update_time(current);
+        apply_accent_color(GColorFromHEX(accent_hex & 0xFFFFFF), true);
 
         DictionaryIterator *out = NULL;
         if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
@@ -591,6 +605,9 @@ static void init(void) {
     .load = window_load, .unload = window_unload,
   });
   window_stack_push(s_window, true);
+#if WATCHFACE_PRO
+  app_timer_register(2000, diagnostic_local_color_callback, NULL);
+#endif
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);

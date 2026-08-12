@@ -3,7 +3,7 @@ var edition = require('./edition');
 var config = [
   {
     "type": "heading",
-    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro" : "Amazfit Bip Port"
+    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro — Diagnostic v1.6" : "Amazfit Bip Port"
   }
 ];
 
@@ -11,7 +11,7 @@ if (edition.isPro) {
   config.push(
     {
       "type": "text",
-      "defaultValue": "Customize your Pebble Time 2 watchface. More Pro options will be added as they are tested."
+      "defaultValue": "Diagnostic build: the watch should turn red about 2 seconds after launch, then green about 6 seconds after PebbleKit JS starts. After that, choose a color here and Save Settings."
     },
     {
       "type": "section",

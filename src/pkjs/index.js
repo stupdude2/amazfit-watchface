@@ -5,56 +5,13 @@
 // SETUP: Replace YOUR_API_KEY below with a free key from openweathermap.org
 
 // ── Configuration ────────────────────────────────────────────────────────────
+// Use Clay's documented automatic event handling. Clay opens the settings
+// page and, when Save Settings is pressed, sends each configured messageKey
+// directly to the watch via AppMessage.
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
+var clay = new Clay(clayConfig);
 var messageKeys = require('message_keys');
-var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
-
-// Handle Clay explicitly so we can normalize the color and send the generated
-// numeric AppMessage key. This avoids depending on string-key translation.
-Pebble.addEventListener('showConfiguration', function() {
-  console.log('Opening watchface configuration');
-  Pebble.openURL(clay.generateUrl());
-});
-
-Pebble.addEventListener('webviewclosed', function(e) {
-  if (!e || !e.response) {
-    console.log('Configuration closed without saving');
-    return;
-  }
-
-  var settings = clay.getSettings(e.response);
-  console.log('Clay settings returned: ' + JSON.stringify(settings));
-
-  if (typeof settings.ACCENT_COLOR === 'undefined') {
-    console.log('ERROR: ACCENT_COLOR was not returned by Clay');
-    return;
-  }
-
-  var accent = Number(settings.ACCENT_COLOR);
-  if (!isFinite(accent)) {
-    console.log('ERROR: ACCENT_COLOR is not numeric: ' + settings.ACCENT_COLOR);
-    return;
-  }
-
-  // PebbleKit JS accepts numeric AppMessage keys. message_keys is generated
-  // from package.json, guaranteeing this matches MESSAGE_KEY_ACCENT_COLOR in C.
-  var dict = {};
-  dict[messageKeys.ACCENT_COLOR] = accent;
-
-  console.log('Sending ACCENT_COLOR key=' + messageKeys.ACCENT_COLOR +
-              ' value=' + accent + ' hex=0x' + accent.toString(16));
-
-  Pebble.sendAppMessage(
-    dict,
-    function() {
-      console.log('ACCENT_COLOR AppMessage ACK from watch');
-    },
-    function(err) {
-      console.log('ACCENT_COLOR AppMessage NACK: ' + JSON.stringify(err));
-    }
-  );
-});
 
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
 var UNITS   = 'imperial';   // 'imperial' for °F, 'metric' for °C
@@ -126,6 +83,20 @@ Pebble.addEventListener('appmessage', function(e) {
 // Fetch on launch
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready');
+
+  // Diagnostic stage 2: six seconds after PKJS starts, send GREEN directly
+  // using the generated numeric ACCENT_COLOR key. If the face went red at
+  // ~2s and then green here, ordinary phone->watch AppMessage is proven.
+  setTimeout(function() {
+    var diagnosticMessage = {};
+    diagnosticMessage[messageKeys.ACCENT_COLOR] = 0x00FF00;
+    Pebble.sendAppMessage(
+      diagnosticMessage,
+      function() { console.log('DIAG v1.6: direct ACCENT_COLOR GREEN sent'); },
+      function(e) { console.log('DIAG v1.6: direct GREEN send failed: ' + JSON.stringify(e)); }
+    );
+  }, 6000);
+
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       fetchWeather(pos.coords.latitude, pos.coords.longitude);
