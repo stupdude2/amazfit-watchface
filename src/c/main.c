@@ -365,6 +365,10 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   int m1 = s_minute / 10;
   int m2 = s_minute % 10;
   int sy = (b.size.h - DIGIT_HEIGHT) / 2;
+  // Permanently hidden step bar uses the expanded clock area, biased 3 px upward.
+  // Backlight-only modes reserve their step-bar space at all times so the clock
+  // never jumps when the backlight turns the bar on or off.
+  if (s_settings.stepbar_mode == STEPBAR_HIDDEN) sy -= 3;
   if (h1 == 1) draw_one_h1(ctx, sy);
   if (h2 == 1) draw_one(ctx, H2_X, sy); else draw_digit(ctx, H2_X, sy, h2);
   draw_colon(ctx, COL_X, sy);
@@ -453,19 +457,26 @@ static void update_stepbar_layout(void) {
   if (!s_clock_layer || !s_stepbar_layer) return;
 
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
-  const bool visible = s_settings.stepbar_mode != STEPBAR_HIDDEN &&
-                       (!stepbar_is_backlight_only() || s_backlight_on);
+  const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
+  const bool backlight_only = stepbar_is_backlight_only();
+  const bool bar_visible = !permanently_hidden && (!backlight_only || s_backlight_on);
 
-  if (!visible) {
+  if (permanently_hidden) {
+    // Only the true Hidden mode gives the clock the step-bar space.
     layer_set_hidden(s_stepbar_layer, true);
     layer_set_frame(s_clock_layer, GRect(0, HEADER_H, SCREEN_W, available_h));
   } else if (stepbar_is_above()) {
-    layer_set_hidden(s_stepbar_layer, false);
-    layer_set_frame(s_stepbar_layer, GRect(0, HEADER_H, SCREEN_W, STEPBAR_H));
+    // Raise the above-time bar 5 px and leave a 1 px gap between it and the clock.
+    // Backlight-only modes keep these frames fixed so the time never jumps.
+    const int16_t above_bar_y = HEADER_H - 5;
+    const int16_t above_clock_y = HEADER_H + STEPBAR_H + 1;
+    layer_set_hidden(s_stepbar_layer, !bar_visible);
+    layer_set_frame(s_stepbar_layer, GRect(0, above_bar_y, SCREEN_W, STEPBAR_H));
     layer_set_frame(s_clock_layer,
-                    GRect(0, HEADER_H + STEPBAR_H, SCREEN_W, available_h - STEPBAR_H));
+                    GRect(0, above_clock_y, SCREEN_W, available_h - STEPBAR_H - 1));
   } else {
-    layer_set_hidden(s_stepbar_layer, false);
+    // Likewise reserve the below-bar space for backlight-only modes.
+    layer_set_hidden(s_stepbar_layer, !bar_visible);
     layer_set_frame(s_clock_layer, GRect(0, HEADER_H, SCREEN_W, available_h - STEPBAR_H));
     layer_set_frame(s_stepbar_layer,
                     GRect(0, HEADER_H + available_h - STEPBAR_H, SCREEN_W, STEPBAR_H));

@@ -55,18 +55,23 @@ Or paste the `src/main.c` and `package.json` into [CloudPebble](https://cloudpeb
 - **Font**: `FONT_KEY_LECO_42_NUMBERS` is the closest built-in to the Amazfit segmented display style. For an exact match, embed a custom `.ttf` as a resource font.
 
 
-## v1.2.3 footer reveal modes
+## v1.2.4 footer reveal modes
 
 Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single Screen Tap (Pebble Time 2 touch), Show While Backlight Is On, and Off. The double-tap timing window is also relaxed to 1 second.
 
 
-## v1.2.3
+## v1.2.4
 - Simplified top/bottom bar visibility to Always Visible or Show With Backlight.
 - Added configurable top bar visibility.
 - Backlight-controlled bars resync with `light_is_on()` whenever the watchface regains focus, so they remain visible when returning from menus while the backlight is already on.
 - Simplified Bluetooth option labels to “Bluetooth”.
 
 
-### v1.2.3
+### v1.2.4
 - Step progress bar can be placed below or above the time in mirrored or left-to-right styles.
 - When the step bar is hidden, the clock automatically expands into the freed space and vertically centers the time.
+
+
+### v1.2.6 layout refinement
+- Backlight-only step bars reserve their layout space so the clock does not move when the light changes.
+- Fully hidden step bar expands the clock area and biases the time 3 px upward.
