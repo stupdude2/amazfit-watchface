@@ -67,7 +67,7 @@
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     5
+#define SETTINGS_VERSION     6
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -150,9 +150,15 @@ static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
 
   switch (tuple->type) {
     case TUPLE_INT:
-      return tuple->value->int32;
+      if (tuple->length == 1) return tuple->value->int8;
+      if (tuple->length == 2) return tuple->value->int16;
+      if (tuple->length == 4) return tuple->value->int32;
+      break;
     case TUPLE_UINT:
-      return (int32_t)tuple->value->uint32;
+      if (tuple->length == 1) return tuple->value->uint8;
+      if (tuple->length == 2) return tuple->value->uint16;
+      if (tuple->length == 4) return (int32_t)tuple->value->uint32;
+      break;
     case TUPLE_CSTRING:
       if (tuple->length > 1) {
         return (int32_t)strtol(tuple->value->cstring, NULL, 10);
@@ -542,85 +548,139 @@ static void apply_accent_color(GColor color, bool persist_setting) {
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
-  Tuple *temperature_t = dict_find(iter, KEY_TEMPERATURE);
-  if (temperature_t) {
-    int temp = (int)temperature_t->value->int32;
-    snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
+  bool weather_changed = false;
+  bool accent_changed = false;
+  bool layout_changed = false;
+  uint32_t new_accent_hex = 0;
+
+  // Parse the incoming dictionary exactly once. Do not redraw, persist, or
+  // start any other AppMessage operation until parsing is complete.
+  for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "RX key=%lu type=%d len=%u",
+            (unsigned long)t->key, (int)t->type, (unsigned)t->length);
+
+    switch (t->key) {
+      case KEY_TEMPERATURE: {
+        int32_t temp = tuple_to_int32(t, 0);
+        snprintf(s_weather_buf, sizeof(s_weather_buf), "%ld\xC2\xB0", (long)temp);
+        weather_changed = true;
+        break;
+      }
+
+      case KEY_WEATHER_ICON: {
+        int32_t icon = tuple_to_int32(t, s_weather_icon);
+        if (icon >= 0 && icon <= 5) {
+          s_weather_icon = (int)icon;
+          weather_changed = true;
+        }
+        break;
+      }
+
+#if WATCHFACE_PRO
+      case KEY_ACCENT_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          new_accent_hex = (uint32_t)tuple_to_int32(t, 0) & 0xFFFFFF;
+          accent_changed = true;
+        }
+        break;
+
+      case KEY_LEFT_SLOT: {
+        int32_t value = tuple_to_int32(t, s_settings.left_slot);
+        if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
+          s_settings.left_slot = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_CENTER_SLOT: {
+        int32_t value = tuple_to_int32(t, s_settings.center_slot);
+        if (value >= CENTER_HEART_RATE && value <= CENTER_BLUETOOTH) {
+          s_settings.center_slot = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_RIGHT_SLOT: {
+        int32_t value = tuple_to_int32(t, s_settings.right_slot);
+        if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
+          s_settings.right_slot = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_FOOTER_MODE: {
+        int32_t value = tuple_to_int32(t, s_settings.footer_mode);
+        if (value >= FOOTER_ALWAYS && value <= FOOTER_OFF) {
+          s_settings.footer_mode = (uint8_t)value;
+          s_footer_temporarily_visible = false;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Footer mode -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_STEPBAR_MODE: {
+        int32_t value = tuple_to_int32(t, s_settings.stepbar_mode);
+        if (value >= STEPBAR_MIRRORED && value <= STEPBAR_HIDDEN) {
+          s_settings.stepbar_mode = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar mode -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+#endif
+
+      default:
+        break;
+    }
+  }
+
+  // Only touch persistent storage and UI after DictionaryIterator is finished.
+#if WATCHFACE_PRO
+  if (!settings_values_valid(&s_settings)) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid settings after config; restoring footer defaults");
+    GColor keep_accent = s_settings.accent_color;
+    settings_set_defaults();
+    s_settings.accent_color = keep_accent;
+    layout_changed = true;
+  }
+
+  if (accent_changed) {
+    s_settings.accent_color = GColorFromHEX(new_accent_hex);
+  }
+
+  if (accent_changed || layout_changed) {
+    settings_save();
+  }
+#endif
+
+  if (weather_changed) {
+    update_weather_icon(s_weather_icon);
     update_footer_content();
   }
 
-  Tuple *weather_icon_t = dict_find(iter, KEY_WEATHER_ICON);
-  if (weather_icon_t) {
-    s_weather_icon = (int)weather_icon_t->value->int32;
-    update_weather_icon(s_weather_icon);
-  }
-
 #if WATCHFACE_PRO
-  // Clay color controls arrive as a 32-bit RGB integer. This is the
-  // documented Pebble/Clay path: tuple -> GColorFromHEX() -> persist/redraw.
-  Tuple *accent_color_t = dict_find(iter, KEY_ACCENT_COLOR);
-  if (accent_color_t) {
-    uint32_t accent_hex = (uint32_t)accent_color_t->value->int32 & 0xFFFFFF;
-    apply_accent_color(GColorFromHEX(accent_hex), true);
+  if (accent_changed) {
+    update_accent_text_contrast();
+    if (s_header_layer) layer_mark_dirty(s_header_layer);
+    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+    if (s_footer_layer) layer_mark_dirty(s_footer_layer);
+
+    time_t now = time(NULL);
+    struct tm *current = localtime(&now);
+    if (current) update_time(current);
+
     APP_LOG(APP_LOG_LEVEL_INFO, "Accent color applied: 0x%06lX",
-            (unsigned long)accent_hex);
-
+            (unsigned long)new_accent_hex);
   }
 
-  bool settings_changed = false;
-  Tuple *left_t = dict_find(iter, KEY_LEFT_SLOT);
-  if (left_t) {
-    int32_t value = tuple_to_int32(left_t, s_settings.left_slot);
-    if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
-      s_settings.left_slot = (uint8_t)value;
-      APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
-      settings_changed = true;
-    }
-  }
-
-  Tuple *center_t = dict_find(iter, KEY_CENTER_SLOT);
-  if (center_t) {
-    int32_t value = tuple_to_int32(center_t, s_settings.center_slot);
-    if (value >= CENTER_HEART_RATE && value <= CENTER_BLUETOOTH) {
-      s_settings.center_slot = (uint8_t)value;
-      APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
-      settings_changed = true;
-    }
-  }
-
-  Tuple *right_t = dict_find(iter, KEY_RIGHT_SLOT);
-  if (right_t) {
-    int32_t value = tuple_to_int32(right_t, s_settings.right_slot);
-    if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
-      s_settings.right_slot = (uint8_t)value;
-      APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
-      settings_changed = true;
-    }
-  }
-
-  Tuple *footer_t = dict_find(iter, KEY_FOOTER_MODE);
-  if (footer_t) {
-    int32_t value = tuple_to_int32(footer_t, s_settings.footer_mode);
-    if (value >= FOOTER_ALWAYS && value <= FOOTER_OFF) {
-      s_settings.footer_mode = (uint8_t)value;
-      s_footer_temporarily_visible = false;
-      APP_LOG(APP_LOG_LEVEL_INFO, "Footer mode -> %ld", (long)value);
-      settings_changed = true;
-    }
-  }
-
-  Tuple *stepbar_t = dict_find(iter, KEY_STEPBAR_MODE);
-  if (stepbar_t) {
-    int32_t value = tuple_to_int32(stepbar_t, s_settings.stepbar_mode);
-    if (value >= STEPBAR_MIRRORED && value <= STEPBAR_HIDDEN) {
-      s_settings.stepbar_mode = (uint8_t)value;
-      APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar mode -> %ld", (long)value);
-      settings_changed = true;
-    }
-  }
-
-  if (settings_changed) {
-    settings_save();
+  if (layout_changed) {
     update_footer_content();
     apply_footer_visibility();
     if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
