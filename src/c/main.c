@@ -160,8 +160,29 @@ static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
       if (tuple->length == 4) return (int32_t)tuple->value->uint32;
       break;
     case TUPLE_CSTRING:
+      // Clay select controls arrive as short decimal strings (for example "0" or "4").
+      // Parse directly from the tuple's bounded payload instead of using strtol(),
+      // which has proven unstable on this Pebble runtime.
       if (tuple->length > 1) {
-        return (int32_t)strtol(tuple->value->cstring, NULL, 10);
+        int32_t value = 0;
+        bool saw_digit = false;
+        bool negative = false;
+        uint16_t i = 0;
+
+        if (tuple->value->cstring[0] == '-') {
+          negative = true;
+          i = 1;
+        }
+
+        // length includes the terminating NUL; never read beyond it.
+        for (; i + 1 < tuple->length; ++i) {
+          char c = tuple->value->cstring[i];
+          if (c < '0' || c > '9') break;
+          value = value * 10 + (c - '0');
+          saw_digit = true;
+        }
+
+        if (saw_digit) return negative ? -value : value;
       }
       break;
     default:
