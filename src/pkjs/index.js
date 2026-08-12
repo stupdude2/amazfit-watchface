@@ -4,6 +4,11 @@
 //
 // SETUP: Replace YOUR_API_KEY below with a free key from openweathermap.org
 
+// ── Configuration ────────────────────────────────────────────────────────────
+var Clay = require('@rebble/clay');
+var clayConfig = require('./config');
+var clay = new Clay(clayConfig);
+
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
 var UNITS   = 'imperial';   // 'imperial' for °F, 'metric' for °C
 

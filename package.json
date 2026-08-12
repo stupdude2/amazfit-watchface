@@ -1,19 +1,23 @@
 {
     "author": "Bradford",
-    "dependencies": {},
+    "dependencies": {
+        "@rebble/clay": "^1.0.0"
+    },
     "keywords": [
         "pebble-app"
     ],
     "name": "amazfit-bip-port",
     "pebble": {
         "capabilities": [
-            "health"
+            "health",
+            "configurable"
         ],
-        "displayName": "Amazfit Bip Port",
+        "displayName": "Amazfit Bip Port Pro",
         "enableMultiJS": true,
         "messageKeys": [
             "TEMPERATURE",
-            "WEATHER_ICON"
+            "WEATHER_ICON",
+            "ACCENT_COLOR"
         ],
         "projectType": "native",
         "resources": {
@@ -78,10 +82,10 @@
         "targetPlatforms": [
             "emery"
         ],
-        "uuid": "e46902d5-5ef3-4ed2-aad9-fb7deacd56d2",
+        "uuid": "ced51275-d445-4b7e-89f6-9e41110ed4da",
         "watchapp": {
             "watchface": true
         }
     },
-    "version": "1.0.0"
+    "version": "1.1.0"
 }

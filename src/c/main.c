@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include "edition.h"
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 #define SCREEN_W        200
@@ -56,6 +57,42 @@
 #define KEY_TEMPERATURE  0
 #define KEY_WEATHER_ICON 1
 
+// ── Persistent settings ──────────────────────────────────────────────────────
+#define SETTINGS_PERSIST_KEY 1
+#define SETTINGS_VERSION     1
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+} WatchfaceSettings;
+
+static WatchfaceSettings s_settings;
+
+static void settings_set_defaults(void) {
+  s_settings.version = SETTINGS_VERSION;
+  s_settings.accent_color = GColorCobaltBlue;
+}
+
+static void settings_load(void) {
+  settings_set_defaults();
+#if WATCHFACE_PRO
+  if (persist_exists(SETTINGS_PERSIST_KEY) &&
+      persist_get_size(SETTINGS_PERSIST_KEY) == (int)sizeof(s_settings)) {
+    WatchfaceSettings stored;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
+        stored.version == SETTINGS_VERSION) {
+      s_settings = stored;
+    }
+  }
+#endif
+}
+
+static void settings_save(void) {
+#if WATCHFACE_PRO
+  persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
+#endif
+}
+
 // ── Segment bitmasks ──────────────────────────────────────────────────────────
 #define SEG_TOP    (1<<0)
 #define SEG_TL     (1<<1)
@@ -80,9 +117,7 @@ static const uint8_t DIGIT_SEGS[10] = {
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 #define COL_BG      GColorBlack
-#define COL_BLUE    GColorCobaltBlue
 #define COL_WHITE   GColorWhite
-#define COL_SUNDAY  GColorCobaltBlue
 #define COL_WEEKDAY GColorWhite
 
 // ── Layers ────────────────────────────────────────────────────────────────────
@@ -216,10 +251,10 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, COL_BLUE);
+  graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(DATEBOX_X, DATEBOX_Y, DATEBOX_W, DATEBOX_H), 0, GCornerNone);
   int line_y = DATEBOX_Y + DATEBOX_H - 2;
-  graphics_context_set_fill_color(ctx, COL_BLUE);
+  graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(0, line_y, DATEBOX_X - UNDERLINE_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(DATEBOX_X + DATEBOX_W + UNDERLINE_GAP, line_y, SCREEN_W - DATEBOX_X - DATEBOX_W - UNDERLINE_GAP, 2), 0, GCornerNone);
 }
@@ -239,7 +274,7 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, COL_WHITE);
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
   } else {
-    graphics_context_set_stroke_color(ctx, COL_BLUE);
+    graphics_context_set_stroke_color(ctx, s_settings.accent_color);
     graphics_context_set_stroke_width(ctx, 2);
     for (int x = bar_x; x < bar_x + bar_w; x += 4) {
       graphics_draw_pixel(ctx, GPoint(x,     cy));
@@ -258,17 +293,22 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, COL_BG);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, COL_BLUE);
+  graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(HRBOX_X, HRBOX_Y, BOX_W, b.size.h), 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, COL_BLUE);
+  graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(0, 0, HRBOX_X - BOX_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(HRBOX_X + BOX_W + BOX_GAP, 0, SCREEN_W - HRBOX_X - BOX_W - BOX_GAP, 2), 0, GCornerNone);
 }
+
+static void update_time(struct tm *tick_time);
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *temp_tuple = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   Tuple *icon_tuple = dict_find(iter, MESSAGE_KEY_WEATHER_ICON);
+#if WATCHFACE_PRO
+  Tuple *accent_tuple = dict_find(iter, MESSAGE_KEY_ACCENT_COLOR);
+#endif
   if (temp_tuple) {
     int temp = (int)temp_tuple->value->int32;
     snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\u00B0", temp);
@@ -278,6 +318,21 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_weather_icon = (int)icon_tuple->value->int32;
     update_weather_icon(s_weather_icon);
   }
+#if WATCHFACE_PRO
+  if (accent_tuple) {
+    s_settings.accent_color = GColorFromHEX(accent_tuple->value->int32);
+    settings_save();
+
+    if (s_header_layer) layer_mark_dirty(s_header_layer);
+    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+    if (s_footer_layer) layer_mark_dirty(s_footer_layer);
+
+    // Refresh Sunday/day text color immediately if the setting changes today.
+    time_t now = time(NULL);
+    struct tm *current = localtime(&now);
+    if (current) update_time(current);
+  }
+#endif
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
@@ -291,7 +346,7 @@ static void update_time(struct tm *tick_time) {
   strftime(s_date_buf,  sizeof(s_date_buf),  "%e", tick_time);
   strftime(s_month_buf, sizeof(s_month_buf), "%b", tick_time); to_upper(s_month_buf);
 
-  text_layer_set_text_color(s_day_layer, tick_time->tm_wday == 0 ? COL_SUNDAY : COL_WEEKDAY);
+  text_layer_set_text_color(s_day_layer, tick_time->tm_wday == 0 ? s_settings.accent_color : COL_WEEKDAY);
   text_layer_set_text(s_day_layer, s_day_buf);
   char *d = s_date_buf; while (*d == ' ') d++;
   text_layer_set_text(s_date_num_layer, d);
@@ -474,6 +529,8 @@ static void window_unload(Window *window) {
 }
 
 static void init(void) {
+  settings_load();
+
   s_window = window_create();
   window_set_background_color(s_window, COL_BG);
   window_set_window_handlers(s_window, (WindowHandlers){
