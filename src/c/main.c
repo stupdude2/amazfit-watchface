@@ -67,7 +67,7 @@
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     4
+#define SETTINGS_VERSION     5
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -117,6 +117,16 @@ static void settings_set_defaults(void) {
   s_settings.stepbar_mode = STEPBAR_MIRRORED;
 }
 
+static bool settings_values_valid(const WatchfaceSettings *settings) {
+  if (!settings) return false;
+  return settings->version == SETTINGS_VERSION &&
+         settings->left_slot <= SLOT_BLUETOOTH &&
+         settings->center_slot <= CENTER_BLUETOOTH &&
+         settings->right_slot <= SLOT_BLUETOOTH &&
+         settings->footer_mode <= FOOTER_OFF &&
+         settings->stepbar_mode <= STEPBAR_HIDDEN;
+}
+
 static void settings_load(void) {
   settings_set_defaults();
 #if WATCHFACE_PRO
@@ -124,8 +134,11 @@ static void settings_load(void) {
       persist_get_size(SETTINGS_PERSIST_KEY) == (int)sizeof(s_settings)) {
     WatchfaceSettings stored;
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
-        stored.version == SETTINGS_VERSION) {
+        settings_values_valid(&stored)) {
       s_settings = stored;
+    } else {
+      // Discard stale/corrupt settings from earlier footer builds.
+      persist_delete(SETTINGS_PERSIST_KEY);
     }
   }
 #endif
@@ -552,11 +565,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Accent color applied: 0x%06lX",
             (unsigned long)accent_hex);
 
-    DictionaryIterator *out = NULL;
-    if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
-      dict_write_int32(out, KEY_CONFIG_ACK, (int32_t)accent_hex);
-      app_message_outbox_send();
-    }
   }
 
   bool settings_changed = false;
@@ -565,6 +573,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     int32_t value = tuple_to_int32(left_t, s_settings.left_slot);
     if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
       s_settings.left_slot = (uint8_t)value;
+      APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
       settings_changed = true;
     }
   }
@@ -574,6 +583,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     int32_t value = tuple_to_int32(center_t, s_settings.center_slot);
     if (value >= CENTER_HEART_RATE && value <= CENTER_BLUETOOTH) {
       s_settings.center_slot = (uint8_t)value;
+      APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
       settings_changed = true;
     }
   }
@@ -583,6 +593,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     int32_t value = tuple_to_int32(right_t, s_settings.right_slot);
     if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
       s_settings.right_slot = (uint8_t)value;
+      APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
       settings_changed = true;
     }
   }
@@ -593,6 +604,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (value >= FOOTER_ALWAYS && value <= FOOTER_OFF) {
       s_settings.footer_mode = (uint8_t)value;
       s_footer_temporarily_visible = false;
+      APP_LOG(APP_LOG_LEVEL_INFO, "Footer mode -> %ld", (long)value);
       settings_changed = true;
     }
   }
@@ -602,6 +614,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     int32_t value = tuple_to_int32(stepbar_t, s_settings.stepbar_mode);
     if (value >= STEPBAR_MIRRORED && value <= STEPBAR_HIDDEN) {
       s_settings.stepbar_mode = (uint8_t)value;
+      APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar mode -> %ld", (long)value);
       settings_changed = true;
     }
   }
@@ -787,29 +800,53 @@ static void window_load(Window *window) {
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
-  update_time(t);
+  if (t) update_time(t);
 
 }
 
 // ── Window unload ─────────────────────────────────────────────────────────────
 static void window_unload(Window *window) {
-  fonts_unload_custom_font(s_font_header);
-  layer_destroy(s_header_layer);
-  text_layer_destroy(s_day_layer);
-  text_layer_destroy(s_date_num_layer);
-  text_layer_destroy(s_month_layer);
-  layer_destroy(s_clock_layer);
-  layer_destroy(s_stepbar_layer);
-  layer_destroy(s_footer_layer);
+  // Destroy child layers before their parent layers. Destroying a parent first
+  // and then destroying its former children can fault on Pebble.
+  bitmap_layer_destroy(s_weather_icon_left_layer);
+  bitmap_layer_destroy(s_weather_icon_right_layer);
+  s_weather_icon_left_layer = NULL;
+  s_weather_icon_right_layer = NULL;
+
   text_layer_destroy(s_left_label);
   text_layer_destroy(s_left_val);
   text_layer_destroy(s_center_label);
   text_layer_destroy(s_center_val);
   text_layer_destroy(s_right_label);
   text_layer_destroy(s_right_val);
-  bitmap_layer_destroy(s_weather_icon_left_layer);
-  bitmap_layer_destroy(s_weather_icon_right_layer);
-  if (s_weather_icon_bitmap) gbitmap_destroy(s_weather_icon_bitmap);
+  s_left_label = NULL;
+  s_left_val = NULL;
+  s_center_label = NULL;
+  s_center_val = NULL;
+  s_right_label = NULL;
+  s_right_val = NULL;
+
+  text_layer_destroy(s_day_layer);
+  text_layer_destroy(s_date_num_layer);
+  text_layer_destroy(s_month_layer);
+  s_day_layer = NULL;
+  s_date_num_layer = NULL;
+  s_month_layer = NULL;
+
+  layer_destroy(s_header_layer);
+  layer_destroy(s_clock_layer);
+  layer_destroy(s_stepbar_layer);
+  layer_destroy(s_footer_layer);
+  s_header_layer = NULL;
+  s_clock_layer = NULL;
+  s_stepbar_layer = NULL;
+  s_footer_layer = NULL;
+
+  if (s_weather_icon_bitmap) {
+    gbitmap_destroy(s_weather_icon_bitmap);
+    s_weather_icon_bitmap = NULL;
+  }
+  fonts_unload_custom_font(s_font_header);
 }
 
 static void init(void) {
