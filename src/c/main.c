@@ -56,6 +56,8 @@
 // ── AppMessage keys ───────────────────────────────────────────────────────────
 #define KEY_TEMPERATURE  0
 #define KEY_WEATHER_ICON 1
+#define KEY_ACCENT_COLOR 2
+#define KEY_CONFIG_ACK   3
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
@@ -305,10 +307,18 @@ static void update_time(struct tm *tick_time);
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage inbox received");
-  Tuple *temp_tuple = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
-  Tuple *icon_tuple = dict_find(iter, MESSAGE_KEY_WEATHER_ICON);
+
+  // Log every incoming tuple.  The IDs are intentionally pinned in
+  // package.json so CloudPebble, Clay and C all share the same values.
+  for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "RX tuple key=%lu type=%d len=%u",
+            (unsigned long)t->key, (int)t->type, (unsigned)t->length);
+  }
+
+  Tuple *temp_tuple = dict_find(iter, KEY_TEMPERATURE);
+  Tuple *icon_tuple = dict_find(iter, KEY_WEATHER_ICON);
 #if WATCHFACE_PRO
-  Tuple *accent_tuple = dict_find(iter, MESSAGE_KEY_ACCENT_COLOR);
+  Tuple *accent_tuple = dict_find(iter, KEY_ACCENT_COLOR);
 #endif
   if (temp_tuple) {
     int temp = (int)temp_tuple->value->int32;
@@ -338,7 +348,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
     DictionaryIterator *out = NULL;
     if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
-      dict_write_int32(out, MESSAGE_KEY_CONFIG_ACK, accent_hex);
+      dict_write_int32(out, KEY_CONFIG_ACK, accent_hex);
       app_message_outbox_send();
     }
   } else {

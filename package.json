@@ -14,12 +14,12 @@
         ],
         "displayName": "Amazfit Bip Port Pro",
         "enableMultiJS": true,
-        "messageKeys": [
-            "TEMPERATURE",
-            "WEATHER_ICON",
-            "ACCENT_COLOR",
-            "CONFIG_ACK"
-        ],
+        "messageKeys": {
+            "TEMPERATURE": 0,
+            "WEATHER_ICON": 1,
+            "ACCENT_COLOR": 2,
+            "CONFIG_ACK": 3
+        },
         "projectType": "native",
         "resources": {
             "media": [
@@ -88,5 +88,5 @@
             "watchface": true
         }
     },
-    "version": "1.1.1"
+    "version": "1.1.3"
 }
