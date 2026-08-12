@@ -371,7 +371,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       } else if (t->type == TUPLE_UINT) {
         accent_hex = t->value->uint32;
         valid_color = true;
-      } else if (t->type == TUPLE_CSTRING && t->value->cstring) {
+      } else if (t->type == TUPLE_CSTRING && t->length > 1) {
         // Be tolerant if a configuration implementation sends "0xRRGGBB"
         // or "RRGGBB" as text instead of a number.
         const char *str = t->value->cstring;
