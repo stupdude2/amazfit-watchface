@@ -304,6 +304,7 @@ static void update_time(struct tm *tick_time);
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage inbox received");
   Tuple *temp_tuple = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   Tuple *icon_tuple = dict_find(iter, MESSAGE_KEY_WEATHER_ICON);
 #if WATCHFACE_PRO
@@ -320,7 +321,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
 #if WATCHFACE_PRO
   if (accent_tuple) {
-    s_settings.accent_color = GColorFromHEX(accent_tuple->value->int32);
+    int32_t accent_hex = accent_tuple->value->int32;
+    APP_LOG(APP_LOG_LEVEL_INFO, "ACCENT_COLOR received: %ld (0x%06lX)",
+            (long)accent_hex, (unsigned long)accent_hex);
+    s_settings.accent_color = GColorFromHEX(accent_hex);
     settings_save();
 
     if (s_header_layer) layer_mark_dirty(s_header_layer);
@@ -331,8 +335,20 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     time_t now = time(NULL);
     struct tm *current = localtime(&now);
     if (current) update_time(current);
+
+    DictionaryIterator *out = NULL;
+    if (app_message_outbox_begin(&out) == APP_MSG_OK && out) {
+      dict_write_int32(out, MESSAGE_KEY_CONFIG_ACK, accent_hex);
+      app_message_outbox_send();
+    }
+  } else {
+    APP_LOG(APP_LOG_LEVEL_WARNING, "No ACCENT_COLOR tuple in AppMessage");
   }
 #endif
+}
+
+static void inbox_dropped_handler(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "AppMessage inbox dropped: %d", (int)reason);
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
@@ -539,7 +555,8 @@ static void init(void) {
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   app_message_register_inbox_received(inbox_received_handler);
-  app_message_open(128, 128);
+  app_message_register_inbox_dropped(inbox_dropped_handler);
+  app_message_open(256, 256);
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif

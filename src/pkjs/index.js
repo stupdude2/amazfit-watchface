@@ -7,9 +7,11 @@
 // ── Configuration ────────────────────────────────────────────────────────────
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
+var messageKeys = require('message_keys');
 var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
 
-// Handle Clay explicitly so configuration delivery can be logged and diagnosed.
+// Handle Clay explicitly so we can normalize the color and send the generated
+// numeric AppMessage key. This avoids depending on string-key translation.
 Pebble.addEventListener('showConfiguration', function() {
   console.log('Opening watchface configuration');
   Pebble.openURL(clay.generateUrl());
@@ -22,15 +24,34 @@ Pebble.addEventListener('webviewclosed', function(e) {
   }
 
   var settings = clay.getSettings(e.response);
-  console.log('Sending configuration to watch: ' + JSON.stringify(settings));
+  console.log('Clay settings returned: ' + JSON.stringify(settings));
+
+  if (typeof settings.ACCENT_COLOR === 'undefined') {
+    console.log('ERROR: ACCENT_COLOR was not returned by Clay');
+    return;
+  }
+
+  var accent = Number(settings.ACCENT_COLOR);
+  if (!isFinite(accent)) {
+    console.log('ERROR: ACCENT_COLOR is not numeric: ' + settings.ACCENT_COLOR);
+    return;
+  }
+
+  // PebbleKit JS accepts numeric AppMessage keys. message_keys is generated
+  // from package.json, guaranteeing this matches MESSAGE_KEY_ACCENT_COLOR in C.
+  var dict = {};
+  dict[messageKeys.ACCENT_COLOR] = accent;
+
+  console.log('Sending ACCENT_COLOR key=' + messageKeys.ACCENT_COLOR +
+              ' value=' + accent + ' hex=0x' + accent.toString(16));
 
   Pebble.sendAppMessage(
-    settings,
+    dict,
     function() {
-      console.log('Configuration sent successfully');
+      console.log('ACCENT_COLOR AppMessage ACK from watch');
     },
     function(err) {
-      console.log('Configuration send FAILED: ' + JSON.stringify(err));
+      console.log('ACCENT_COLOR AppMessage NACK: ' + JSON.stringify(err));
     }
   );
 });
@@ -83,8 +104,13 @@ function fetchWeather(lat, lon) {
   xhr.send();
 }
 
-// Watch requested a weather update
+// Messages from the watch: configuration acknowledgement or weather request.
 Pebble.addEventListener('appmessage', function(e) {
+  if (e.payload && typeof e.payload.CONFIG_ACK !== 'undefined') {
+    console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);
+    return;
+  }
+
   console.log('Watch requested weather update');
   navigator.geolocation.getCurrentPosition(
     function(pos) {

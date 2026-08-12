@@ -17,7 +17,8 @@
         "messageKeys": [
             "TEMPERATURE",
             "WEATHER_ICON",
-            "ACCENT_COLOR"
+            "ACCENT_COLOR",
+            "CONFIG_ACK"
         ],
         "projectType": "native",
         "resources": {
@@ -87,5 +88,5 @@
             "watchface": true
         }
     },
-    "version": "1.1.0"
+    "version": "1.1.1"
 }

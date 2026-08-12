@@ -23,7 +23,7 @@ if (edition.isPro) {
         {
           "type": "color",
           "messageKey": "ACCENT_COLOR",
-          "defaultValue": "0x0000AA",
+          "defaultValue": "0000AA",
           "label": "Accent Color"
         }
       ]
