@@ -71,7 +71,9 @@ if (edition.isPro) {
         "label": "Bottom Bar Visibility",
         "options": [
           { "label": "Always Visible", "value": "0" },
-          { "label": "Show 5 Seconds on Double Tap", "value": "1" },
+          { "label": "Show 5 Seconds on Double Wrist Tap", "value": "1" },
+          { "label": "Show 5 Seconds on Single Screen Tap", "value": "3" },
+          { "label": "Show While Backlight Is On", "value": "4" },
           { "label": "Off", "value": "2" }
         ]
       }

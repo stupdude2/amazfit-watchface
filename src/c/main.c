@@ -86,7 +86,9 @@ typedef enum {
 typedef enum {
   FOOTER_ALWAYS = 0,
   FOOTER_DOUBLE_TAP = 1,
-  FOOTER_OFF = 2
+  FOOTER_OFF = 2,
+  FOOTER_SINGLE_TOUCH = 3,
+  FOOTER_BACKLIGHT = 4
 } FooterMode;
 
 typedef enum {
@@ -123,7 +125,7 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->left_slot <= SLOT_BLUETOOTH &&
          settings->center_slot <= CENTER_BLUETOOTH &&
          settings->right_slot <= SLOT_BLUETOOTH &&
-         settings->footer_mode <= FOOTER_OFF &&
+         settings->footer_mode <= FOOTER_BACKLIGHT &&
          settings->stepbar_mode <= STEPBAR_HIDDEN;
 }
 
@@ -268,6 +270,11 @@ static bool s_footer_temporarily_visible = false;
 static bool s_waiting_for_second_tap = false;
 static AppTimer *s_tap_reset_timer = NULL;
 static AppTimer *s_footer_hide_timer = NULL;
+static bool s_accel_tap_subscribed = false;
+static bool s_backlight_subscribed = false;
+#if defined(PBL_TOUCH)
+static bool s_touch_subscribed = false;
+#endif
 
 static void to_upper(char *s) {
   for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
@@ -621,7 +628,10 @@ static void update_footer_content(void) {
 static void apply_footer_visibility(void) {
   if (!s_footer_layer) return;
   bool visible = s_settings.footer_mode == FOOTER_ALWAYS ||
-                 (s_settings.footer_mode == FOOTER_DOUBLE_TAP && s_footer_temporarily_visible);
+                 ((s_settings.footer_mode == FOOTER_DOUBLE_TAP ||
+                   s_settings.footer_mode == FOOTER_SINGLE_TOUCH ||
+                   s_settings.footer_mode == FOOTER_BACKLIGHT) &&
+                  s_footer_temporarily_visible);
   layer_set_hidden(s_footer_layer, !visible);
 }
 
@@ -636,20 +646,81 @@ static void tap_reset_callback(void *context) {
   s_waiting_for_second_tap = false;
 }
 
+static void show_footer_for_five_seconds(void) {
+  s_footer_temporarily_visible = true;
+  apply_footer_visibility();
+  if (s_footer_hide_timer) app_timer_cancel(s_footer_hide_timer);
+  s_footer_hide_timer = app_timer_register(5000, footer_hide_callback, NULL);
+}
+
 static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
   if (s_settings.footer_mode != FOOTER_DOUBLE_TAP) return;
   if (s_waiting_for_second_tap) {
     s_waiting_for_second_tap = false;
     if (s_tap_reset_timer) { app_timer_cancel(s_tap_reset_timer); s_tap_reset_timer = NULL; }
-    s_footer_temporarily_visible = true;
-    apply_footer_visibility();
-    if (s_footer_hide_timer) app_timer_cancel(s_footer_hide_timer);
-    s_footer_hide_timer = app_timer_register(5000, footer_hide_callback, NULL);
+    show_footer_for_five_seconds();
   } else {
     s_waiting_for_second_tap = true;
     if (s_tap_reset_timer) app_timer_cancel(s_tap_reset_timer);
-    s_tap_reset_timer = app_timer_register(700, tap_reset_callback, NULL);
+    // A slightly longer window makes the gesture easier without changing
+    // Pebble's firmware-controlled tap-force threshold.
+    s_tap_reset_timer = app_timer_register(1000, tap_reset_callback, NULL);
   }
+}
+
+static void backlight_handler(bool on) {
+  if (s_settings.footer_mode != FOOTER_BACKLIGHT) return;
+  if (s_footer_hide_timer) {
+    app_timer_cancel(s_footer_hide_timer);
+    s_footer_hide_timer = NULL;
+  }
+  s_footer_temporarily_visible = on;
+  apply_footer_visibility();
+}
+
+#if defined(PBL_TOUCH)
+static void touch_handler(const TouchEvent *event, void *context) {
+  if (!event || s_settings.footer_mode != FOOTER_SINGLE_TOUCH) return;
+  if (event->type == TouchEvent_Touchdown) {
+    show_footer_for_five_seconds();
+  }
+}
+#endif
+
+static void update_footer_input_services(void) {
+  bool want_accel = s_settings.footer_mode == FOOTER_DOUBLE_TAP;
+  if (want_accel && !s_accel_tap_subscribed) {
+    accel_tap_service_subscribe(accel_tap_handler);
+    s_accel_tap_subscribed = true;
+  } else if (!want_accel && s_accel_tap_subscribed) {
+    accel_tap_service_unsubscribe();
+    s_accel_tap_subscribed = false;
+    s_waiting_for_second_tap = false;
+    if (s_tap_reset_timer) {
+      app_timer_cancel(s_tap_reset_timer);
+      s_tap_reset_timer = NULL;
+    }
+  }
+
+  bool want_backlight = s_settings.footer_mode == FOOTER_BACKLIGHT;
+  if (want_backlight && !s_backlight_subscribed) {
+    backlight_service_subscribe(backlight_handler);
+    s_backlight_subscribed = true;
+  } else if (!want_backlight && s_backlight_subscribed) {
+    backlight_service_unsubscribe();
+    s_backlight_subscribed = false;
+  }
+
+#if defined(PBL_TOUCH)
+  bool want_touch = s_settings.footer_mode == FOOTER_SINGLE_TOUCH;
+  if (want_touch && !s_touch_subscribed) {
+    touch_service_subscribe(touch_handler, NULL);
+    s_touch_subscribed = true;
+  } else if (!want_touch && s_touch_subscribed) {
+    touch_service_unsubscribe();
+    s_touch_subscribed = false;
+  }
+#endif
 }
 
 static void battery_handler(BatteryChargeState charge) {
@@ -757,7 +828,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_FOOTER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.footer_mode);
-        if (value >= FOOTER_ALWAYS && value <= FOOTER_OFF) {
+        if (value >= FOOTER_ALWAYS && value <= FOOTER_BACKLIGHT) {
           s_settings.footer_mode = (uint8_t)value;
           s_footer_temporarily_visible = false;
           APP_LOG(APP_LOG_LEVEL_INFO, "Footer mode -> %ld", (long)value);
@@ -823,6 +894,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   if (layout_changed) {
     update_footer_content();
+    update_footer_input_services();
     apply_footer_visibility();
     if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
   }
@@ -1067,7 +1139,7 @@ static void init(void) {
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler
   });
-  accel_tap_service_subscribe(accel_tap_handler);
+  update_footer_input_services();
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif
@@ -1078,7 +1150,11 @@ static void deinit(void) {
   app_message_deregister_callbacks();
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
-  accel_tap_service_unsubscribe();
+  if (s_accel_tap_subscribed) accel_tap_service_unsubscribe();
+  if (s_backlight_subscribed) backlight_service_unsubscribe();
+#if defined(PBL_TOUCH)
+  if (s_touch_subscribed) touch_service_unsubscribe();
+#endif
   if (s_tap_reset_timer) app_timer_cancel(s_tap_reset_timer);
   if (s_footer_hide_timer) app_timer_cancel(s_footer_hide_timer);
 #if defined(PBL_HEALTH)

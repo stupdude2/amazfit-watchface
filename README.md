@@ -53,3 +53,8 @@ Or paste the `src/main.c` and `package.json` into [CloudPebble](https://cloudpeb
 - **Weather icon**: swap the procedural drawing in `footer_update_proc` for a `GBitmap` resource to match the Amazfit cloud icon exactly. Add the PNG to `resources/images/` and register it in `package.json` under `resources.media`.
 - **24h vs 12h**: change `%k:%M` to `%I:%M` and add an AM/PM indicator layer.
 - **Font**: `FONT_KEY_LECO_42_NUMBERS` is the closest built-in to the Amazfit segmented display style. For an exact match, embed a custom `.ttf` as a resource font.
+
+
+## v1.2.0 footer reveal modes
+
+Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single Screen Tap (Pebble Time 2 touch), Show While Backlight Is On, and Off. The double-tap timing window is also relaxed to 1 second.
