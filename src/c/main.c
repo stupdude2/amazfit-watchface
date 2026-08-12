@@ -306,8 +306,23 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 static void update_time(struct tm *tick_time);
 
 // ── Accent color helper ─────────────────────────────────────────────────────
+static void update_accent_text_contrast(void) {
+  GColor text_color = gcolor_legible_over(s_settings.accent_color);
+
+  if (s_date_num_layer) {
+    text_layer_set_text_color(s_date_num_layer, text_color);
+  }
+  if (s_hr_label) {
+    text_layer_set_text_color(s_hr_label, text_color);
+  }
+  if (s_hr_val) {
+    text_layer_set_text_color(s_hr_val, text_color);
+  }
+}
+
 static void apply_accent_color(GColor color, bool persist_setting) {
   s_settings.accent_color = color;
+  update_accent_text_contrast();
   if (persist_setting) settings_save();
 
   if (s_header_layer) layer_mark_dirty(s_header_layer);
@@ -427,7 +442,7 @@ static void window_load(Window *window) {
 
   s_date_num_layer = text_layer_create(GRect(DATEBOX_X, text_y, DATEBOX_W, 32));
   text_layer_set_background_color(s_date_num_layer, GColorClear);
-  text_layer_set_text_color(s_date_num_layer, COL_WHITE);
+  text_layer_set_text_color(s_date_num_layer, gcolor_legible_over(s_settings.accent_color));
   text_layer_set_font(s_date_num_layer, s_font_header);
   text_layer_set_text_alignment(s_date_num_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_date_num_layer));
@@ -479,7 +494,7 @@ static void window_load(Window *window) {
 
   s_hr_label = text_layer_create(GRect(HRBOX_X, 2, BOX_W, 14));
   text_layer_set_background_color(s_hr_label, GColorClear);
-  text_layer_set_text_color(s_hr_label, COL_WHITE);
+  text_layer_set_text_color(s_hr_label, gcolor_legible_over(s_settings.accent_color));
   text_layer_set_font(s_hr_label, s_font_label);
   text_layer_set_text_alignment(s_hr_label, GTextAlignmentCenter);
   text_layer_set_text(s_hr_label, "HR");
@@ -487,7 +502,7 @@ static void window_load(Window *window) {
 
   s_hr_val = text_layer_create(GRect(HRBOX_X, 14, BOX_W, 38));
   text_layer_set_background_color(s_hr_val, GColorClear);
-  text_layer_set_text_color(s_hr_val, COL_WHITE);
+  text_layer_set_text_color(s_hr_val, gcolor_legible_over(s_settings.accent_color));
   text_layer_set_font(s_hr_val, s_font_value);
   text_layer_set_text_alignment(s_hr_val, GTextAlignmentCenter);
   snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
