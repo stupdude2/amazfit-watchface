@@ -131,6 +131,27 @@ static void settings_load(void) {
 #endif
 }
 
+
+static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
+  if (!tuple || !tuple->value) return fallback;
+
+  switch (tuple->type) {
+    case TUPLE_INT:
+      return tuple->value->int32;
+    case TUPLE_UINT:
+      return (int32_t)tuple->value->uint32;
+    case TUPLE_CSTRING:
+      if (tuple->length > 1) {
+        return (int32_t)strtol(tuple->value->cstring, NULL, 10);
+      }
+      break;
+    default:
+      break;
+  }
+
+  return fallback;
+}
+
 static void settings_save(void) {
 #if WATCHFACE_PRO
   persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
@@ -540,19 +561,50 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   bool settings_changed = false;
   Tuple *left_t = dict_find(iter, KEY_LEFT_SLOT);
-  if (left_t) { s_settings.left_slot = (uint8_t)left_t->value->int32; settings_changed = true; }
+  if (left_t) {
+    int32_t value = tuple_to_int32(left_t, s_settings.left_slot);
+    if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
+      s_settings.left_slot = (uint8_t)value;
+      settings_changed = true;
+    }
+  }
+
   Tuple *center_t = dict_find(iter, KEY_CENTER_SLOT);
-  if (center_t) { s_settings.center_slot = (uint8_t)center_t->value->int32; settings_changed = true; }
+  if (center_t) {
+    int32_t value = tuple_to_int32(center_t, s_settings.center_slot);
+    if (value >= CENTER_HEART_RATE && value <= CENTER_BLUETOOTH) {
+      s_settings.center_slot = (uint8_t)value;
+      settings_changed = true;
+    }
+  }
+
   Tuple *right_t = dict_find(iter, KEY_RIGHT_SLOT);
-  if (right_t) { s_settings.right_slot = (uint8_t)right_t->value->int32; settings_changed = true; }
+  if (right_t) {
+    int32_t value = tuple_to_int32(right_t, s_settings.right_slot);
+    if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
+      s_settings.right_slot = (uint8_t)value;
+      settings_changed = true;
+    }
+  }
+
   Tuple *footer_t = dict_find(iter, KEY_FOOTER_MODE);
   if (footer_t) {
-    s_settings.footer_mode = (uint8_t)footer_t->value->int32;
-    s_footer_temporarily_visible = false;
-    settings_changed = true;
+    int32_t value = tuple_to_int32(footer_t, s_settings.footer_mode);
+    if (value >= FOOTER_ALWAYS && value <= FOOTER_OFF) {
+      s_settings.footer_mode = (uint8_t)value;
+      s_footer_temporarily_visible = false;
+      settings_changed = true;
+    }
   }
+
   Tuple *stepbar_t = dict_find(iter, KEY_STEPBAR_MODE);
-  if (stepbar_t) { s_settings.stepbar_mode = (uint8_t)stepbar_t->value->int32; settings_changed = true; }
+  if (stepbar_t) {
+    int32_t value = tuple_to_int32(stepbar_t, s_settings.stepbar_mode);
+    if (value >= STEPBAR_MIRRORED && value <= STEPBAR_HIDDEN) {
+      s_settings.stepbar_mode = (uint8_t)value;
+      settings_changed = true;
+    }
+  }
 
   if (settings_changed) {
     settings_save();
