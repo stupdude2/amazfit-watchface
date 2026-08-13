@@ -29,37 +29,134 @@ function customClay(minified) {
     if (!resetButton) return;
 
     resetButton.on('click', function() {
-      var confirmed = true;
-      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-        confirmed = window.confirm(
-          'Restore all watchface settings to their defaults?\\n\\n' +
-          'This will reset colors, weather units, top and bottom bar content, ' +
-          'visibility, step goal, and step-bar layout.'
-        );
+      // Avoid window.confirm(): Pebble's embedded webview labels native dialogs
+      // "JavaScript" and some versions display escaped newline characters.
+      // Use an in-page confirmation card instead so we control the title/text.
+      if (typeof document === 'undefined') return;
+
+      var existing = document.getElementById('restore-defaults-confirmation');
+      if (existing) {
+        existing.parentNode.removeChild(existing);
       }
-      if (!confirmed) return;
 
-      setValue('ACCENT_COLOR', '0x0000AA');
-      setValue('CLOCK_COLOR', '0xFFFFFF');
-      setValue('BACKGROUND_COLOR', '0x000000');
-      setValue('TEMP_UNIT', '0');
+      var overlay = document.createElement('div');
+      overlay.id = 'restore-defaults-confirmation';
+      overlay.style.position = 'fixed';
+      overlay.style.left = '0';
+      overlay.style.top = '0';
+      overlay.style.right = '0';
+      overlay.style.bottom = '0';
+      overlay.style.zIndex = '99999';
+      overlay.style.background = 'rgba(0,0,0,0.55)';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.padding = '20px';
+      overlay.style.boxSizing = 'border-box';
 
-      setValue('TOP_LEFT_SLOT', '5');
-      setValue('TOP_CENTER_SLOT', '6');
-      setValue('TOP_RIGHT_SLOT', '7');
-      setValue('HEADER_MODE', '0');
+      var card = document.createElement('div');
+      card.style.width = '100%';
+      card.style.maxWidth = '420px';
+      card.style.background = '#ffffff';
+      card.style.color = '#222222';
+      card.style.borderRadius = '10px';
+      card.style.padding = '20px';
+      card.style.boxSizing = 'border-box';
+      card.style.boxShadow = '0 4px 18px rgba(0,0,0,0.35)';
 
-      setValue('LEFT_SLOT', '0');
-      setValue('CENTER_SLOT', '0');
-      setValue('RIGHT_SLOT', '1');
-      setValue('FOOTER_MODE', '0');
+      var title = document.createElement('div');
+      title.textContent = 'Restore Default Settings?';
+      title.style.fontSize = '20px';
+      title.style.fontWeight = 'bold';
+      title.style.marginBottom = '12px';
 
-      setValue('STEP_GOAL', 5000);
-      setValue('STEPBAR_MODE', '0');
+      var body = document.createElement('div');
+      body.textContent =
+        'This will reset colors, weather units, top and bottom bar content, ' +
+        'visibility, step goal, and step-bar layout.';
+      body.style.fontSize = '15px';
+      body.style.lineHeight = '1.4';
+      body.style.marginBottom = '18px';
 
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        window.alert('Defaults restored. Tap Save Settings to apply them to the watch.');
+      var buttons = document.createElement('div');
+      buttons.style.display = 'flex';
+      buttons.style.gap = '10px';
+      buttons.style.justifyContent = 'flex-end';
+
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.style.padding = '10px 16px';
+      cancel.style.border = '1px solid #aaaaaa';
+      cancel.style.borderRadius = '6px';
+      cancel.style.background = '#f4f4f4';
+      cancel.style.color = '#222222';
+
+      var restore = document.createElement('button');
+      restore.type = 'button';
+      restore.textContent = 'Restore Defaults';
+      restore.style.padding = '10px 16px';
+      restore.style.border = '0';
+      restore.style.borderRadius = '6px';
+      restore.style.background = '#d9534f';
+      restore.style.color = '#ffffff';
+
+      function closeOverlay() {
+        if (overlay && overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
       }
+
+      cancel.addEventListener('click', closeOverlay);
+
+      restore.addEventListener('click', function() {
+        setValue('ACCENT_COLOR', '0x0000AA');
+        setValue('CLOCK_COLOR', '0xFFFFFF');
+        setValue('BACKGROUND_COLOR', '0x000000');
+        setValue('TEMP_UNIT', '0');
+
+        setValue('TOP_LEFT_SLOT', '5');
+        setValue('TOP_CENTER_SLOT', '6');
+        setValue('TOP_RIGHT_SLOT', '7');
+        setValue('HEADER_MODE', '0');
+
+        setValue('LEFT_SLOT', '0');
+        setValue('CENTER_SLOT', '0');
+        setValue('RIGHT_SLOT', '1');
+        setValue('FOOTER_MODE', '0');
+
+        setValue('STEP_GOAL', 5000);
+        setValue('STEPBAR_MODE', '0');
+
+        closeOverlay();
+
+        // Show a lightweight in-page status rather than another native JS alert.
+        var status = document.createElement('div');
+        status.textContent = 'Defaults restored. Tap Save Settings to apply them to the watch.';
+        status.style.position = 'fixed';
+        status.style.left = '16px';
+        status.style.right = '16px';
+        status.style.bottom = '16px';
+        status.style.zIndex = '99999';
+        status.style.background = '#333333';
+        status.style.color = '#ffffff';
+        status.style.padding = '12px 14px';
+        status.style.borderRadius = '6px';
+        status.style.textAlign = 'center';
+        document.body.appendChild(status);
+
+        setTimeout(function() {
+          if (status.parentNode) status.parentNode.removeChild(status);
+        }, 3000);
+      });
+
+      buttons.appendChild(cancel);
+      buttons.appendChild(restore);
+      card.appendChild(title);
+      card.appendChild(body);
+      card.appendChild(buttons);
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
     });
   });
 }
