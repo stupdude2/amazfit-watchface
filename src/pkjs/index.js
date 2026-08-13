@@ -94,7 +94,7 @@ function customClay(minified) {
 
       var restore = document.createElement('button');
       restore.type = 'button';
-      restore.textContent = 'Restore Defaults';
+      restore.textContent = 'Yes';
       restore.style.padding = '10px 16px';
       restore.style.border = '0';
       restore.style.borderRadius = '6px';
