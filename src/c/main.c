@@ -1503,9 +1503,9 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
   if (s_settings.raise_wake_mode == RAISE_WAKE_OFF || !data || num_samples == 0) return;
 
   const int32_t motion_threshold =
-      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 120 : 180;
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 120 : 210;
   const uint64_t motion_memory_ms =
-      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 1400 : 1100;
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 1400 : 950;
   const uint64_t cooldown_ms = 3500;
 
   for (uint32_t i = 0; i < num_samples; ++i) {
@@ -1582,10 +1582,11 @@ static void update_raise_wake_service(void) {
   bool want_accel = s_settings.raise_wake_mode != RAISE_WAKE_OFF;
 
   if (want_accel && !s_raise_accel_subscribed) {
-    // 10 Hz with five-sample batches gives orientation detail while waking the
-    // application only twice per second.
+    // Keep the sensor at 10 Hz for reliable orientation data, but batch ten
+    // samples so the application wakes only once per second instead of twice.
+    // This is our first battery-saving pass without lowering sensor fidelity.
     accel_service_set_sampling_rate(ACCEL_SAMPLING_10HZ);
-    accel_data_service_subscribe(5, raise_wake_accel_handler);
+    accel_data_service_subscribe(10, raise_wake_accel_handler);
     s_raise_accel_subscribed = true;
     reset_raise_wake_state();
     APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake accelerometer enabled");
