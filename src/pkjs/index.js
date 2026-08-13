@@ -142,6 +142,7 @@ function customClay(minified) {
         setValue('CLOCK_COLOR', '0xFFFFFF');
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
+        setValue('RAISE_WAKE', '0');
         setValue('BACKGROUND_COLOR', '0x000000');
         setValue('TEMP_UNIT', '0');
 
@@ -212,8 +213,22 @@ function iconFromOWM(id) {
   return ICON_CLOUDY;
 }
 
+function localMinuteOfDay(unixSeconds, timezoneSeconds) {
+  var seconds = (unixSeconds + timezoneSeconds) % 86400;
+  if (seconds < 0) seconds += 86400;
+  return Math.floor(seconds / 60);
+}
+
+function sendWeatherPayload(payload) {
+  Pebble.sendAppMessage(
+    payload,
+    function() { console.log('Weather data sent'); },
+    function(e) { console.log('Weather send failed: ' + JSON.stringify(e)); }
+  );
+}
+
 function fetchWeather(lat, lon) {
-  var url = 'https://api.openweathermap.org/data/2.5/weather'
+  var currentUrl = 'https://api.openweathermap.org/data/2.5/weather'
     + '?lat=' + lat
     + '&lon=' + lon
     + '&units=' + UNITS
@@ -221,26 +236,77 @@ function fetchWeather(lat, lon) {
 
   var xhr = new XMLHttpRequest();
   xhr.onload = function() {
-    if (xhr.status === 200) {
-      try {
-        var data = JSON.parse(xhr.responseText);
-        // Send Celsius in tenths of a degree. This preserves enough precision
-        // for the watch to switch between °F and °C locally.
-        var temp = Math.round(data.main.temp * 10);
-        var icon = iconFromOWM(data.weather[0].id);
-        Pebble.sendAppMessage(
-          { 'TEMPERATURE': temp, 'WEATHER_ICON': icon },
-          function() { console.log('Weather sent: ' + (temp / 10) + '°C icon=' + icon); },
-          function(e) { console.log('Weather send failed: ' + JSON.stringify(e)); }
-        );
-      } catch(e) {
-        console.log('Weather parse error: ' + e);
-      }
-    } else {
+    if (xhr.status !== 200) {
       console.log('Weather HTTP error: ' + xhr.status);
+      return;
+    }
+
+    try {
+      var data = JSON.parse(xhr.responseText);
+      var temp = Math.round(data.main.temp * 10);
+      var icon = iconFromOWM(data.weather[0].id);
+      var timezone = data.timezone || 0;
+
+      var payload = {
+        'TEMPERATURE': temp,
+        'WEATHER_ICON': icon,
+        'SUNRISE': localMinuteOfDay(data.sys.sunrise, timezone),
+        'SUNSET': localMinuteOfDay(data.sys.sunset, timezone)
+      };
+
+      var forecastUrl = 'https://api.openweathermap.org/data/2.5/forecast'
+        + '?lat=' + lat
+        + '&lon=' + lon
+        + '&units=' + UNITS
+        + '&appid=' + API_KEY;
+
+      var forecastXhr = new XMLHttpRequest();
+      forecastXhr.onload = function() {
+        if (forecastXhr.status === 200) {
+          try {
+            var forecast = JSON.parse(forecastXhr.responseText);
+            var forecastTimezone =
+              forecast.city && typeof forecast.city.timezone === 'number'
+                ? forecast.city.timezone : timezone;
+            var nowUtc = Math.floor(Date.now() / 1000);
+            var localDay = Math.floor((nowUtc + forecastTimezone) / 86400);
+            var high = data.main.temp;
+            var low = data.main.temp;
+
+            for (var i = 0; i < forecast.list.length; i++) {
+              var item = forecast.list[i];
+              var itemDay = Math.floor((item.dt + forecastTimezone) / 86400);
+              if (itemDay !== localDay) continue;
+
+              if (item.main.temp_max > high) high = item.main.temp_max;
+              if (item.main.temp_min < low) low = item.main.temp_min;
+            }
+
+            payload.HIGH_TEMP = Math.round(high * 10);
+            payload.LOW_TEMP = Math.round(low * 10);
+          } catch (e) {
+            console.log('Forecast parse error: ' + e);
+          }
+        } else {
+          console.log('Forecast HTTP error: ' + forecastXhr.status);
+        }
+
+        sendWeatherPayload(payload);
+      };
+
+      forecastXhr.onerror = function() {
+        console.log('Forecast network error');
+        sendWeatherPayload(payload);
+      };
+
+      forecastXhr.open('GET', forecastUrl);
+      forecastXhr.send();
+    } catch (e) {
+      console.log('Weather parse error: ' + e);
     }
   };
-  xhr.open('GET', url);
+
+  xhr.open('GET', currentUrl);
   xhr.send();
 }
 

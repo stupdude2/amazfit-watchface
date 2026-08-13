@@ -105,10 +105,11 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_SUNSET         20
 #define KEY_HIGH_TEMP      21
 #define KEY_LOW_TEMP       22
+#define KEY_RAISE_WAKE     23
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     12
+#define SETTINGS_VERSION     13
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -164,6 +165,12 @@ typedef enum {
   TIME_FORMAT_12H = 0,
   TIME_FORMAT_24H = 1
 } ClockTimeFormat;
+
+typedef enum {
+  RAISE_WAKE_OFF = 0,
+  RAISE_WAKE_NORMAL = 1,
+  RAISE_WAKE_SENSITIVE = 2
+} RaiseWakeMode;
 
 typedef struct {
   uint8_t version;
@@ -260,6 +267,27 @@ typedef struct {
   uint8_t top_right_slot;
   uint8_t time_format;
   uint8_t center_12h;
+} WatchfaceSettingsV12;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
+  uint8_t top_left_slot;
+  uint8_t top_center_slot;
+  uint8_t top_right_slot;
+  uint8_t time_format;
+  uint8_t center_12h;
+  uint8_t raise_wake_mode;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -282,6 +310,7 @@ static void settings_set_defaults(void) {
   s_settings.top_right_slot = SLOT_MONTH;
   s_settings.time_format = TIME_FORMAT_12H;
   s_settings.center_12h = 0;
+  s_settings.raise_wake_mode = RAISE_WAKE_OFF;
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
@@ -299,7 +328,8 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->step_goal >= 1000 && settings->step_goal <= 30000 &&
          settings->temp_unit <= TEMP_CELSIUS &&
          settings->time_format <= TIME_FORMAT_24H &&
-         settings->center_12h <= 1;
+         settings->center_12h <= 1 &&
+         settings->raise_wake_mode <= RAISE_WAKE_SENSITIVE;
 }
 
 static void settings_load(void) {
@@ -313,6 +343,43 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV12)) {
+    WatchfaceSettingsV12 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 12 &&
+        old.left_slot <= SLOT_HIGH_LOW &&
+        old.center_slot <= CENTER_MONTH &&
+        old.right_slot <= SLOT_HIGH_LOW &&
+        old.top_left_slot <= SLOT_HIGH_LOW &&
+        old.top_center_slot <= SLOT_MONTH &&
+        old.top_right_slot <= SLOT_HIGH_LOW &&
+        old.footer_mode <= BAR_HIDDEN &&
+        old.header_mode <= BAR_HIDDEN &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+        old.step_goal >= 1000 && old.step_goal <= 30000 &&
+        old.temp_unit <= TEMP_CELSIUS &&
+        old.time_format <= TIME_FORMAT_24H &&
+        old.center_12h <= 1) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      s_settings.background_color = old.background_color;
+      s_settings.top_left_slot = old.top_left_slot;
+      s_settings.top_center_slot = old.top_center_slot;
+      s_settings.top_right_slot = old.top_right_slot;
+      s_settings.time_format = old.time_format;
+      s_settings.center_12h = old.center_12h;
+      s_settings.raise_wake_mode = RAISE_WAKE_OFF;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV11)) {
@@ -604,6 +671,17 @@ static int  s_low_c_x10 = 0;
 static bool s_have_high_low = false;
 static bool s_backlight_on = false;
 static bool s_backlight_subscribed = false;
+
+// ── Raise-to-wake gesture state ──────────────────────────────────────────────
+// We use |Z| so the gesture works regardless of watchface-up/down sign.
+// "Armed" means the watch has recently been in a lowered/edge-on orientation.
+// A wake requires a transition to a stable face-toward-user orientation.
+static bool s_raise_accel_subscribed = false;
+static bool s_raise_armed = false;
+static uint64_t s_raise_armed_at = 0;
+static uint64_t s_raise_last_wake_at = 0;
+static int16_t s_raise_start_abs_z = 0;
+static uint8_t s_raise_face_samples = 0;
 
 static void to_upper(char *s) {
   for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
@@ -1380,6 +1458,108 @@ static void update_bar_input_services(void) {
   update_stepbar_layout();
 }
 
+static int16_t abs_i16(int16_t v) {
+  return v < 0 ? (int16_t)-v : v;
+}
+
+static bool accel_sample_is_stable_gravity(const AccelData *sample) {
+  // Around 1 g while allowing normal wrist motion. This rejects large impacts
+  // that are much more likely to be taps, bumps, or arm swings than a read pose.
+  int32_t x = sample->x;
+  int32_t y = sample->y;
+  int32_t z = sample->z;
+  int32_t mag2 = x * x + y * y + z * z;
+  return mag2 >= 600000 && mag2 <= 1500000;
+}
+
+static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
+  if (s_settings.raise_wake_mode == RAISE_WAKE_OFF || !data || num_samples == 0) return;
+
+  const int16_t arm_z = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 650 : 520;
+  const int16_t face_z = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 650 : 760;
+  const int16_t min_z_change = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 220 : 320;
+  const uint64_t gesture_window_ms = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 1800 : 1500;
+  const uint64_t cooldown_ms = 3500;
+
+  for (uint32_t i = 0; i < num_samples; ++i) {
+    AccelData *sample = &data[i];
+    if (sample->did_vibrate) continue;
+
+    uint64_t now_ms = sample->timestamp;
+    int16_t abs_z = abs_i16(sample->z);
+
+    // A lowered wrist normally puts the watchface closer to vertical, reducing
+    // the gravity component through the Z axis. Use that posture to arm.
+    if (abs_z <= arm_z) {
+      if (!s_raise_armed) {
+        s_raise_armed = true;
+        s_raise_armed_at = now_ms;
+        s_raise_start_abs_z = abs_z;
+      } else if (abs_z < s_raise_start_abs_z) {
+        s_raise_start_abs_z = abs_z;
+      }
+      s_raise_face_samples = 0;
+      continue;
+    }
+
+    if (!s_raise_armed) continue;
+
+    if (now_ms - s_raise_armed_at > gesture_window_ms) {
+      s_raise_armed = false;
+      s_raise_face_samples = 0;
+      continue;
+    }
+
+    bool face_pose = abs_z >= face_z &&
+                     (abs_z - s_raise_start_abs_z) >= min_z_change &&
+                     accel_sample_is_stable_gravity(sample);
+
+    if (face_pose) {
+      if (s_raise_face_samples < 3) s_raise_face_samples++;
+    } else {
+      s_raise_face_samples = 0;
+    }
+
+    // Require two consecutive stable samples in the read orientation. At 10 Hz
+    // this is roughly 0.2 s, enough to reject many passing arm swings.
+    if (s_raise_face_samples >= 2) {
+      if (!light_is_on() &&
+          (s_raise_last_wake_at == 0 || now_ms - s_raise_last_wake_at >= cooldown_ms)) {
+        light_enable_interaction();
+        s_raise_last_wake_at = now_ms;
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Raise wake: mode=%d startZ=%d finalZ=%d",
+                (int)s_settings.raise_wake_mode,
+                (int)s_raise_start_abs_z,
+                (int)abs_z);
+      }
+      s_raise_armed = false;
+      s_raise_face_samples = 0;
+    }
+  }
+}
+
+static void update_raise_wake_service(void) {
+  bool want_accel = s_settings.raise_wake_mode != RAISE_WAKE_OFF;
+
+  if (want_accel && !s_raise_accel_subscribed) {
+    // 10 Hz preserves enough temporal detail for a wrist raise while batching
+    // five samples means the application wakes only twice per second.
+    accel_service_set_sampling_rate(ACCEL_SAMPLING_10HZ);
+    accel_data_service_subscribe(5, raise_wake_accel_handler);
+    s_raise_accel_subscribed = true;
+    s_raise_armed = false;
+    s_raise_face_samples = 0;
+    APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake accelerometer enabled");
+  } else if (!want_accel && s_raise_accel_subscribed) {
+    accel_data_service_unsubscribe();
+    s_raise_accel_subscribed = false;
+    s_raise_armed = false;
+    s_raise_face_samples = 0;
+    APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake accelerometer disabled");
+  }
+}
+
 static void battery_handler(BatteryChargeState charge) {
   s_battery_percent = charge.charge_percent;
   update_footer_content();
@@ -1558,6 +1738,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_RAISE_WAKE: {
+        int32_t value = tuple_to_int32(t, s_settings.raise_wake_mode);
+        if (value >= RAISE_WAKE_OFF && value <= RAISE_WAKE_SENSITIVE) {
+          s_settings.raise_wake_mode = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake mode -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
       case KEY_FOOTER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.footer_mode);
         if (value >= BAR_ALWAYS && value <= BAR_HIDDEN) {
@@ -1714,6 +1904,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     update_header_content();
     update_stepbar_layout();
     update_bar_input_services();
+    update_raise_wake_service();
     apply_bar_visibility();
 
     // Time-format changes should be visible immediately instead of waiting for
@@ -1999,6 +2190,7 @@ static void init(void) {
   });
   s_backlight_on = light_is_on();
   update_bar_input_services();
+  update_raise_wake_service();
   app_focus_service_subscribe(focus_handler);
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
@@ -2011,6 +2203,7 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
+  if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();

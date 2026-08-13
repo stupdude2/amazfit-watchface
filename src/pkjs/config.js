@@ -88,6 +88,26 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
+      { "type": "heading", "defaultValue": "Raise to Wake" },
+      {
+        "type": "select",
+        "messageKey": "RAISE_WAKE",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Wrist Raise Backlight",
+        "description": "Uses wrist orientation and motion to turn on the backlight when you raise the watch to read it.",
+        "options": [
+          { "label": "Off", "value": "0" },
+          { "label": "Normal", "value": "1" },
+          { "label": "Sensitive", "value": "2" }
+        ]
+      }
+    ]
+  });
+
+  config.push({
+    "type": "section",
+    "items": [
       { "type": "heading", "defaultValue": "Weather" },
       {
         "type": "select",

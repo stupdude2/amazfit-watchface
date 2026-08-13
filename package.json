@@ -37,7 +37,8 @@
       "SUNRISE": 19,
       "SUNSET": 20,
       "HIGH_TEMP": 21,
-      "LOW_TEMP": 22
+      "LOW_TEMP": 22,
+      "RAISE_WAKE": 23
     },
     "projectType": "native",
     "resources": {
@@ -107,5 +108,5 @@
       "watchface": true
     }
   },
-  "version": "1.8.2"
+  "version": "1.9.0"
 }
