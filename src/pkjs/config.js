@@ -31,6 +31,30 @@ if (edition.isPro) {
         "messageKey": "ACCENT_COLOR",
         "defaultValue": "0x0000AA",
         "label": "Accent Color"
+      },
+      {
+        "type": "color",
+        "messageKey": "CLOCK_COLOR",
+        "defaultValue": "0xFFFFFF",
+        "label": "Clock Color"
+      }
+    ]
+  });
+
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Weather" },
+      {
+        "type": "select",
+        "messageKey": "TEMP_UNIT",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Temperature Unit",
+        "options": [
+          { "label": "Fahrenheit (°F)", "value": "0" },
+          { "label": "Celsius (°C)", "value": "1" }
+        ]
       }
     ]
   });
@@ -99,6 +123,16 @@ if (edition.isPro) {
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Step Progress Bar" },
+      {
+        "type": "slider",
+        "messageKey": "STEP_GOAL",
+        "defaultValue": 5000,
+        "label": "Daily Step Goal",
+        "description": "Sets the goal represented by a full progress bar.",
+        "min": 1000,
+        "max": 30000,
+        "step": 500
+      },
       {
         "type": "select",
         "messageKey": "STEPBAR_MODE",

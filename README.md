@@ -72,6 +72,12 @@ Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single 
 - When the step bar is hidden, the clock automatically expands into the freed space and vertically centers the time.
 
 
-### v1.2.7 layout refinement
+### v1.3.0 layout refinement
 - Backlight-only step bars reserve their layout space so the clock does not move when the light changes.
 - Fully hidden step bar expands the clock area and biases the time 3 px upward.
+
+
+## v1.3.0 customization additions
+- Daily Step Goal slider: 1,000–30,000 in 500-step increments.
+- Fahrenheit / Celsius temperature unit selection.
+- Independent clock digit color picker.

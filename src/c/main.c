@@ -71,10 +71,13 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_FOOTER_MODE  7
 #define KEY_STEPBAR_MODE 8
 #define KEY_HEADER_MODE  9
+#define KEY_STEP_GOAL    10
+#define KEY_TEMP_UNIT    11
+#define KEY_CLOCK_COLOR  12
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     7
+#define SETTINGS_VERSION     8
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -107,6 +110,11 @@ typedef enum {
   STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT = 8
 } StepbarMode;
 
+typedef enum {
+  TEMP_FAHRENHEIT = 0,
+  TEMP_CELSIUS = 1
+} TemperatureUnit;
+
 typedef struct {
   uint8_t version;
   GColor accent_color;
@@ -116,6 +124,20 @@ typedef struct {
   uint8_t footer_mode;
   uint8_t header_mode;
   uint8_t stepbar_mode;
+} WatchfaceSettingsV7;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -129,6 +151,9 @@ static void settings_set_defaults(void) {
   s_settings.footer_mode = BAR_ALWAYS;
   s_settings.header_mode = BAR_ALWAYS;
   s_settings.stepbar_mode = STEPBAR_MIRRORED;
+  s_settings.step_goal = 5000;
+  s_settings.temp_unit = TEMP_FAHRENHEIT;
+  s_settings.clock_color = GColorWhite;
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
@@ -139,23 +164,50 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->right_slot <= SLOT_BLUETOOTH &&
          settings->footer_mode <= BAR_BACKLIGHT &&
          settings->header_mode <= BAR_BACKLIGHT &&
-         settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+         settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+         settings->step_goal >= 1000 && settings->step_goal <= 30000 &&
+         settings->temp_unit <= TEMP_CELSIUS;
 }
 
 static void settings_load(void) {
   settings_set_defaults();
 #if WATCHFACE_PRO
-  if (persist_exists(SETTINGS_PERSIST_KEY) &&
-      persist_get_size(SETTINGS_PERSIST_KEY) == (int)sizeof(s_settings)) {
+  if (!persist_exists(SETTINGS_PERSIST_KEY)) return;
+
+  int stored_size = persist_get_size(SETTINGS_PERSIST_KEY);
+  if (stored_size == (int)sizeof(s_settings)) {
     WatchfaceSettings stored;
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
-    } else {
-      // Discard stale/corrupt settings from earlier footer builds.
-      persist_delete(SETTINGS_PERSIST_KEY);
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV7)) {
+    // Migrate the user's existing v1.2.x layout/accent settings and supply
+    // defaults for the three new customization fields.
+    WatchfaceSettingsV7 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 7 &&
+        old.left_slot <= SLOT_BLUETOOTH &&
+        old.center_slot <= CENTER_BLUETOOTH &&
+        old.right_slot <= SLOT_BLUETOOTH &&
+        old.footer_mode <= BAR_BACKLIGHT &&
+        old.header_mode <= BAR_BACKLIGHT &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
+      return;
     }
   }
+
+  // Discard stale/corrupt settings that cannot be migrated safely.
+  persist_delete(SETTINGS_PERSIST_KEY);
 #endif
 }
 
@@ -279,6 +331,8 @@ static bool s_bluetooth_connected = false;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
 static int  s_weather_icon = -1;
+static int  s_temperature_c_x10 = 0;
+static bool s_have_temperature = false;
 static bool s_backlight_on = false;
 static bool s_backlight_subscribed = false;
 
@@ -296,7 +350,7 @@ static void draw_v(GContext *ctx, int ox, int oy, int len) {
 static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
   if (digit < 0 || digit > 9) return;
   uint8_t s = DIGIT_SEGS[digit];
-  graphics_context_set_fill_color(ctx, COL_WHITE);
+  graphics_context_set_fill_color(ctx, s_settings.clock_color);
   int top_y = oy;
   int mid_y = oy + HALF_V - STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - STK;
@@ -311,7 +365,7 @@ static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
   if (s & SEG_BR) draw_v(ctx, rx, mid_y, bot_y - mid_y + STK);
 }
 static void draw_one_h1(GContext *ctx, int oy) {
-  graphics_context_set_fill_color(ctx, COL_WHITE);
+  graphics_context_set_fill_color(ctx, s_settings.clock_color);
   int ox    = H1_X + H1_ONE_X;
   int mid_y = oy + HALF_V - STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - STK;
@@ -319,7 +373,7 @@ static void draw_one_h1(GContext *ctx, int oy) {
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
 static void draw_one(GContext *ctx, int cell_x, int oy) {
-  graphics_context_set_fill_color(ctx, COL_WHITE);
+  graphics_context_set_fill_color(ctx, s_settings.clock_color);
   int ox    = cell_x + ONE_X_OFFSET;
   int mid_y = oy + HALF_V - STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - STK;
@@ -327,7 +381,7 @@ static void draw_one(GContext *ctx, int cell_x, int oy) {
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
 static void draw_colon(GContext *ctx, int ox, int oy) {
-  graphics_context_set_fill_color(ctx, COL_WHITE);
+  graphics_context_set_fill_color(ctx, s_settings.clock_color);
   int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
   int upper_y = oy + DIGIT_HEIGHT / 3 - COLON_DOT / 2;
   int lower_y = oy + (DIGIT_HEIGHT * 2) / 3 - COLON_DOT / 2;
@@ -353,6 +407,25 @@ static void update_weather_icon(int icon_code) {
   s_weather_icon_bitmap = gbitmap_create_with_resource(resource_id);
   if (s_weather_icon_left_layer) bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
   if (s_weather_icon_right_layer) bitmap_layer_set_bitmap(s_weather_icon_right_layer, s_weather_icon_bitmap);
+}
+
+static int round_tenths_to_int(int value_x10) {
+  return value_x10 >= 0 ? (value_x10 + 5) / 10 : (value_x10 - 5) / 10;
+}
+
+static void update_temperature_text(void) {
+  if (!s_have_temperature) {
+    snprintf(s_weather_buf, sizeof(s_weather_buf), "--");
+    return;
+  }
+
+  int display_x10 = s_temperature_c_x10;
+  if (s_settings.temp_unit == TEMP_FAHRENHEIT) {
+    display_x10 = (s_temperature_c_x10 * 9) / 5 + 320;
+  }
+
+  int display_temp = round_tenths_to_int(display_x10);
+  snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\xC2\xB0", display_temp);
 }
 
 // ── Clock ─────────────────────────────────────────────────────────────────────
@@ -403,9 +476,9 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return;
 
   int steps = s_step_count < 0 ? 0 : s_step_count;
-  int fill_w = (steps >= STEP_GOAL) ? bar_w : (steps * bar_w / STEP_GOAL);
+  int fill_w = (steps >= s_settings.step_goal) ? bar_w : (steps * bar_w / s_settings.step_goal);
 
-  if (steps >= STEP_GOAL) {
+  if (steps >= s_settings.step_goal) {
     graphics_context_set_fill_color(ctx, COL_WHITE);
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
     return;
@@ -768,8 +841,11 @@ static void update_accent_text_contrast(void) {
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool weather_changed = false;
   bool accent_changed = false;
+  bool clock_color_changed = false;
   bool layout_changed = false;
+  bool temperature_setting_changed = false;
   uint32_t new_accent_hex = 0;
+  uint32_t new_clock_hex = 0;
 
   // Parse the incoming dictionary exactly once. Do not redraw, persist, or
   // start any other AppMessage operation until parsing is complete.
@@ -779,8 +855,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
     switch (t->key) {
       case KEY_TEMPERATURE: {
-        int32_t temp = tuple_to_int32(t, 0);
-        snprintf(s_weather_buf, sizeof(s_weather_buf), "%ld\xC2\xB0", (long)temp);
+        // Phone sends Celsius in tenths of a degree so the watch can switch
+        // units locally without another network request.
+        s_temperature_c_x10 = (int)tuple_to_int32(t, 0);
+        s_have_temperature = true;
+        update_temperature_text();
         weather_changed = true;
         break;
       }
@@ -861,6 +940,34 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
       }
+
+      case KEY_STEP_GOAL: {
+        int32_t value = tuple_to_int32(t, s_settings.step_goal);
+        if (value >= 1000 && value <= 30000) {
+          s_settings.step_goal = (uint16_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Step goal -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_TEMP_UNIT: {
+        int32_t value = tuple_to_int32(t, s_settings.temp_unit);
+        if (value >= TEMP_FAHRENHEIT && value <= TEMP_CELSIUS) {
+          s_settings.temp_unit = (uint8_t)value;
+          update_temperature_text();
+          APP_LOG(APP_LOG_LEVEL_INFO, "Temperature unit -> %ld", (long)value);
+          temperature_setting_changed = true;
+        }
+        break;
+      }
+
+      case KEY_CLOCK_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          new_clock_hex = (uint32_t)tuple_to_int32(t, 0xFFFFFF) & 0xFFFFFF;
+          clock_color_changed = true;
+        }
+        break;
 #endif
 
       default:
@@ -873,22 +980,30 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (!settings_values_valid(&s_settings)) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid settings after config; restoring footer defaults");
     GColor keep_accent = s_settings.accent_color;
+    GColor keep_clock = s_settings.clock_color;
     settings_set_defaults();
     s_settings.accent_color = keep_accent;
+    s_settings.clock_color = keep_clock;
     layout_changed = true;
   }
 
   if (accent_changed) {
     s_settings.accent_color = GColorFromHEX(new_accent_hex);
   }
+  if (clock_color_changed) {
+    s_settings.clock_color = GColorFromHEX(new_clock_hex);
+  }
 
-  if (accent_changed || layout_changed) {
+  if (accent_changed || clock_color_changed || layout_changed || temperature_setting_changed) {
     settings_save();
   }
 #endif
 
   if (weather_changed) {
     update_weather_icon(s_weather_icon);
+    update_footer_content();
+  }
+  if (temperature_setting_changed) {
     update_footer_content();
   }
 
@@ -907,7 +1022,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             (unsigned long)new_accent_hex);
   }
 
+  if (clock_color_changed && s_clock_layer) {
+    layer_mark_dirty(s_clock_layer);
+    APP_LOG(APP_LOG_LEVEL_INFO, "Clock color applied: 0x%06lX",
+            (unsigned long)new_clock_hex);
+  }
+
   if (layout_changed) {
+    if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
     update_footer_content();
     update_stepbar_layout();
     update_bar_input_services();

@@ -13,7 +13,7 @@ var clay = new Clay(clayConfig);
 var messageKeys = require('message_keys');
 
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
-var UNITS   = 'imperial';   // 'imperial' for °F, 'metric' for °C
+var UNITS   = 'metric';     // Always fetch Celsius; watch converts to the user's unit
 
 // Icon codes sent to watch (must match KEY_WEATHER_ICON cases in main.c)
 var ICON_CLEAR   = 0;
@@ -42,11 +42,13 @@ function fetchWeather(lat, lon) {
     if (xhr.status === 200) {
       try {
         var data = JSON.parse(xhr.responseText);
-        var temp = Math.round(data.main.temp);
+        // Send Celsius in tenths of a degree. This preserves enough precision
+        // for the watch to switch between °F and °C locally.
+        var temp = Math.round(data.main.temp * 10);
         var icon = iconFromOWM(data.weather[0].id);
         Pebble.sendAppMessage(
           { 'TEMPERATURE': temp, 'WEATHER_ICON': icon },
-          function() { console.log('Weather sent: ' + temp + '° icon=' + icon); },
+          function() { console.log('Weather sent: ' + (temp / 10) + '°C icon=' + icon); },
           function(e) { console.log('Weather send failed: ' + JSON.stringify(e)); }
         );
       } catch(e) {
