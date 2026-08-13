@@ -443,7 +443,7 @@ static void tint_weather_bitmap(GBitmap *bitmap, GColor color) {
     for (int y = bounds.origin.y; y < bounds.origin.y + bounds.size.h; ++y) {
       GBitmapDataRowInfo row = gbitmap_get_data_row_info(bitmap, y);
       for (int x = row.min_x; x <= row.max_x; ++x) {
-        uint8_t *pixel = row.addr + x;
+        uint8_t *pixel = row.data + x;
         const uint8_t alpha = *pixel & 0xC0;
         if (alpha) *pixel = alpha | rgb;
       }
