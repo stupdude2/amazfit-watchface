@@ -64,9 +64,9 @@ static bool stepbar_is_left_to_right(void);
 // Keep the same 110px height and the same 6px gaps used by the original clock.
 // The first hour cell is wider than the other 24-hour cells so 20-23 reads
 // naturally, while thinner strokes/narrower cells keep HH:MM within 200px.
-#define H24_STK           13
+#define H24_STK           14
 #define H24_H1_WIDTH      36
-#define H24_DIGIT_WIDTH   41
+#define H24_DIGIT_WIDTH   40
 #define H24_TOTAL_W       (H24_H1_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + H24_DIGIT_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH)
 #define H24_ORIGIN_X      ((SCREEN_W - H24_TOTAL_W) / 2)
 #define H24_H1_X          H24_ORIGIN_X
@@ -686,7 +686,10 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     // In 24-hour mode every numeral uses the same full-width seven-segment
     // geometry. In particular, "1" is no longer centered as a narrow special
     // case; its right-hand segments occupy the normal digit cell width.
-    draw_digit_24(ctx, H24_H1_X, sy, h1, H24_H1_WIDTH);
+    // Match the original 12-hour leading-cell treatment by giving the first
+    // digit the same 1px inset used by H1_ONE_X. Keep the cell itself wide so
+    // 20-23 still has room for a full leading numeral.
+    draw_digit_24(ctx, H24_H1_X + H1_ONE_X, sy, h1, H24_H1_WIDTH - H1_ONE_X);
     draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);
 
     draw_colon(ctx, H24_COL_X, sy);
