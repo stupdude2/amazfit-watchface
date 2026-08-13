@@ -107,7 +107,8 @@ typedef enum {
 
 typedef enum {
   BAR_ALWAYS = 0,
-  BAR_BACKLIGHT = 1
+  BAR_BACKLIGHT = 1,
+  BAR_HIDDEN = 2
 } BarVisibilityMode;
 
 typedef enum {
@@ -214,8 +215,8 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->top_left_slot <= SLOT_MONTH &&
          settings->top_center_slot <= SLOT_MONTH &&
          settings->top_right_slot <= SLOT_MONTH &&
-         settings->footer_mode <= BAR_BACKLIGHT &&
-         settings->header_mode <= BAR_BACKLIGHT &&
+         settings->footer_mode <= BAR_HIDDEN &&
+         settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
          settings->step_goal >= 1000 && settings->step_goal <= 30000 &&
          settings->temp_unit <= TEMP_CELSIUS;
@@ -1004,11 +1005,15 @@ static void update_footer_content(void) {
 
 static void apply_bar_visibility(void) {
   if (s_header_layer) {
-    const bool header_visible = (s_settings.header_mode == BAR_ALWAYS) || s_backlight_on;
+    const bool header_visible =
+        (s_settings.header_mode == BAR_ALWAYS) ||
+        (s_settings.header_mode == BAR_BACKLIGHT && s_backlight_on);
     layer_set_hidden(s_header_layer, !header_visible);
   }
   if (s_footer_layer) {
-    const bool footer_visible = (s_settings.footer_mode == BAR_ALWAYS) || s_backlight_on;
+    const bool footer_visible =
+        (s_settings.footer_mode == BAR_ALWAYS) ||
+        (s_settings.footer_mode == BAR_BACKLIGHT && s_backlight_on);
     layer_set_hidden(s_footer_layer, !footer_visible);
   }
 }
@@ -1189,7 +1194,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_FOOTER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.footer_mode);
-        if (value >= BAR_ALWAYS && value <= BAR_BACKLIGHT) {
+        if (value >= BAR_ALWAYS && value <= BAR_HIDDEN) {
           s_settings.footer_mode = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Footer mode -> %ld", (long)value);
           layout_changed = true;
@@ -1199,7 +1204,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_HEADER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.header_mode);
-        if (value >= BAR_ALWAYS && value <= BAR_BACKLIGHT) {
+        if (value >= BAR_ALWAYS && value <= BAR_HIDDEN) {
           s_settings.header_mode = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Header mode -> %ld", (long)value);
           layout_changed = true;

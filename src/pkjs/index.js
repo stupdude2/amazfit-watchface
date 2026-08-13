@@ -9,7 +9,62 @@
 // values to the watch when Save Settings is pressed.
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
-var clay = new Clay(clayConfig);
+
+// Injected into Clay's generated settings page. Clay's custom-function API
+// exposes each config item through getItemByMessageKey()/getItemById(), and
+// each item supports set()/get(). This lets us provide a real Restore Defaults
+// button without adding another AppMessage key.
+function customClay(minified) {
+  var clayPage = this;
+
+  function setValue(messageKey, value) {
+    var item = clayPage.getItemByMessageKey(messageKey);
+    if (item && typeof item.set === 'function') {
+      item.set(value);
+    }
+  }
+
+  clayPage.on(clayPage.EVENTS.AFTER_BUILD, function() {
+    var resetButton = clayPage.getItemById('restore_defaults');
+    if (!resetButton) return;
+
+    resetButton.on('click', function() {
+      var confirmed = true;
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        confirmed = window.confirm(
+          'Restore all watchface settings to their defaults?\\n\\n' +
+          'This will reset colors, weather units, top and bottom bar content, ' +
+          'visibility, step goal, and step-bar layout.'
+        );
+      }
+      if (!confirmed) return;
+
+      setValue('ACCENT_COLOR', '0x0000AA');
+      setValue('CLOCK_COLOR', '0xFFFFFF');
+      setValue('BACKGROUND_COLOR', '0x000000');
+      setValue('TEMP_UNIT', '0');
+
+      setValue('TOP_LEFT_SLOT', '5');
+      setValue('TOP_CENTER_SLOT', '6');
+      setValue('TOP_RIGHT_SLOT', '7');
+      setValue('HEADER_MODE', '0');
+
+      setValue('LEFT_SLOT', '0');
+      setValue('CENTER_SLOT', '0');
+      setValue('RIGHT_SLOT', '1');
+      setValue('FOOTER_MODE', '0');
+
+      setValue('STEP_GOAL', 5000);
+      setValue('STEPBAR_MODE', '0');
+
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert('Defaults restored. Tap Save Settings to apply them to the watch.');
+      }
+    });
+  });
+}
+
+var clay = new Clay(clayConfig, customClay);
 var messageKeys = require('message_keys');
 
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';

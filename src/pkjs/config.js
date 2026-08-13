@@ -88,7 +88,8 @@ if (edition.isPro) {
         "label": "Top Bar Visibility",
         "options": [
           { "label": "Always Visible", "value": "0" },
-          { "label": "Show With Backlight", "value": "1" }
+          { "label": "Show With Backlight", "value": "1" },
+          { "label": "Always Hidden", "value": "2" }
         ]
       }
     ]
@@ -130,7 +131,8 @@ if (edition.isPro) {
         "label": "Bottom Bar Visibility",
         "options": [
           { "label": "Always Visible", "value": "0" },
-          { "label": "Show With Backlight", "value": "1" }
+          { "label": "Show With Backlight", "value": "1" },
+          { "label": "Always Hidden", "value": "2" }
         ]
       }
     ]
@@ -159,7 +161,7 @@ if (edition.isPro) {
         "options": [
           { "label": "Mirrored Below Time", "value": "0" },
           { "label": "Left to Right Below Time", "value": "1" },
-          { "label": "Hidden", "value": "2" },
+          { "label": "Always Hidden", "value": "2" },
           { "label": "Mirrored Above Time", "value": "3" },
           { "label": "Left to Right Above Time", "value": "4" },
           { "label": "Mirrored Below Time — With Backlight", "value": "5" },
@@ -174,6 +176,21 @@ if (edition.isPro) {
   config.push({
     "type": "text",
     "defaultValue": "Standard edition. Pro customization options are not enabled in this build."
+  });
+}
+
+if (edition.isPro) {
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Restore" },
+      {
+        "type": "button",
+        "id": "restore_defaults",
+        "defaultValue": "Restore Default Settings",
+        "description": "Resets all customization controls to the original watchface defaults. You will still need to tap Save Settings."
+      }
+    ]
   });
 }
 
