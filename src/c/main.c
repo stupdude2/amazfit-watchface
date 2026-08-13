@@ -593,6 +593,19 @@ static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
   if (s & SEG_BR) graphics_fill_rect(ctx, GRect(rx, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
 }
 
+static void draw_one_24(GContext *ctx, int cell_x, int oy) {
+  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+
+  // In 24-hour mode every "1" uses the same ONE_X_OFFSET (8px).
+  // This keeps 01:11, 11:11, 21:11, etc. visually consistent.
+  int ox = cell_x + ONE_X_OFFSET;
+  int mid_y = oy + HALF_V - H24_STK / 2;
+  int bot_y = oy + DIGIT_HEIGHT - H24_STK;
+
+  graphics_fill_rect(ctx, GRect(ox, oy, H24_STK, mid_y - oy + H24_STK), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(ox, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
+}
+
 
 // ── Weather icon ──────────────────────────────────────────────────────────────
 static void tint_weather_bitmap(GBitmap *bitmap, GColor color) {
@@ -686,16 +699,21 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     // In 24-hour mode every numeral uses the same full-width seven-segment
     // geometry. In particular, "1" is no longer centered as a narrow special
     // case; its right-hand segments occupy the normal digit cell width.
-    // Match the original 12-hour leading-cell treatment by giving the first
-    // digit the same 1px inset used by H1_ONE_X. Keep the cell itself wide so
-    // 20-23 still has room for a full leading numeral.
-    draw_digit_24(ctx, H24_H1_X + H1_ONE_X, sy, h1, H24_H1_WIDTH - H1_ONE_X);
-    draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);
+    // Keep every numeral in the same allocated 24-hour cell width, but draw
+    // "1" with the same intentional left-biased offsets as the 12-hour face.
+    if (h1 == 1) draw_one_24(ctx, H24_H1_X, sy);
+    else draw_digit_24(ctx, H24_H1_X + H1_ONE_X, sy, h1, H24_H1_WIDTH - H1_ONE_X);
+
+    if (h2 == 1) draw_one_24(ctx, H24_H2_X, sy);
+    else draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);
 
     draw_colon(ctx, H24_COL_X, sy);
 
-    draw_digit_24(ctx, H24_M1_X, sy, m1, H24_DIGIT_WIDTH);
-    draw_digit_24(ctx, H24_M2_X, sy, m2, H24_DIGIT_WIDTH);
+    if (m1 == 1) draw_one_24(ctx, H24_M1_X, sy);
+    else draw_digit_24(ctx, H24_M1_X, sy, m1, H24_DIGIT_WIDTH);
+
+    if (m2 == 1) draw_one_24(ctx, H24_M2_X, sy);
+    else draw_digit_24(ctx, H24_M2_X, sy, m2, H24_DIGIT_WIDTH);
   } else {
     if (h1 == 1) draw_one_h1(ctx, sy);
     if (h2 == 1) draw_one(ctx, H2_X, sy); else draw_digit(ctx, H2_X, sy, h2);
