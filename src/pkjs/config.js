@@ -35,6 +35,17 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Appearance" },
       {
+        "type": "select",
+        "messageKey": "TIME_FORMAT",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Time Format",
+        "options": [
+          { "label": "12 Hour", "value": "0" },
+          { "label": "24 Hour", "value": "1" }
+        ]
+      },
+      {
         "type": "color",
         "messageKey": "ACCENT_COLOR",
         "defaultValue": "0x0000AA",
