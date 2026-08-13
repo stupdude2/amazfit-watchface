@@ -72,12 +72,21 @@ Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single 
 - When the step bar is hidden, the clock automatically expands into the freed space and vertically centers the time.
 
 
-### v1.3.0 layout refinement
+### v1.3.1 layout refinement
 - Backlight-only step bars reserve their layout space so the clock does not move when the light changes.
 - Fully hidden step bar expands the clock area and biases the time 3 px upward.
 
 
-## v1.3.0 customization additions
+## v1.3.1 customization additions
 - Daily Step Goal slider: 1,000–30,000 in 500-step increments.
 - Fahrenheit / Celsius temperature unit selection.
 - Independent clock digit color picker.
+
+## Background color and automatic contrast
+
+Pro builds now include a Background Color picker. Text and native footer icons that sit directly on the background automatically switch between light and dark foreground colors using Pebble's `gcolor_legible_over()`. Weather icons are tinted at runtime from the existing white RGBA assets, preserving their transparency while automatically matching the light/dark foreground selected for the current background. Accent-box text continues to contrast against the accent color, while Clock Color remains independently user-selectable.
+
+
+## v1.3.2 clock auto-contrast refinement
+
+When the clock color is pure white or pure black, changing the background color now automatically switches the clock between white and black using Pebble's legibility helper. Any non-neutral custom clock color remains unchanged.

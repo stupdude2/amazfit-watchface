@@ -27,7 +27,8 @@
       "HEADER_MODE": 9,
       "STEP_GOAL": 10,
       "TEMP_UNIT": 11,
-      "CLOCK_COLOR": 12
+      "CLOCK_COLOR": 12,
+      "BACKGROUND_COLOR": 13
     },
     "projectType": "native",
     "resources": {
@@ -97,5 +98,5 @@
       "watchface": true
     }
   },
-  "version": "1.3.0"
+  "version": "1.3.2"
 }

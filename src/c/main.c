@@ -74,10 +74,11 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_STEP_GOAL    10
 #define KEY_TEMP_UNIT    11
 #define KEY_CLOCK_COLOR  12
+#define KEY_BACKGROUND_COLOR 13
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     8
+#define SETTINGS_VERSION     9
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -138,6 +139,21 @@ typedef struct {
   uint16_t step_goal;
   uint8_t temp_unit;
   GColor clock_color;
+} WatchfaceSettingsV8;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -154,6 +170,7 @@ static void settings_set_defaults(void) {
   s_settings.step_goal = 5000;
   s_settings.temp_unit = TEMP_FAHRENHEIT;
   s_settings.clock_color = GColorWhite;
+  s_settings.background_color = GColorBlack;
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
@@ -180,6 +197,33 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV8)) {
+    // Migrate v1.3.0 settings and preserve all existing customization while
+    // supplying the new background color default.
+    WatchfaceSettingsV8 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 8 &&
+        old.left_slot <= SLOT_BLUETOOTH &&
+        old.center_slot <= CENTER_BLUETOOTH &&
+        old.right_slot <= SLOT_BLUETOOTH &&
+        old.footer_mode <= BAR_BACKLIGHT &&
+        old.header_mode <= BAR_BACKLIGHT &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+        old.step_goal >= 1000 && old.step_goal <= 30000 &&
+        old.temp_unit <= TEMP_CELSIUS) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV7)) {
@@ -288,9 +332,7 @@ static const uint8_t DIGIT_SEGS[10] = {
 };
 
 // ── Colors ────────────────────────────────────────────────────────────────────
-#define COL_BG      GColorBlack
 #define COL_WHITE   GColorWhite
-#define COL_WEEKDAY GColorWhite
 
 // ── Layers ────────────────────────────────────────────────────────────────────
 static Window    *s_window;
@@ -390,11 +432,46 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
 }
 
 // ── Weather icon ──────────────────────────────────────────────────────────────
+static void tint_weather_bitmap(GBitmap *bitmap, GColor color) {
+  if (!bitmap) return;
+
+  const uint8_t rgb = color.argb & 0x3F;
+  const GBitmapFormat format = gbitmap_get_format(bitmap);
+
+  if (format == GBitmapFormat8Bit) {
+    GRect bounds = gbitmap_get_bounds(bitmap);
+    for (int y = bounds.origin.y; y < bounds.origin.y + bounds.size.h; ++y) {
+      GBitmapDataRowInfo row = gbitmap_get_data_row_info(bitmap, y);
+      for (int x = row.min_x; x <= row.max_x; ++x) {
+        uint8_t *pixel = row.addr + x;
+        const uint8_t alpha = *pixel & 0xC0;
+        if (alpha) *pixel = alpha | rgb;
+      }
+    }
+    return;
+  }
+
+  // Also support palettized resources if CloudPebble chooses a compact format.
+  GColor *palette = gbitmap_get_palette(bitmap);
+  if (!palette) return;
+
+  int palette_size = 0;
+  if (format == GBitmapFormat1BitPalette) palette_size = 2;
+  else if (format == GBitmapFormat2BitPalette) palette_size = 4;
+  else if (format == GBitmapFormat4BitPalette) palette_size = 16;
+
+  for (int i = 0; i < palette_size; ++i) {
+    const uint8_t alpha = palette[i].argb & 0xC0;
+    if (alpha) palette[i].argb = alpha | rgb;
+  }
+}
+
 static void update_weather_icon(int icon_code) {
   if (s_weather_icon_bitmap) {
     gbitmap_destroy(s_weather_icon_bitmap);
     s_weather_icon_bitmap = NULL;
   }
+
   uint32_t resource_id;
   switch (icon_code) {
     case 0:  resource_id = RESOURCE_ID_IMAGE_ICON_CLEAR;   break;
@@ -405,10 +482,10 @@ static void update_weather_icon(int icon_code) {
     default: resource_id = RESOURCE_ID_IMAGE_ICON_NA;      break;
   }
   s_weather_icon_bitmap = gbitmap_create_with_resource(resource_id);
+  tint_weather_bitmap(s_weather_icon_bitmap, gcolor_legible_over(s_settings.background_color));
   if (s_weather_icon_left_layer) bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
   if (s_weather_icon_right_layer) bitmap_layer_set_bitmap(s_weather_icon_right_layer, s_weather_icon_bitmap);
 }
-
 static int round_tenths_to_int(int value_x10) {
   return value_x10 >= 0 ? (value_x10 + 5) / 10 : (value_x10 - 5) / 10;
 }
@@ -431,7 +508,7 @@ static void update_temperature_text(void) {
 // ── Clock ─────────────────────────────────────────────────────────────────────
 static void clock_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  graphics_context_set_fill_color(ctx, COL_BG);
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   int h1 = s_hour / 10;
   int h2 = s_hour % 10;
@@ -454,7 +531,7 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
 // The header layer itself starts at y=0 so DATEBOX_Y=0 reaches the screen top.
 static void header_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  graphics_context_set_fill_color(ctx, COL_BG);
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(DATEBOX_X, DATEBOX_Y, DATEBOX_W, DATEBOX_H), 0, GCornerNone);
@@ -470,7 +547,7 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   int bar_w = b.size.w - BAR_MARGIN * 2;
   int bar_x = BAR_MARGIN;
   int cy    = b.size.h / 2;
-  graphics_context_set_fill_color(ctx, COL_BG);
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return;
@@ -479,7 +556,7 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   int fill_w = (steps >= s_settings.step_goal) ? bar_w : (steps * bar_w / s_settings.step_goal);
 
   if (steps >= s_settings.step_goal) {
-    graphics_context_set_fill_color(ctx, COL_WHITE);
+    graphics_context_set_fill_color(ctx, gcolor_legible_over(s_settings.background_color));
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
     return;
   }
@@ -492,7 +569,7 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   }
 
   if (fill_w <= 0) return;
-  graphics_context_set_fill_color(ctx, COL_WHITE);
+  graphics_context_set_fill_color(ctx, gcolor_legible_over(s_settings.background_color));
   if (stepbar_is_left_to_right()) {
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, fill_w, 4), 0, GCornerNone);
   } else {
@@ -657,7 +734,7 @@ static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
 // HR box fills from y=0 to bottom of screen (footer layer extends to screen bottom).
 static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  graphics_context_set_fill_color(ctx, COL_BG);
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(HRBOX_X, HRBOX_Y, BOX_W, b.size.h), 0, GCornerNone);
@@ -668,9 +745,9 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect left_area = GRect(4, 0, HRBOX_X - BOX_GAP - 4, 14);
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, 14);
-  draw_slot_icon(ctx, s_settings.left_slot, left_area, COL_WHITE, false);
+  draw_slot_icon(ctx, s_settings.left_slot, left_area, gcolor_legible_over(s_settings.background_color), false);
   draw_center_icon(ctx, s_settings.center_slot, center_fg);
-  draw_slot_icon(ctx, s_settings.right_slot, right_area, COL_WHITE, true);
+  draw_slot_icon(ctx, s_settings.right_slot, right_area, gcolor_legible_over(s_settings.background_color), true);
 }
 
 static void update_time(struct tm *tick_time);
@@ -836,16 +913,37 @@ static void update_accent_text_contrast(void) {
   if (s_center_val) text_layer_set_text_color(s_center_val, text_color);
 }
 
+static void update_background_contrast(void) {
+  GColor fg = gcolor_legible_over(s_settings.background_color);
+
+  if (s_day_layer) text_layer_set_text_color(s_day_layer, fg);
+  if (s_month_layer) text_layer_set_text_color(s_month_layer, fg);
+  if (s_left_label) text_layer_set_text_color(s_left_label, fg);
+  if (s_left_val) text_layer_set_text_color(s_left_val, fg);
+  if (s_right_label) text_layer_set_text_color(s_right_label, fg);
+  if (s_right_val) text_layer_set_text_color(s_right_val, fg);
+
+  if (s_window) window_set_background_color(s_window, s_settings.background_color);
+  update_weather_icon(s_weather_icon);
+
+  if (s_header_layer) layer_mark_dirty(s_header_layer);
+  if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+  if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+  if (s_footer_layer) layer_mark_dirty(s_footer_layer);
+}
+
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool weather_changed = false;
   bool accent_changed = false;
   bool clock_color_changed = false;
+  bool background_changed = false;
   bool layout_changed = false;
   bool temperature_setting_changed = false;
   uint32_t new_accent_hex = 0;
   uint32_t new_clock_hex = 0;
+  uint32_t new_background_hex = 0;
 
   // Parse the incoming dictionary exactly once. Do not redraw, persist, or
   // start any other AppMessage operation until parsing is complete.
@@ -968,6 +1066,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
           clock_color_changed = true;
         }
         break;
+
+      case KEY_BACKGROUND_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          new_background_hex = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
+          background_changed = true;
+        }
+        break;
 #endif
 
       default:
@@ -981,9 +1086,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid settings after config; restoring footer defaults");
     GColor keep_accent = s_settings.accent_color;
     GColor keep_clock = s_settings.clock_color;
+    GColor keep_background = s_settings.background_color;
     settings_set_defaults();
     s_settings.accent_color = keep_accent;
     s_settings.clock_color = keep_clock;
+    s_settings.background_color = keep_background;
     layout_changed = true;
   }
 
@@ -993,8 +1100,23 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (clock_color_changed) {
     s_settings.clock_color = GColorFromHEX(new_clock_hex);
   }
+  if (background_changed) {
+    s_settings.background_color = GColorFromHEX(new_background_hex);
 
-  if (accent_changed || clock_color_changed || layout_changed || temperature_setting_changed) {
+    // Treat pure black/white clock colors as automatic contrast choices.
+    // Custom colors remain exactly as the user selected them.
+    if (s_settings.clock_color.argb == GColorWhite.argb ||
+        s_settings.clock_color.argb == GColorBlack.argb) {
+      GColor auto_clock = gcolor_legible_over(s_settings.background_color);
+      if (auto_clock.argb != s_settings.clock_color.argb) {
+        s_settings.clock_color = auto_clock;
+        clock_color_changed = true;
+        new_clock_hex = (auto_clock.argb == GColorBlack.argb) ? 0x000000 : 0xFFFFFF;
+      }
+    }
+  }
+
+  if (accent_changed || clock_color_changed || background_changed || layout_changed || temperature_setting_changed) {
     settings_save();
   }
 #endif
@@ -1028,6 +1150,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             (unsigned long)new_clock_hex);
   }
 
+  if (background_changed) {
+    update_background_contrast();
+    update_footer_content();
+    APP_LOG(APP_LOG_LEVEL_INFO, "Background color applied: 0x%06lX",
+            (unsigned long)new_background_hex);
+  }
+
   if (layout_changed) {
     if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
     update_footer_content();
@@ -1053,7 +1182,7 @@ static void update_time(struct tm *tick_time) {
   strftime(s_date_buf,  sizeof(s_date_buf),  "%e", tick_time);
   strftime(s_month_buf, sizeof(s_month_buf), "%b", tick_time); to_upper(s_month_buf);
 
-  text_layer_set_text_color(s_day_layer, tick_time->tm_wday == 0 ? s_settings.accent_color : COL_WEEKDAY);
+  text_layer_set_text_color(s_day_layer, gcolor_legible_over(s_settings.background_color));
   text_layer_set_text(s_day_layer, s_day_buf);
   char *d = s_date_buf; while (*d == ' ') d++;
   text_layer_set_text(s_date_num_layer, d);
@@ -1102,7 +1231,7 @@ static void window_load(Window *window) {
 
   s_day_layer = text_layer_create(GRect(0, text_y, DATEBOX_X, 32));
   text_layer_set_background_color(s_day_layer, GColorClear);
-  text_layer_set_text_color(s_day_layer, COL_WEEKDAY);
+  text_layer_set_text_color(s_day_layer, gcolor_legible_over(s_settings.background_color));
   text_layer_set_font(s_day_layer, s_font_header);
   text_layer_set_text_alignment(s_day_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_day_layer));
@@ -1116,7 +1245,7 @@ static void window_load(Window *window) {
 
   s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W, text_y, DATEBOX_X, 32));
   text_layer_set_background_color(s_month_layer, GColorClear);
-  text_layer_set_text_color(s_month_layer, COL_WHITE);
+  text_layer_set_text_color(s_month_layer, gcolor_legible_over(s_settings.background_color));
   text_layer_set_font(s_month_layer, s_font_header);
   text_layer_set_text_alignment(s_month_layer, GTextAlignmentCenter);
   layer_add_child(s_header_layer, text_layer_get_layer(s_month_layer));
@@ -1143,14 +1272,14 @@ static void window_load(Window *window) {
 
   s_left_label = text_layer_create(GRect(4, 2, left_w, 14));
   text_layer_set_background_color(s_left_label, GColorClear);
-  text_layer_set_text_color(s_left_label, COL_WHITE);
+  text_layer_set_text_color(s_left_label, gcolor_legible_over(s_settings.background_color));
   text_layer_set_font(s_left_label, s_font_label);
   text_layer_set_text_alignment(s_left_label, GTextAlignmentLeft);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_left_label));
 
   s_left_val = text_layer_create(GRect(4, 14, left_w, 38));
   text_layer_set_background_color(s_left_val, GColorClear);
-  text_layer_set_text_color(s_left_val, COL_WHITE);
+  text_layer_set_text_color(s_left_val, gcolor_legible_over(s_settings.background_color));
   text_layer_set_font(s_left_val, s_font_value);
   text_layer_set_text_alignment(s_left_val, GTextAlignmentLeft);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_left_val));
@@ -1171,19 +1300,20 @@ static void window_load(Window *window) {
 
   s_right_label = text_layer_create(GRect(right_x, 2, right_w, 14));
   text_layer_set_background_color(s_right_label, GColorClear);
-  text_layer_set_text_color(s_right_label, COL_WHITE);
+  text_layer_set_text_color(s_right_label, gcolor_legible_over(s_settings.background_color));
   text_layer_set_font(s_right_label, s_font_label);
   text_layer_set_text_alignment(s_right_label, GTextAlignmentRight);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_right_label));
 
   s_right_val = text_layer_create(GRect(right_x, 14, right_w, 38));
   text_layer_set_background_color(s_right_val, GColorClear);
-  text_layer_set_text_color(s_right_val, COL_WHITE);
+  text_layer_set_text_color(s_right_val, gcolor_legible_over(s_settings.background_color));
   text_layer_set_font(s_right_val, s_font_value);
   text_layer_set_text_alignment(s_right_val, GTextAlignmentRight);
   layer_add_child(s_footer_layer, text_layer_get_layer(s_right_val));
 
   s_weather_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_NA);
+  tint_weather_bitmap(s_weather_icon_bitmap, gcolor_legible_over(s_settings.background_color));
   s_weather_icon_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
   bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
   bitmap_layer_set_compositing_mode(s_weather_icon_left_layer, GCompOpSet);
@@ -1207,6 +1337,7 @@ static void window_load(Window *window) {
 
   update_footer_content();
   update_accent_text_contrast();
+  update_background_contrast();
   apply_bar_visibility();
 
   time_t now = time(NULL);
@@ -1264,7 +1395,7 @@ static void init(void) {
   settings_load();
 
   s_window = window_create();
-  window_set_background_color(s_window, COL_BG);
+  window_set_background_color(s_window, s_settings.background_color);
   window_set_window_handlers(s_window, (WindowHandlers){
     .load = window_load, .unload = window_unload,
   });
