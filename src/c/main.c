@@ -64,9 +64,9 @@ static bool stepbar_is_left_to_right(void);
 // Keep the same 110px height and the same 6px gaps used by the original clock.
 // The first hour cell is wider than the other 24-hour cells so 20-23 reads
 // naturally, while thinner strokes/narrower cells keep HH:MM within 200px.
-#define H24_STK           12
+#define H24_STK           13
 #define H24_H1_WIDTH      36
-#define H24_DIGIT_WIDTH   42
+#define H24_DIGIT_WIDTH   41
 #define H24_TOTAL_W       (H24_H1_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + H24_DIGIT_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH)
 #define H24_ORIGIN_X      ((SCREEN_W - H24_TOTAL_W) / 2)
 #define H24_H1_X          H24_ORIGIN_X
