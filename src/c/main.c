@@ -75,23 +75,34 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_TEMP_UNIT    11
 #define KEY_CLOCK_COLOR  12
 #define KEY_BACKGROUND_COLOR 13
+#define KEY_TOP_LEFT_SLOT 14
+#define KEY_TOP_CENTER_SLOT 15
+#define KEY_TOP_RIGHT_SLOT 16
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     9
+#define SETTINGS_VERSION     10
 
 typedef enum {
   SLOT_WEATHER = 0,
   SLOT_STEPS = 1,
   SLOT_BATTERY = 2,
   SLOT_HEART_RATE = 3,
-  SLOT_BLUETOOTH = 4
+  SLOT_BLUETOOTH = 4,
+  SLOT_DAY = 5,
+  SLOT_DATE = 6,
+  SLOT_MONTH = 7
 } SideSlotContent;
 
 typedef enum {
   CENTER_HEART_RATE = 0,
   CENTER_BATTERY = 1,
-  CENTER_BLUETOOTH = 2
+  CENTER_BLUETOOTH = 2,
+  CENTER_WEATHER = 3,
+  CENTER_STEPS = 4,
+  CENTER_DAY = 5,
+  CENTER_DATE = 6,
+  CENTER_MONTH = 7
 } CenterSlotContent;
 
 typedef enum {
@@ -154,6 +165,24 @@ typedef struct {
   uint8_t temp_unit;
   GColor clock_color;
   GColor background_color;
+} WatchfaceSettingsV9;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
+  uint8_t top_left_slot;
+  uint8_t top_center_slot;
+  uint8_t top_right_slot;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -171,14 +200,20 @@ static void settings_set_defaults(void) {
   s_settings.temp_unit = TEMP_FAHRENHEIT;
   s_settings.clock_color = GColorWhite;
   s_settings.background_color = GColorBlack;
+  s_settings.top_left_slot = SLOT_DAY;
+  s_settings.top_center_slot = SLOT_DATE;
+  s_settings.top_right_slot = SLOT_MONTH;
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_BLUETOOTH &&
-         settings->center_slot <= CENTER_BLUETOOTH &&
-         settings->right_slot <= SLOT_BLUETOOTH &&
+         settings->left_slot <= SLOT_MONTH &&
+         settings->center_slot <= CENTER_MONTH &&
+         settings->right_slot <= SLOT_MONTH &&
+         settings->top_left_slot <= SLOT_MONTH &&
+         settings->top_center_slot <= SLOT_MONTH &&
+         settings->top_right_slot <= SLOT_MONTH &&
          settings->footer_mode <= BAR_BACKLIGHT &&
          settings->header_mode <= BAR_BACKLIGHT &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -197,6 +232,33 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV9)) {
+    // Migrate v1.3.x settings and preserve the classic DAY / DATE / MONTH header.
+    WatchfaceSettingsV9 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 9 &&
+        old.left_slot <= SLOT_BLUETOOTH &&
+        old.center_slot <= CENTER_BLUETOOTH &&
+        old.right_slot <= SLOT_BLUETOOTH &&
+        old.footer_mode <= BAR_BACKLIGHT &&
+        old.header_mode <= BAR_BACKLIGHT &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+        old.step_goal >= 1000 && old.step_goal <= 30000 &&
+        old.temp_unit <= TEMP_CELSIUS) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      s_settings.background_color = old.background_color;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV8)) {
@@ -337,9 +399,12 @@ static const uint8_t DIGIT_SEGS[10] = {
 // ── Layers ────────────────────────────────────────────────────────────────────
 static Window    *s_window;
 static Layer     *s_header_layer;
-static TextLayer *s_day_layer;
-static TextLayer *s_date_num_layer;
-static TextLayer *s_month_layer;
+static TextLayer *s_top_left_label;
+static TextLayer *s_top_left_val;
+static TextLayer *s_top_center_label;
+static TextLayer *s_top_center_val;
+static TextLayer *s_top_right_label;
+static TextLayer *s_top_right_val;
 static Layer     *s_clock_layer;
 static Layer     *s_stepbar_layer;
 static Layer     *s_footer_layer;
@@ -526,6 +591,9 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   if (m2 == 1) draw_one(ctx, M2_X, sy); else draw_digit(ctx, M2_X, sy, m2);
 }
 
+static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color);
+static void draw_bluetooth_icon(GContext *ctx, GPoint c, int width, int height, GColor color, bool connected);
+
 // ── Header ────────────────────────────────────────────────────────────────────
 // Datebox starts at y=0 (top of screen) and extends to the underline row.
 // The header layer itself starts at y=0 so DATEBOX_Y=0 reaches the screen top.
@@ -539,6 +607,24 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(0, line_y, DATEBOX_X - UNDERLINE_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(DATEBOX_X + DATEBOX_W + UNDERLINE_GAP, line_y, SCREEN_W - DATEBOX_X - DATEBOX_W - UNDERLINE_GAP, 2), 0, GCornerNone);
+
+  GColor side_fg = gcolor_legible_over(s_settings.background_color);
+  GColor center_fg = gcolor_legible_over(s_settings.accent_color);
+  GRect left_area = GRect(4, 0, DATEBOX_X - BOX_GAP - 4, HEADER_H);
+  int right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
+  GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, HEADER_H);
+  if (s_settings.top_left_slot == SLOT_BATTERY)
+    draw_battery_icon(ctx, GRect(left_area.origin.x, 20, 36, 9), s_battery_percent, side_fg);
+  else if (s_settings.top_left_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
+    draw_bluetooth_icon(ctx, GPoint(left_area.origin.x + left_area.size.w/2, 27), 34, 30, side_fg, true);
+  if (s_settings.top_center_slot == SLOT_BATTERY)
+    draw_battery_icon(ctx, GRect(DATEBOX_X + 7, 20, 36, 9), s_battery_percent, center_fg);
+  else if (s_settings.top_center_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
+    draw_bluetooth_icon(ctx, GPoint(DATEBOX_X + DATEBOX_W/2, 27), 34, 30, center_fg, true);
+  if (s_settings.top_right_slot == SLOT_BATTERY)
+    draw_battery_icon(ctx, GRect(right_area.origin.x + right_area.size.w - 36, 20, 36, 9), s_battery_percent, side_fg);
+  else if (s_settings.top_right_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
+    draw_bluetooth_icon(ctx, GPoint(right_area.origin.x + right_area.size.w/2, 27), 34, 30, side_fg, true);
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
@@ -758,6 +844,9 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_BATTERY: return "";
     case SLOT_HEART_RATE: return "HR";
     case SLOT_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
+    case SLOT_DAY: return "DAY";
+    case SLOT_DATE: return "DATE";
+    case SLOT_MONTH: return "MONTH";
     case SLOT_WEATHER:
     default: return "WEATHER";
   }
@@ -777,6 +866,14 @@ static const char *side_slot_value(uint8_t slot) {
       return s_hr_buf;
     case SLOT_BLUETOOTH:
       return "";
+    case SLOT_DAY:
+      return s_day_buf;
+    case SLOT_DATE: {
+      char *d = s_date_buf; while (*d == ' ') d++;
+      return d;
+    }
+    case SLOT_MONTH:
+      return s_month_buf;
     case SLOT_WEATHER:
     default:
       return s_weather_buf;
@@ -787,6 +884,11 @@ static const char *center_slot_label(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY: return "";
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
+    case CENTER_WEATHER: return "WEATHER";
+    case CENTER_STEPS: return "STEPS";
+    case CENTER_DAY: return "DAY";
+    case CENTER_DATE: return "DATE";
+    case CENTER_MONTH: return "MONTH";
     case CENTER_HEART_RATE:
     default: return "HR";
   }
@@ -795,21 +897,62 @@ static const char *center_slot_label(void) {
 static const char *center_slot_value(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY:
-      // 100% is one character too wide for the center box; omit % only there.
-      if (s_battery_percent == 100) {
-        snprintf(s_battery_buf, sizeof(s_battery_buf), "100");
-      } else {
-        snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
-      }
+      if (s_battery_percent == 100) snprintf(s_battery_buf, sizeof(s_battery_buf), "100");
+      else snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
       return s_battery_buf;
-    case CENTER_BLUETOOTH:
-      return "";
+    case CENTER_BLUETOOTH: return "";
+    case CENTER_WEATHER: return s_weather_buf;
+    case CENTER_STEPS:
+      snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", s_step_count); return s_steps_buf;
+    case CENTER_DAY: return s_day_buf;
+    case CENTER_DATE: { char *d = s_date_buf; while (*d == ' ') d++; return d; }
+    case CENTER_MONTH: return s_month_buf;
     case CENTER_HEART_RATE:
     default:
       if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
       else snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
       return s_hr_buf;
   }
+}
+
+static bool slot_is_calendar(uint8_t slot) {
+  return slot == SLOT_DAY || slot == SLOT_DATE || slot == SLOT_MONTH;
+}
+
+static const char *top_slot_label(uint8_t slot) {
+  // Preserve the original clean DAY / DATE / MONTH header look: calendar
+  // items use the large value only, without a redundant label above them.
+  return slot_is_calendar(slot) ? "" : side_slot_label(slot);
+}
+
+static const char *top_slot_value(uint8_t slot) {
+  return side_slot_value(slot);
+}
+
+static void update_header_content(void) {
+  if (!s_top_left_label || !s_top_center_label || !s_top_right_label) return;
+  text_layer_set_text(s_top_left_label, top_slot_label(s_settings.top_left_slot));
+  text_layer_set_text(s_top_left_val, top_slot_value(s_settings.top_left_slot));
+  text_layer_set_text(s_top_center_label, top_slot_label(s_settings.top_center_slot));
+  text_layer_set_text(s_top_center_val, top_slot_value(s_settings.top_center_slot));
+  text_layer_set_text(s_top_right_label, top_slot_label(s_settings.top_right_slot));
+  text_layer_set_text(s_top_right_val, top_slot_value(s_settings.top_right_slot));
+
+  // Calendar items retain the original large header typography. Other data
+  // uses the footer value font so labels, icons, and values fit comfortably.
+  text_layer_set_font(s_top_left_val, slot_is_calendar(s_settings.top_left_slot) ? s_font_header : s_font_value);
+  text_layer_set_font(s_top_center_val, slot_is_calendar(s_settings.top_center_slot) ? s_font_header : s_font_value);
+  text_layer_set_font(s_top_right_val, slot_is_calendar(s_settings.top_right_slot) ? s_font_header : s_font_value);
+
+  text_layer_set_text_alignment(s_top_left_label,
+      (s_settings.top_left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected) ? GTextAlignmentCenter : GTextAlignmentLeft);
+  text_layer_set_text_alignment(s_top_left_val, GTextAlignmentLeft);
+  text_layer_set_text_alignment(s_top_center_label, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_top_center_val, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_top_right_label,
+      (s_settings.top_right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected) ? GTextAlignmentCenter : GTextAlignmentRight);
+  text_layer_set_text_alignment(s_top_right_val, GTextAlignmentRight);
+  if (s_header_layer) layer_mark_dirty(s_header_layer);
 }
 
 static void update_footer_content(void) {
@@ -895,20 +1038,21 @@ static void update_bar_input_services(void) {
 static void battery_handler(BatteryChargeState charge) {
   s_battery_percent = charge.charge_percent;
   update_footer_content();
+  update_header_content();
 }
 
 static void connection_handler(bool connected) {
   s_bluetooth_connected = connected;
   update_footer_content();
+  update_header_content();
 }
 
 // ── Accent color helper ─────────────────────────────────────────────────────
 static void update_accent_text_contrast(void) {
   GColor text_color = gcolor_legible_over(s_settings.accent_color);
 
-  if (s_date_num_layer) {
-    text_layer_set_text_color(s_date_num_layer, text_color);
-  }
+  if (s_top_center_label) text_layer_set_text_color(s_top_center_label, text_color);
+  if (s_top_center_val) text_layer_set_text_color(s_top_center_val, text_color);
   if (s_center_label) text_layer_set_text_color(s_center_label, text_color);
   if (s_center_val) text_layer_set_text_color(s_center_val, text_color);
 }
@@ -916,8 +1060,10 @@ static void update_accent_text_contrast(void) {
 static void update_background_contrast(void) {
   GColor fg = gcolor_legible_over(s_settings.background_color);
 
-  if (s_day_layer) text_layer_set_text_color(s_day_layer, fg);
-  if (s_month_layer) text_layer_set_text_color(s_month_layer, fg);
+  if (s_top_left_label) text_layer_set_text_color(s_top_left_label, fg);
+  if (s_top_left_val) text_layer_set_text_color(s_top_left_val, fg);
+  if (s_top_right_label) text_layer_set_text_color(s_top_right_label, fg);
+  if (s_top_right_val) text_layer_set_text_color(s_top_right_val, fg);
   if (s_left_label) text_layer_set_text_color(s_left_label, fg);
   if (s_left_val) text_layer_set_text_color(s_left_val, fg);
   if (s_right_label) text_layer_set_text_color(s_right_label, fg);
@@ -981,7 +1127,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
+        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -991,7 +1137,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_CENTER_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.center_slot);
-        if (value >= CENTER_HEART_RATE && value <= CENTER_BLUETOOTH) {
+        if (value >= CENTER_HEART_RATE && value <= CENTER_MONTH) {
           s_settings.center_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
           layout_changed = true;
@@ -1001,11 +1147,27 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_BLUETOOTH) {
+        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
         }
+        break;
+      }
+
+      case KEY_TOP_LEFT_SLOT: {
+        int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
+        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        break;
+      }
+      case KEY_TOP_CENTER_SLOT: {
+        int32_t value = tuple_to_int32(t, s_settings.top_center_slot);
+        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) { s_settings.top_center_slot = (uint8_t)value; layout_changed = true; }
+        break;
+      }
+      case KEY_TOP_RIGHT_SLOT: {
+        int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
+        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -1124,9 +1286,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (weather_changed) {
     update_weather_icon(s_weather_icon);
     update_footer_content();
+    update_header_content();
   }
   if (temperature_setting_changed) {
     update_footer_content();
+    update_header_content();
   }
 
 #if WATCHFACE_PRO
@@ -1160,6 +1324,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (layout_changed) {
     if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
     update_footer_content();
+    update_header_content();
     update_stepbar_layout();
     update_bar_input_services();
     apply_bar_visibility();
@@ -1182,11 +1347,8 @@ static void update_time(struct tm *tick_time) {
   strftime(s_date_buf,  sizeof(s_date_buf),  "%e", tick_time);
   strftime(s_month_buf, sizeof(s_month_buf), "%b", tick_time); to_upper(s_month_buf);
 
-  text_layer_set_text_color(s_day_layer, gcolor_legible_over(s_settings.background_color));
-  text_layer_set_text(s_day_layer, s_day_buf);
-  char *d = s_date_buf; while (*d == ' ') d++;
-  text_layer_set_text(s_date_num_layer, d);
-  text_layer_set_text(s_month_layer, s_month_buf);
+  update_header_content();
+  update_footer_content();
 
   if (tick_time->tm_min % 30 == 0) {
     DictionaryIterator *iter;
@@ -1204,11 +1366,13 @@ static void health_handler(HealthEventType event, void *context) {
     s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
     if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
     update_footer_content();
+    update_header_content();
   }
   if (event == HealthEventHeartRateUpdate || event == HealthEventSignificantUpdate) {
     HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
     s_heart_rate = hr > 0 ? (int)hr : 0;
     update_footer_content();
+    update_header_content();
   }
 }
 #endif
@@ -1227,28 +1391,48 @@ static void window_load(Window *window) {
   layer_add_child(root, s_header_layer);
 
   // Text layers vertically centred in the datebox
-  int text_y = DATEBOX_Y + (DATEBOX_H - 34) / 2;
+  int top_left_w = DATEBOX_X - BOX_GAP - 4;
+  int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
+  int top_right_w = SCREEN_W - top_right_x - 4;
 
-  s_day_layer = text_layer_create(GRect(0, text_y, DATEBOX_X, 32));
-  text_layer_set_background_color(s_day_layer, GColorClear);
-  text_layer_set_text_color(s_day_layer, gcolor_legible_over(s_settings.background_color));
-  text_layer_set_font(s_day_layer, s_font_header);
-  text_layer_set_text_alignment(s_day_layer, GTextAlignmentCenter);
-  layer_add_child(s_header_layer, text_layer_get_layer(s_day_layer));
+  s_top_left_label = text_layer_create(GRect(4, 3, top_left_w, 14));
+  text_layer_set_background_color(s_top_left_label, GColorClear);
+  text_layer_set_text_color(s_top_left_label, gcolor_legible_over(s_settings.background_color));
+  text_layer_set_font(s_top_left_label, s_font_label);
+  text_layer_set_text_alignment(s_top_left_label, GTextAlignmentLeft);
+  layer_add_child(s_header_layer, text_layer_get_layer(s_top_left_label));
+  s_top_left_val = text_layer_create(GRect(4, 15, top_left_w, 34));
+  text_layer_set_background_color(s_top_left_val, GColorClear);
+  text_layer_set_text_color(s_top_left_val, gcolor_legible_over(s_settings.background_color));
+  text_layer_set_font(s_top_left_val, s_font_header);
+  text_layer_set_text_alignment(s_top_left_val, GTextAlignmentLeft);
+  layer_add_child(s_header_layer, text_layer_get_layer(s_top_left_val));
 
-  s_date_num_layer = text_layer_create(GRect(DATEBOX_X, text_y, DATEBOX_W, 32));
-  text_layer_set_background_color(s_date_num_layer, GColorClear);
-  text_layer_set_text_color(s_date_num_layer, gcolor_legible_over(s_settings.accent_color));
-  text_layer_set_font(s_date_num_layer, s_font_header);
-  text_layer_set_text_alignment(s_date_num_layer, GTextAlignmentCenter);
-  layer_add_child(s_header_layer, text_layer_get_layer(s_date_num_layer));
+  s_top_center_label = text_layer_create(GRect(DATEBOX_X, 3, DATEBOX_W, 14));
+  text_layer_set_background_color(s_top_center_label, GColorClear);
+  text_layer_set_text_color(s_top_center_label, gcolor_legible_over(s_settings.accent_color));
+  text_layer_set_font(s_top_center_label, s_font_label);
+  text_layer_set_text_alignment(s_top_center_label, GTextAlignmentCenter);
+  layer_add_child(s_header_layer, text_layer_get_layer(s_top_center_label));
+  s_top_center_val = text_layer_create(GRect(DATEBOX_X, 15, DATEBOX_W, 34));
+  text_layer_set_background_color(s_top_center_val, GColorClear);
+  text_layer_set_text_color(s_top_center_val, gcolor_legible_over(s_settings.accent_color));
+  text_layer_set_font(s_top_center_val, s_font_header);
+  text_layer_set_text_alignment(s_top_center_val, GTextAlignmentCenter);
+  layer_add_child(s_header_layer, text_layer_get_layer(s_top_center_val));
 
-  s_month_layer = text_layer_create(GRect(DATEBOX_X + DATEBOX_W, text_y, DATEBOX_X, 32));
-  text_layer_set_background_color(s_month_layer, GColorClear);
-  text_layer_set_text_color(s_month_layer, gcolor_legible_over(s_settings.background_color));
-  text_layer_set_font(s_month_layer, s_font_header);
-  text_layer_set_text_alignment(s_month_layer, GTextAlignmentCenter);
-  layer_add_child(s_header_layer, text_layer_get_layer(s_month_layer));
+  s_top_right_label = text_layer_create(GRect(top_right_x, 3, top_right_w, 14));
+  text_layer_set_background_color(s_top_right_label, GColorClear);
+  text_layer_set_text_color(s_top_right_label, gcolor_legible_over(s_settings.background_color));
+  text_layer_set_font(s_top_right_label, s_font_label);
+  text_layer_set_text_alignment(s_top_right_label, GTextAlignmentRight);
+  layer_add_child(s_header_layer, text_layer_get_layer(s_top_right_label));
+  s_top_right_val = text_layer_create(GRect(top_right_x, 15, top_right_w, 34));
+  text_layer_set_background_color(s_top_right_val, GColorClear);
+  text_layer_set_text_color(s_top_right_val, gcolor_legible_over(s_settings.background_color));
+  text_layer_set_font(s_top_right_val, s_font_header);
+  text_layer_set_text_alignment(s_top_right_val, GTextAlignmentRight);
+  layer_add_child(s_header_layer, text_layer_get_layer(s_top_right_val));
 
   // Clock
   s_clock_layer = layer_create(GRect(0, CLOCK_Y, SCREEN_W, CLOCK_H));
@@ -1336,6 +1520,7 @@ static void window_load(Window *window) {
 #endif
 
   update_footer_content();
+  update_header_content();
   update_accent_text_contrast();
   update_background_contrast();
   apply_bar_visibility();
@@ -1368,12 +1553,15 @@ static void window_unload(Window *window) {
   s_right_label = NULL;
   s_right_val = NULL;
 
-  text_layer_destroy(s_day_layer);
-  text_layer_destroy(s_date_num_layer);
-  text_layer_destroy(s_month_layer);
-  s_day_layer = NULL;
-  s_date_num_layer = NULL;
-  s_month_layer = NULL;
+  text_layer_destroy(s_top_left_label);
+  text_layer_destroy(s_top_left_val);
+  text_layer_destroy(s_top_center_label);
+  text_layer_destroy(s_top_center_val);
+  text_layer_destroy(s_top_right_label);
+  text_layer_destroy(s_top_right_val);
+  s_top_left_label = NULL; s_top_left_val = NULL;
+  s_top_center_label = NULL; s_top_center_val = NULL;
+  s_top_right_label = NULL; s_top_right_val = NULL;
 
   layer_destroy(s_header_layer);
   layer_destroy(s_clock_layer);
