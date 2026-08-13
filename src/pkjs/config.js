@@ -46,6 +46,13 @@ if (edition.isPro) {
         ]
       },
       {
+        "type": "toggle",
+        "messageKey": "CENTER_12H",
+        "defaultValue": false,
+        "label": "Center 12 Hour Clock",
+        "description": "Centers H:MM when the hour is 1-9. Times 10-12 keep the original spacing."
+      },
+      {
         "type": "color",
         "messageKey": "ACCENT_COLOR",
         "defaultValue": "0x0000AA",

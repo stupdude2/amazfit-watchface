@@ -60,6 +60,12 @@ static bool stepbar_is_left_to_right(void);
 #define M1_X             (COL_X + COLON_WIDTH + COLON_MARGIN)
 #define M2_X             (M1_X + DIGIT_WIDTH + DIGIT_MARGIN)
 
+#define CENTER12_VISIBLE_W (DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + DIGIT_WIDTH + DIGIT_MARGIN + DIGIT_WIDTH)
+#define CENTER12_H2_X      ((SCREEN_W - CENTER12_VISIBLE_W) / 2)
+#define CENTER12_COL_X     (CENTER12_H2_X + DIGIT_WIDTH + COLON_MARGIN)
+#define CENTER12_M1_X      (CENTER12_COL_X + COLON_WIDTH + COLON_MARGIN)
+#define CENTER12_M2_X      (CENTER12_M1_X + DIGIT_WIDTH + DIGIT_MARGIN)
+
 // ── 24-hour digit geometry ───────────────────────────────────────────────────
 // Keep the same 110px height and the same 6px gaps used by the original clock.
 // The first hour cell is wider than the other 24-hour cells so 20-23 reads
@@ -94,10 +100,11 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_TOP_CENTER_SLOT 15
 #define KEY_TOP_RIGHT_SLOT 16
 #define KEY_TIME_FORMAT    17
+#define KEY_CENTER_12H     18
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     11
+#define SETTINGS_VERSION     12
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -224,6 +231,26 @@ typedef struct {
   uint8_t top_center_slot;
   uint8_t top_right_slot;
   uint8_t time_format;
+} WatchfaceSettingsV11;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
+  uint8_t top_left_slot;
+  uint8_t top_center_slot;
+  uint8_t top_right_slot;
+  uint8_t time_format;
+  uint8_t center_12h;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -245,6 +272,7 @@ static void settings_set_defaults(void) {
   s_settings.top_center_slot = SLOT_DATE;
   s_settings.top_right_slot = SLOT_MONTH;
   s_settings.time_format = TIME_FORMAT_12H;
+  s_settings.center_12h = 0;
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
@@ -261,7 +289,8 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
          settings->step_goal >= 1000 && settings->step_goal <= 30000 &&
          settings->temp_unit <= TEMP_CELSIUS &&
-         settings->time_format <= TIME_FORMAT_24H;
+         settings->time_format <= TIME_FORMAT_24H &&
+         settings->center_12h <= 1;
 }
 
 static void settings_load(void) {
@@ -275,6 +304,41 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV11)) {
+    WatchfaceSettingsV11 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 11 &&
+        old.left_slot <= SLOT_MONTH &&
+        old.center_slot <= CENTER_MONTH &&
+        old.right_slot <= SLOT_MONTH &&
+        old.top_left_slot <= SLOT_MONTH &&
+        old.top_center_slot <= SLOT_MONTH &&
+        old.top_right_slot <= SLOT_MONTH &&
+        old.footer_mode <= BAR_HIDDEN &&
+        old.header_mode <= BAR_HIDDEN &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+        old.step_goal >= 1000 && old.step_goal <= 30000 &&
+        old.temp_unit <= TEMP_CELSIUS &&
+        old.time_format <= TIME_FORMAT_24H) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      s_settings.background_color = old.background_color;
+      s_settings.top_left_slot = old.top_left_slot;
+      s_settings.top_center_slot = old.top_center_slot;
+      s_settings.top_right_slot = old.top_right_slot;
+      s_settings.time_format = old.time_format;
+      s_settings.center_12h = 0;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV10)) {
@@ -715,11 +779,17 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     if (m2 == 1) draw_one_24(ctx, H24_M2_X, sy);
     else draw_digit_24(ctx, H24_M2_X, sy, m2, H24_DIGIT_WIDTH);
   } else {
+    const bool center_three_digit = s_settings.center_12h && h1 == 0;
+    const int h2_x = center_three_digit ? CENTER12_H2_X : H2_X;
+    const int col_x = center_three_digit ? CENTER12_COL_X : COL_X;
+    const int m1_x = center_three_digit ? CENTER12_M1_X : M1_X;
+    const int m2_x = center_three_digit ? CENTER12_M2_X : M2_X;
+
     if (h1 == 1) draw_one_h1(ctx, sy);
-    if (h2 == 1) draw_one(ctx, H2_X, sy); else draw_digit(ctx, H2_X, sy, h2);
-    draw_colon(ctx, COL_X, sy);
-    if (m1 == 1) draw_one(ctx, M1_X, sy); else draw_digit(ctx, M1_X, sy, m1);
-    if (m2 == 1) draw_one(ctx, M2_X, sy); else draw_digit(ctx, M2_X, sy, m2);
+    if (h2 == 1) draw_one(ctx, h2_x, sy); else draw_digit(ctx, h2_x, sy, h2);
+    draw_colon(ctx, col_x, sy);
+    if (m1 == 1) draw_one(ctx, m1_x, sy); else draw_digit(ctx, m1_x, sy, m1);
+    if (m2 == 1) draw_one(ctx, m2_x, sy); else draw_digit(ctx, m2_x, sy, m2);
   }
 }
 
@@ -1328,6 +1398,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         if (value >= TIME_FORMAT_12H && value <= TIME_FORMAT_24H) {
           s_settings.time_format = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Time format -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_CENTER_12H: {
+        int32_t value = tuple_to_int32(t, s_settings.center_12h);
+        if (value == 0 || value == 1) {
+          s_settings.center_12h = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Center 12h -> %ld", (long)value);
           layout_changed = true;
         }
         break;

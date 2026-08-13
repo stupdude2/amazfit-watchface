@@ -123,6 +123,8 @@ function customClay(minified) {
       restore.addEventListener('click', function() {
         setValue('ACCENT_COLOR', '0x0000AA');
         setValue('CLOCK_COLOR', '0xFFFFFF');
+        setValue('TIME_FORMAT', '0');
+        setValue('CENTER_12H', false);
         setValue('BACKGROUND_COLOR', '0x000000');
         setValue('TEMP_UNIT', '0');
 
