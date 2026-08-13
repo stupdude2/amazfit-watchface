@@ -673,15 +673,21 @@ static bool s_backlight_on = false;
 static bool s_backlight_subscribed = false;
 
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
-// We use |Z| so the gesture works regardless of watchface-up/down sign.
-// "Armed" means the watch has recently been in a lowered/edge-on orientation.
-// A wake requires a transition to a stable face-toward-user orientation.
+// Pebble Z is perpendicular to the display. A normal glance holds the display
+// much more vertically than "face up", so the read pose is detected primarily
+// by a strong in-plane Y gravity component and a relatively small Z component.
+//
+// We do NOT require a specific starting pose. Instead we remember recent wrist
+// motion, then trigger when that motion settles into the read pose.
 static bool s_raise_accel_subscribed = false;
-static bool s_raise_armed = false;
-static uint64_t s_raise_armed_at = 0;
 static uint64_t s_raise_last_wake_at = 0;
-static int16_t s_raise_start_abs_z = 0;
+static uint64_t s_raise_motion_until = 0;
 static uint8_t s_raise_face_samples = 0;
+static bool s_raise_was_in_face_pose = false;
+static bool s_raise_have_previous = false;
+static int16_t s_raise_prev_x = 0;
+static int16_t s_raise_prev_y = 0;
+static int16_t s_raise_prev_z = 0;
 
 static void to_upper(char *s) {
   for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
@@ -1463,100 +1469,131 @@ static int16_t abs_i16(int16_t v) {
 }
 
 static bool accel_sample_is_stable_gravity(const AccelData *sample) {
-  // Around 1 g while allowing normal wrist motion. This rejects large impacts
-  // that are much more likely to be taps, bumps, or arm swings than a read pose.
+  // Pebble accelerometer units are milli-G. Keep only samples reasonably close
+  // to 1 g so a hard bump or arm swing doesn't masquerade as an orientation.
   int32_t x = sample->x;
   int32_t y = sample->y;
   int32_t z = sample->z;
   int32_t mag2 = x * x + y * y + z * z;
-  return mag2 >= 600000 && mag2 <= 1500000;
+  return mag2 >= 650000 && mag2 <= 1400000;
+}
+
+static bool raise_read_pose(const AccelData *sample) {
+  int16_t ax = abs_i16(sample->x);
+  int16_t ay = abs_i16(sample->y);
+  int16_t az = abs_i16(sample->z);
+
+  // When the screen is facing the wearer in a normal glance, it is usually
+  // close to vertical: gravity lies mostly in the display plane (Y), while Z
+  // -- the axis normal to the watchface -- is much smaller.
+  //
+  // Sensitive mode widens the acceptable cone.
+  int16_t min_y = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 560 : 680;
+  int16_t max_z = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 700 : 560;
+  int16_t max_x = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 780 : 680;
+
+  return ay >= min_y && az <= max_z && ax <= max_x &&
+         accel_sample_is_stable_gravity(sample);
 }
 
 static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
   if (s_settings.raise_wake_mode == RAISE_WAKE_OFF || !data || num_samples == 0) return;
 
-  const int16_t arm_z = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 650 : 520;
-  const int16_t face_z = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 650 : 760;
-  const int16_t min_z_change = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 220 : 320;
-  const uint64_t gesture_window_ms = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 1800 : 1500;
+  const int32_t motion_threshold =
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 120 : 180;
+  const uint64_t motion_memory_ms =
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 1400 : 1100;
   const uint64_t cooldown_ms = 3500;
 
   for (uint32_t i = 0; i < num_samples; ++i) {
     AccelData *sample = &data[i];
-    if (sample->did_vibrate) continue;
+    if (sample->did_vibrate) {
+      s_raise_have_previous = false;
+      continue;
+    }
 
     uint64_t now_ms = sample->timestamp;
-    int16_t abs_z = abs_i16(sample->z);
 
-    // A lowered wrist normally puts the watchface closer to vertical, reducing
-    // the gravity component through the Z axis. Use that posture to arm.
-    if (abs_z <= arm_z) {
-      if (!s_raise_armed) {
-        s_raise_armed = true;
-        s_raise_armed_at = now_ms;
-        s_raise_start_abs_z = abs_z;
-      } else if (abs_z < s_raise_start_abs_z) {
-        s_raise_start_abs_z = abs_z;
+    // Detect meaningful wrist motion from sample-to-sample vector change.
+    // This provides the "suddenly" part of raise-to-wake without assuming the
+    // wrist was previously hanging at the user's side.
+    if (s_raise_have_previous) {
+      int32_t dx = (int32_t)sample->x - s_raise_prev_x;
+      int32_t dy = (int32_t)sample->y - s_raise_prev_y;
+      int32_t dz = (int32_t)sample->z - s_raise_prev_z;
+      int32_t delta2 = dx * dx + dy * dy + dz * dz;
+      if (delta2 >= motion_threshold * motion_threshold) {
+        s_raise_motion_until = now_ms + motion_memory_ms;
       }
+    }
+
+    s_raise_prev_x = sample->x;
+    s_raise_prev_y = sample->y;
+    s_raise_prev_z = sample->z;
+    s_raise_have_previous = true;
+
+    bool face_pose = raise_read_pose(sample);
+
+    if (!face_pose) {
       s_raise_face_samples = 0;
+      s_raise_was_in_face_pose = false;
       continue;
     }
 
-    if (!s_raise_armed) continue;
+    // Already sitting in the read pose should not repeatedly retrigger.
+    if (s_raise_was_in_face_pose) continue;
 
-    if (now_ms - s_raise_armed_at > gesture_window_ms) {
-      s_raise_armed = false;
-      s_raise_face_samples = 0;
-      continue;
-    }
+    if (s_raise_face_samples < 3) s_raise_face_samples++;
 
-    bool face_pose = abs_z >= face_z &&
-                     (abs_z - s_raise_start_abs_z) >= min_z_change &&
-                     accel_sample_is_stable_gravity(sample);
-
-    if (face_pose) {
-      if (s_raise_face_samples < 3) s_raise_face_samples++;
-    } else {
-      s_raise_face_samples = 0;
-    }
-
-    // Require two consecutive stable samples in the read orientation. At 10 Hz
-    // this is roughly 0.2 s, enough to reject many passing arm swings.
+    // Two consecutive 10 Hz samples ~= 0.2 seconds of stable read pose.
     if (s_raise_face_samples >= 2) {
-      if (!light_is_on() &&
-          (s_raise_last_wake_at == 0 || now_ms - s_raise_last_wake_at >= cooldown_ms)) {
+      bool recent_motion = now_ms <= s_raise_motion_until;
+      bool cooldown_done =
+          s_raise_last_wake_at == 0 || now_ms - s_raise_last_wake_at >= cooldown_ms;
+
+      if (recent_motion && cooldown_done && !light_is_on()) {
         light_enable_interaction();
         s_raise_last_wake_at = now_ms;
         APP_LOG(APP_LOG_LEVEL_INFO,
-                "Raise wake: mode=%d startZ=%d finalZ=%d",
+                "Raise wake: mode=%d x=%d y=%d z=%d",
                 (int)s_settings.raise_wake_mode,
-                (int)s_raise_start_abs_z,
-                (int)abs_z);
+                (int)sample->x, (int)sample->y, (int)sample->z);
       }
-      s_raise_armed = false;
+
+      // Treat this as one entry into the pose whether it woke the light or not.
+      // It must leave the read pose before another gesture can be recognized.
+      s_raise_was_in_face_pose = true;
       s_raise_face_samples = 0;
     }
   }
+}
+
+static void reset_raise_wake_state(void) {
+  s_raise_motion_until = 0;
+  s_raise_face_samples = 0;
+  s_raise_was_in_face_pose = false;
+  s_raise_have_previous = false;
 }
 
 static void update_raise_wake_service(void) {
   bool want_accel = s_settings.raise_wake_mode != RAISE_WAKE_OFF;
 
   if (want_accel && !s_raise_accel_subscribed) {
-    // 10 Hz preserves enough temporal detail for a wrist raise while batching
-    // five samples means the application wakes only twice per second.
+    // 10 Hz with five-sample batches gives orientation detail while waking the
+    // application only twice per second.
     accel_service_set_sampling_rate(ACCEL_SAMPLING_10HZ);
     accel_data_service_subscribe(5, raise_wake_accel_handler);
     s_raise_accel_subscribed = true;
-    s_raise_armed = false;
-    s_raise_face_samples = 0;
+    reset_raise_wake_state();
     APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake accelerometer enabled");
   } else if (!want_accel && s_raise_accel_subscribed) {
     accel_data_service_unsubscribe();
     s_raise_accel_subscribed = false;
-    s_raise_armed = false;
-    s_raise_face_samples = 0;
+    reset_raise_wake_state();
     APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake accelerometer disabled");
+  } else if (want_accel) {
+    // Mode changed while already subscribed (Normal <-> Sensitive).
+    reset_raise_wake_state();
   }
 }
 
