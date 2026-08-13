@@ -33,7 +33,11 @@
       "TOP_CENTER_SLOT": 15,
       "TOP_RIGHT_SLOT": 16,
       "TIME_FORMAT": 17,
-      "CENTER_12H": 18
+      "CENTER_12H": 18,
+      "SUNRISE": 19,
+      "SUNSET": 20,
+      "HIGH_TEMP": 21,
+      "LOW_TEMP": 22
     },
     "projectType": "native",
     "resources": {
@@ -103,5 +107,5 @@
       "watchface": true
     }
   },
-  "version": "1.7.2"
+  "version": "1.8.1"
 }

@@ -101,6 +101,10 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_TOP_RIGHT_SLOT 16
 #define KEY_TIME_FORMAT    17
 #define KEY_CENTER_12H     18
+#define KEY_SUNRISE        19
+#define KEY_SUNSET         20
+#define KEY_HIGH_TEMP      21
+#define KEY_LOW_TEMP       22
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
@@ -114,7 +118,12 @@ typedef enum {
   SLOT_BLUETOOTH = 4,
   SLOT_DAY = 5,
   SLOT_DATE = 6,
-  SLOT_MONTH = 7
+  SLOT_MONTH = 7,
+  SLOT_CALORIES = 8,
+  SLOT_DISTANCE = 9,
+  SLOT_SUNRISE = 10,
+  SLOT_SUNSET = 11,
+  SLOT_HIGH_LOW = 12
 } SideSlotContent;
 
 typedef enum {
@@ -278,12 +287,12 @@ static void settings_set_defaults(void) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_MONTH &&
+         settings->left_slot <= SLOT_HIGH_LOW &&
          settings->center_slot <= CENTER_MONTH &&
-         settings->right_slot <= SLOT_MONTH &&
-         settings->top_left_slot <= SLOT_MONTH &&
+         settings->right_slot <= SLOT_HIGH_LOW &&
+         settings->top_left_slot <= SLOT_HIGH_LOW &&
          settings->top_center_slot <= SLOT_MONTH &&
-         settings->top_right_slot <= SLOT_MONTH &&
+         settings->top_right_slot <= SLOT_HIGH_LOW &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -572,7 +581,14 @@ static char s_hr_buf[12];
 static char s_steps_buf[8];
 static char s_weather_buf[12];
 static char s_battery_buf[12];
+static char s_calories_buf[12];
+static char s_distance_buf[12];
+static char s_sunrise_buf[12];
+static char s_sunset_buf[12];
+static char s_high_low_buf[16];
 static int  s_step_count  = 0;
+static int  s_active_kcal = 0;
+static int  s_distance_m = 0;
 static int  s_heart_rate  = 0;
 static int  s_battery_percent = 0;
 static bool s_bluetooth_connected = false;
@@ -581,6 +597,11 @@ static int  s_minute      = 0;
 static int  s_weather_icon = -1;
 static int  s_temperature_c_x10 = 0;
 static bool s_have_temperature = false;
+static int  s_sunrise_minute = -1;
+static int  s_sunset_minute = -1;
+static int  s_high_c_x10 = 0;
+static int  s_low_c_x10 = 0;
+static bool s_have_high_low = false;
 static bool s_backlight_on = false;
 static bool s_backlight_subscribed = false;
 
@@ -745,6 +766,56 @@ static void update_temperature_text(void) {
   snprintf(s_weather_buf, sizeof(s_weather_buf), "%d\xC2\xB0", display_temp);
 }
 
+static int display_temp_from_c_x10(int c_x10) {
+  int value_x10 = c_x10;
+  if (s_settings.temp_unit == TEMP_FAHRENHEIT) {
+    value_x10 = (c_x10 * 9) / 5 + 320;
+  }
+  return round_tenths_to_int(value_x10);
+}
+
+static void format_solar_time(int minute_of_day, char *buffer, size_t buffer_size) {
+  if (minute_of_day < 0) {
+    snprintf(buffer, buffer_size, "--");
+    return;
+  }
+
+  int hour = (minute_of_day / 60) % 24;
+  int minute = minute_of_day % 60;
+  if (s_settings.time_format == TIME_FORMAT_24H) {
+    snprintf(buffer, buffer_size, "%02d:%02d", hour, minute);
+  } else {
+    int hour12 = hour % 12;
+    if (hour12 == 0) hour12 = 12;
+    snprintf(buffer, buffer_size, "%d:%02d", hour12, minute);
+  }
+}
+
+static const char *distance_text(void) {
+  if (s_settings.temp_unit == TEMP_CELSIUS) {
+    int km_x10 = (s_distance_m + 50) / 100;
+    snprintf(s_distance_buf, sizeof(s_distance_buf), "%d.%dKM",
+             km_x10 / 10, km_x10 % 10);
+  } else {
+    int miles_x10 = (s_distance_m * 10 + 804) / 1609;
+    snprintf(s_distance_buf, sizeof(s_distance_buf), "%d.%dMI",
+             miles_x10 / 10, miles_x10 % 10);
+  }
+  return s_distance_buf;
+}
+
+static const char *high_low_text(void) {
+  if (!s_have_high_low) {
+    snprintf(s_high_low_buf, sizeof(s_high_low_buf), "--/--");
+    return s_high_low_buf;
+  }
+
+  int high = display_temp_from_c_x10(s_high_c_x10);
+  int low = display_temp_from_c_x10(s_low_c_x10);
+  snprintf(s_high_low_buf, sizeof(s_high_low_buf), "%d/%d\xC2\xB0", high, low);
+  return s_high_low_buf;
+}
+
 // ── Clock ─────────────────────────────────────────────────────────────────────
 static void clock_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
@@ -820,7 +891,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
   else if (s_settings.top_left_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(left_area.origin.x + left_area.size.w/2, 27), 34, 30, side_fg, true);
   if (s_settings.top_center_slot == SLOT_BATTERY)
-    draw_battery_icon(ctx, GRect(DATEBOX_X + 7, 20, 36, 9), s_battery_percent, center_fg);
+    draw_battery_icon(ctx, GRect(DATEBOX_X + 7, 7, 36, 9), s_battery_percent, center_fg);
   else if (s_settings.top_center_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(DATEBOX_X + DATEBOX_W/2, 27), 34, 30, center_fg, true);
   if (s_settings.top_right_slot == SLOT_BATTERY)
@@ -1049,6 +1120,11 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_DAY: return "DAY";
     case SLOT_DATE: return "DATE";
     case SLOT_MONTH: return "MONTH";
+    case SLOT_CALORIES: return "CAL";
+    case SLOT_DISTANCE: return "DIST";
+    case SLOT_SUNRISE: return "RISE";
+    case SLOT_SUNSET: return "SET";
+    case SLOT_HIGH_LOW: return "H/L";
     case SLOT_WEATHER:
     default: return "WEATHER";
   }
@@ -1076,6 +1152,19 @@ static const char *side_slot_value(uint8_t slot) {
     }
     case SLOT_MONTH:
       return s_month_buf;
+    case SLOT_CALORIES:
+      snprintf(s_calories_buf, sizeof(s_calories_buf), "%d", s_active_kcal);
+      return s_calories_buf;
+    case SLOT_DISTANCE:
+      return distance_text();
+    case SLOT_SUNRISE:
+      format_solar_time(s_sunrise_minute, s_sunrise_buf, sizeof(s_sunrise_buf));
+      return s_sunrise_buf;
+    case SLOT_SUNSET:
+      format_solar_time(s_sunset_minute, s_sunset_buf, sizeof(s_sunset_buf));
+      return s_sunset_buf;
+    case SLOT_HIGH_LOW:
+      return high_low_text();
     case SLOT_WEATHER:
     default:
       return s_weather_buf;
@@ -1086,11 +1175,9 @@ static const char *center_slot_label(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY: return "";
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
-    case CENTER_WEATHER: return "WEATHER";
+    case CENTER_WEATHER: return "TEMP";
     case CENTER_STEPS: return "STEPS";
-    case CENTER_DAY: return "DAY";
     case CENTER_DATE: return "DATE";
-    case CENTER_MONTH: return "MONTH";
     case CENTER_HEART_RATE:
     default: return "HR";
   }
@@ -1106,9 +1193,7 @@ static const char *center_slot_value(void) {
     case CENTER_WEATHER: return s_weather_buf;
     case CENTER_STEPS:
       snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", s_step_count); return s_steps_buf;
-    case CENTER_DAY: return s_day_buf;
     case CENTER_DATE: { char *d = s_date_buf; while (*d == ' ') d++; return d; }
-    case CENTER_MONTH: return s_month_buf;
     case CENTER_HEART_RATE:
     default:
       if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
@@ -1135,7 +1220,9 @@ static void update_header_content(void) {
   if (!s_top_left_label || !s_top_center_label || !s_top_right_label) return;
   text_layer_set_text(s_top_left_label, top_slot_label(s_settings.top_left_slot));
   text_layer_set_text(s_top_left_val, top_slot_value(s_settings.top_left_slot));
-  text_layer_set_text(s_top_center_label, top_slot_label(s_settings.top_center_slot));
+  text_layer_set_text(
+      s_top_center_label,
+      s_settings.top_center_slot == SLOT_WEATHER ? "TEMP" : top_slot_label(s_settings.top_center_slot));
   text_layer_set_text(s_top_center_val, top_slot_value(s_settings.top_center_slot));
   text_layer_set_text(s_top_right_label, top_slot_label(s_settings.top_right_slot));
   text_layer_set_text(s_top_right_val, top_slot_value(s_settings.top_right_slot));
@@ -1153,8 +1240,12 @@ static void update_header_content(void) {
       GRect(4, slot_is_calendar(s_settings.top_left_slot) ? 4 : 15, layer_get_bounds(s_header_layer).size.w > 0 ? DATEBOX_X - BOX_GAP - 4 : 0,
             slot_is_calendar(s_settings.top_left_slot) ? HEADER_H - 5 : 34));
   layer_set_frame(text_layer_get_layer(s_top_center_val),
-      GRect(DATEBOX_X, slot_is_calendar(s_settings.top_center_slot) ? 4 : 15, DATEBOX_W,
-            slot_is_calendar(s_settings.top_center_slot) ? HEADER_H - 5 : 34));
+      GRect(DATEBOX_X,
+            slot_is_calendar(s_settings.top_center_slot) ? 4 :
+              (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15),
+            DATEBOX_W,
+            slot_is_calendar(s_settings.top_center_slot) ? HEADER_H - 5 :
+              (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34)));
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
   layer_set_frame(text_layer_get_layer(s_top_right_val),
       GRect(top_right_x, slot_is_calendar(s_settings.top_right_slot) ? 4 : 15, SCREEN_W - top_right_x - 4,
@@ -1370,6 +1461,28 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_SUNRISE:
+        s_sunrise_minute = (int)tuple_to_int32(t, -1);
+        weather_changed = true;
+        break;
+
+      case KEY_SUNSET:
+        s_sunset_minute = (int)tuple_to_int32(t, -1);
+        weather_changed = true;
+        break;
+
+      case KEY_HIGH_TEMP:
+        s_high_c_x10 = (int)tuple_to_int32(t, 0);
+        s_have_high_low = true;
+        weather_changed = true;
+        break;
+
+      case KEY_LOW_TEMP:
+        s_low_c_x10 = (int)tuple_to_int32(t, 0);
+        s_have_high_low = true;
+        weather_changed = true;
+        break;
+
 #if WATCHFACE_PRO
       case KEY_ACCENT_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
@@ -1380,7 +1493,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) {
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -1400,7 +1513,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) {
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -1410,7 +1523,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -1420,7 +1533,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -1647,6 +1760,8 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) { update_time(
 static void health_handler(HealthEventType event, void *context) {
   if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate) {
     s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
+    s_active_kcal = (int)health_service_sum_today(HealthMetricActiveKCalories);
+    s_distance_m = (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
     if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
     update_footer_content();
     update_header_content();
@@ -1798,6 +1913,8 @@ static void window_load(Window *window) {
 
 #if defined(PBL_HEALTH)
   s_step_count = (int)health_service_sum_today(HealthMetricStepCount);
+  s_active_kcal = (int)health_service_sum_today(HealthMetricActiveKCalories);
+  s_distance_m = (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
   HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
   s_heart_rate = hr > 0 ? (int)hr : 0;
 #endif

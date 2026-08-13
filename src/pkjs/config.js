@@ -8,7 +8,21 @@ var sideOptions = [
   { "label": "Bluetooth", "value": "4" },
   { "label": "Day of Week", "value": "5" },
   { "label": "Date", "value": "6" },
-  { "label": "Month", "value": "7" }
+  { "label": "Month", "value": "7" },
+  { "label": "Calories", "value": "8" },
+  { "label": "Distance", "value": "9" },
+  { "label": "Sunrise", "value": "10" },
+  { "label": "Sunset", "value": "11" },
+  { "label": "High / Low Temp", "value": "12" }
+];
+
+var topCenterOptions = [
+  { "label": "Weather", "value": "0" },
+  { "label": "Steps", "value": "1" },
+  { "label": "Battery (icon + %)", "value": "2" },
+  { "label": "Heart Rate", "value": "3" },
+  { "label": "Bluetooth", "value": "4" },
+  { "label": "Date", "value": "6" }
 ];
 
 var centerOptions = [
@@ -17,9 +31,7 @@ var centerOptions = [
   { "label": "Bluetooth", "value": "2" },
   { "label": "Weather", "value": "3" },
   { "label": "Steps", "value": "4" },
-  { "label": "Day of Week", "value": "5" },
-  { "label": "Date", "value": "6" },
-  { "label": "Month", "value": "7" }
+  { "label": "Date", "value": "6" }
 ];
 
 var config = [
@@ -96,7 +108,7 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Top Bar" },
       { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
-      { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": sideOptions },
+      { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions },
       { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
       {
         "type": "select",
