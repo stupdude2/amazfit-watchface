@@ -80,13 +80,20 @@ function customClay(minified) {
 
       var buttons = document.createElement('div');
       buttons.style.display = 'flex';
-      buttons.style.gap = '10px';
-      buttons.style.justifyContent = 'flex-end';
+      buttons.style.justifyContent = 'center';
+      buttons.style.alignItems = 'center';
+      buttons.style.width = '100%';
+      buttons.style.boxSizing = 'border-box';
 
       var cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.textContent = 'Cancel';
-      cancel.style.padding = '10px 16px';
+      cancel.style.width = '92px';
+      cancel.style.minWidth = '92px';
+      cancel.style.maxWidth = '92px';
+      cancel.style.marginRight = '10px';
+      cancel.style.padding = '10px 8px';
+      cancel.style.boxSizing = 'border-box';
       cancel.style.border = '1px solid #aaaaaa';
       cancel.style.borderRadius = '6px';
       cancel.style.background = '#f4f4f4';
@@ -95,7 +102,11 @@ function customClay(minified) {
       var restore = document.createElement('button');
       restore.type = 'button';
       restore.textContent = 'Yes';
-      restore.style.padding = '10px 16px';
+      restore.style.width = '92px';
+      restore.style.minWidth = '92px';
+      restore.style.maxWidth = '92px';
+      restore.style.padding = '10px 8px';
+      restore.style.boxSizing = 'border-box';
       restore.style.border = '0';
       restore.style.borderRadius = '6px';
       restore.style.background = '#d9534f';
