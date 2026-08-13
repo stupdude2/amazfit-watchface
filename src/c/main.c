@@ -1480,19 +1480,22 @@ static bool accel_sample_is_stable_gravity(const AccelData *sample) {
 
 static bool raise_read_pose(const AccelData *sample) {
   int16_t ax = abs_i16(sample->x);
-  int16_t ay = abs_i16(sample->y);
   int16_t az = abs_i16(sample->z);
 
-  // When the screen is facing the wearer in a normal glance, it is usually
-  // close to vertical: gravity lies mostly in the display plane (Y), while Z
-  // -- the axis normal to the watchface -- is much smaller.
-  //
-  // Sensitive mode widens the acceptable cone.
-  int16_t min_y = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 560 : 680;
-  int16_t max_z = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 700 : 560;
-  int16_t max_x = (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 780 : 680;
+  // Real-world PT2 logs show the wearer-facing read pose has NEGATIVE Y,
+  // while flipping the display away produces the mirror-image POSITIVE Y.
+  // Preserve that sign instead of using abs(Y), so only the wearer-facing
+  // orientation can satisfy the gesture.
+  int16_t min_negative_y =
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? -560 : -680;
+  int16_t max_z =
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 700 : 560;
+  int16_t max_x =
+      (s_settings.raise_wake_mode == RAISE_WAKE_SENSITIVE) ? 780 : 680;
 
-  return ay >= min_y && az <= max_z && ax <= max_x &&
+  return sample->y <= min_negative_y &&
+         az <= max_z &&
+         ax <= max_x &&
          accel_sample_is_stable_gravity(sample);
 }
 
