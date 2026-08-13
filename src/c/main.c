@@ -915,7 +915,8 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   int fill_w = (steps >= s_settings.step_goal) ? bar_w : (steps * bar_w / s_settings.step_goal);
 
   if (steps >= s_settings.step_goal) {
-    graphics_context_set_fill_color(ctx, gcolor_legible_over(s_settings.background_color));
+    // Goal reached: celebrate by switching the completed bar to the accent color.
+    graphics_context_set_fill_color(ctx, s_settings.accent_color);
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
     return;
   }
