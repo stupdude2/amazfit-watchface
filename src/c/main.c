@@ -68,11 +68,11 @@ static bool stepbar_is_left_to_right(void);
 
 // ── 24-hour digit geometry ───────────────────────────────────────────────────
 // Keep the same 110px height and the same 6px gaps used by the original clock.
-// The first hour cell is wider than the other 24-hour cells so 20-23 reads
-// naturally, while thinner strokes/narrower cells keep HH:MM within 200px.
+// All four digit cells use identical geometry so HH:MM has consistent width.
+// Thin strokes and compact cells keep the full clock within the 200px display.
 #define H24_STK           14
-#define H24_H1_WIDTH      36
-#define H24_DIGIT_WIDTH   40
+#define H24_H1_WIDTH      39
+#define H24_DIGIT_WIDTH   39
 #define H24_TOTAL_W       (H24_H1_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + H24_DIGIT_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH)
 #define H24_ORIGIN_X      ((SCREEN_W - H24_TOTAL_W) / 2)
 #define H24_H1_X          H24_ORIGIN_X
@@ -766,7 +766,7 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     // Keep every numeral in the same allocated 24-hour cell width, but draw
     // "1" with the same intentional left-biased offsets as the 12-hour face.
     if (h1 == 1) draw_one_24(ctx, H24_H1_X, sy);
-    else draw_digit_24(ctx, H24_H1_X + H1_ONE_X, sy, h1, H24_H1_WIDTH - H1_ONE_X);
+    else draw_digit_24(ctx, H24_H1_X, sy, h1, H24_DIGIT_WIDTH);
 
     if (h2 == 1) draw_one_24(ctx, H24_H2_X, sy);
     else draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);

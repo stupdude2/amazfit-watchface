@@ -25,6 +25,23 @@ function customClay(minified) {
   }
 
   clayPage.on(clayPage.EVENTS.AFTER_BUILD, function() {
+    var timeFormat = clayPage.getItemByMessageKey('TIME_FORMAT');
+    var center12h = clayPage.getItemByMessageKey('CENTER_12H');
+
+    function syncCenter12hAvailability() {
+      if (!timeFormat || !center12h) return;
+      if (String(timeFormat.get()) === '1') {
+        center12h.disable();
+      } else {
+        center12h.enable();
+      }
+    }
+
+    if (timeFormat && center12h) {
+      syncCenter12hAvailability();
+      timeFormat.on('change', syncCenter12hAvailability);
+    }
+
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
 
