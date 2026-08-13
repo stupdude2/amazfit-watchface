@@ -87,10 +87,10 @@ Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single 
 Pro builds now include a Background Color picker. Text and native footer icons that sit directly on the background automatically switch between light and dark foreground colors using Pebble's `gcolor_legible_over()`. Weather icons are tinted at runtime from the existing white RGBA assets, preserving their transparency while automatically matching the light/dark foreground selected for the current background. Accent-box text continues to contrast against the accent color, while Clock Color remains independently user-selectable.
 
 
-## v1.4.0 clock auto-contrast refinement
+## v1.4.2 clock auto-contrast refinement
 
 When the clock color is pure white or pure black, changing the background color now automatically switches the clock between white and black using Pebble's legibility helper. Any non-neutral custom clock color remains unchanged.
 
 
-## v1.4.0
+## v1.4.2
 Top and bottom bars now share customizable content choices. Day of Week, Date, and Month are available in bottom slots, while Weather, Steps, Battery, Heart Rate, Bluetooth, Day of Week, Date, and Month can be assigned to any top slot.

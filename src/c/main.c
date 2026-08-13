@@ -944,14 +944,30 @@ static void update_header_content(void) {
   text_layer_set_font(s_top_center_val, slot_is_calendar(s_settings.top_center_slot) ? s_font_header : s_font_value);
   text_layer_set_font(s_top_right_val, slot_is_calendar(s_settings.top_right_slot) ? s_font_header : s_font_value);
 
+  // Calendar values have no label, so give them the full header height.
+  // This restores the original vertical centering instead of leaving them in
+  // the lower "value" half of the generic label/value layout.
+  layer_set_frame(text_layer_get_layer(s_top_left_val),
+      GRect(4, slot_is_calendar(s_settings.top_left_slot) ? 4 : 15, layer_get_bounds(s_header_layer).size.w > 0 ? DATEBOX_X - BOX_GAP - 4 : 0,
+            slot_is_calendar(s_settings.top_left_slot) ? HEADER_H - 5 : 34));
+  layer_set_frame(text_layer_get_layer(s_top_center_val),
+      GRect(DATEBOX_X, slot_is_calendar(s_settings.top_center_slot) ? 4 : 15, DATEBOX_W,
+            slot_is_calendar(s_settings.top_center_slot) ? HEADER_H - 5 : 34));
+  int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
+  layer_set_frame(text_layer_get_layer(s_top_right_val),
+      GRect(top_right_x, slot_is_calendar(s_settings.top_right_slot) ? 4 : 15, SCREEN_W - top_right_x - 4,
+            slot_is_calendar(s_settings.top_right_slot) ? HEADER_H - 5 : 34));
+
   text_layer_set_text_alignment(s_top_left_label,
       (s_settings.top_left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected) ? GTextAlignmentCenter : GTextAlignmentLeft);
-  text_layer_set_text_alignment(s_top_left_val, GTextAlignmentLeft);
+  text_layer_set_text_alignment(s_top_left_val,
+      slot_is_calendar(s_settings.top_left_slot) ? GTextAlignmentCenter : GTextAlignmentLeft);
   text_layer_set_text_alignment(s_top_center_label, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_top_center_val, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_top_right_label,
       (s_settings.top_right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected) ? GTextAlignmentCenter : GTextAlignmentRight);
-  text_layer_set_text_alignment(s_top_right_val, GTextAlignmentRight);
+  text_layer_set_text_alignment(s_top_right_val,
+      slot_is_calendar(s_settings.top_right_slot) ? GTextAlignmentCenter : GTextAlignmentRight);
   if (s_header_layer) layer_mark_dirty(s_header_layer);
 }
 
