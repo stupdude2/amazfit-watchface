@@ -1177,25 +1177,56 @@ static void update_footer_content(void) {
   if (!s_left_label || !s_center_label || !s_right_label ||
       !s_weather_icon_left_layer || !s_weather_icon_right_layer) return;
 
-  text_layer_set_text(s_left_label, side_slot_label(s_settings.left_slot));
+  const bool left_calendar = slot_is_calendar(s_settings.left_slot);
+  const bool center_calendar = slot_is_calendar(s_settings.center_slot);
+  const bool right_calendar = slot_is_calendar(s_settings.right_slot);
+
+  // Match the header treatment for calendar items: large value only, no
+  // redundant DAY / DATE / MONTH label.
+  text_layer_set_text(s_left_label, left_calendar ? "" : side_slot_label(s_settings.left_slot));
   text_layer_set_text(s_left_val, side_slot_value(s_settings.left_slot));
-  text_layer_set_text(s_center_label, center_slot_label());
+  text_layer_set_text(s_center_label, center_calendar ? "" : center_slot_label());
   text_layer_set_text(s_center_val, center_slot_value());
-  text_layer_set_text(s_right_label, side_slot_label(s_settings.right_slot));
+  text_layer_set_text(s_right_label, right_calendar ? "" : side_slot_label(s_settings.right_slot));
   text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
 
-  // Disconnected Bluetooth is a simple centered "BT" label with no value.
-  // Restore the normal edge alignment automatically for every other option.
+  // Calendar items use the same large custom font as their header versions.
+  text_layer_set_font(s_left_val, left_calendar ? s_font_header : s_font_value);
+  text_layer_set_font(s_center_val, center_calendar ? s_font_header : s_font_value);
+  text_layer_set_font(s_right_val, right_calendar ? s_font_header : s_font_value);
+
+  // Give calendar values the whole footer slot so they can be centered
+  // vertically as well as horizontally. Non-calendar items retain the existing
+  // label/value frames.
+  int left_w = HRBOX_X - BOX_GAP - 4;
+  int right_x = HRBOX_X + BOX_W + BOX_GAP;
+  int right_w = SCREEN_W - right_x - 4;
+
+  layer_set_frame(text_layer_get_layer(s_left_val),
+      GRect(4, left_calendar ? 1 : 14, left_w, left_calendar ? FOOTER_H - 1 : 38));
+  layer_set_frame(text_layer_get_layer(s_center_val),
+      GRect(HRBOX_X, center_calendar ? 1 : 14, BOX_W, center_calendar ? FOOTER_H - 1 : 38));
+  layer_set_frame(text_layer_get_layer(s_right_val),
+      GRect(right_x, right_calendar ? 1 : 14, right_w, right_calendar ? FOOTER_H - 1 : 38));
+
+  // Calendar values are centered in every slot. Other values keep their
+  // established left/center/right alignment.
   text_layer_set_text_alignment(
       s_left_label,
       (s_settings.left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
           ? GTextAlignmentCenter : GTextAlignmentLeft);
-  text_layer_set_text_alignment(s_left_val, GTextAlignmentLeft);
+  text_layer_set_text_alignment(
+      s_left_val, left_calendar ? GTextAlignmentCenter : GTextAlignmentLeft);
+
+  text_layer_set_text_alignment(s_center_label, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_center_val, GTextAlignmentCenter);
+
   text_layer_set_text_alignment(
       s_right_label,
       (s_settings.right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
           ? GTextAlignmentCenter : GTextAlignmentRight);
-  text_layer_set_text_alignment(s_right_val, GTextAlignmentRight);
+  text_layer_set_text_alignment(
+      s_right_val, right_calendar ? GTextAlignmentCenter : GTextAlignmentRight);
 
   bool weather_left = s_settings.left_slot == SLOT_WEATHER;
   bool weather_right = s_settings.right_slot == SLOT_WEATHER;
