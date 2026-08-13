@@ -60,6 +60,21 @@ static bool stepbar_is_left_to_right(void);
 #define M1_X             (COL_X + COLON_WIDTH + COLON_MARGIN)
 #define M2_X             (M1_X + DIGIT_WIDTH + DIGIT_MARGIN)
 
+// ── 24-hour digit geometry ───────────────────────────────────────────────────
+// Keep the same 110px height and the same 6px gaps used by the original clock.
+// The first hour cell is wider than the other 24-hour cells so 20-23 reads
+// naturally, while thinner strokes/narrower cells keep HH:MM within 200px.
+#define H24_STK           12
+#define H24_H1_WIDTH      36
+#define H24_DIGIT_WIDTH   42
+#define H24_TOTAL_W       (H24_H1_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH + COLON_MARGIN + COLON_WIDTH + COLON_MARGIN + H24_DIGIT_WIDTH + DIGIT_MARGIN + H24_DIGIT_WIDTH)
+#define H24_ORIGIN_X      ((SCREEN_W - H24_TOTAL_W) / 2)
+#define H24_H1_X          H24_ORIGIN_X
+#define H24_H2_X          (H24_H1_X + H24_H1_WIDTH + DIGIT_MARGIN)
+#define H24_COL_X         (H24_H2_X + H24_DIGIT_WIDTH + COLON_MARGIN)
+#define H24_M1_X          (H24_COL_X + COLON_WIDTH + COLON_MARGIN)
+#define H24_M2_X          (H24_M1_X + H24_DIGIT_WIDTH + DIGIT_MARGIN)
+
 // ── AppMessage keys ───────────────────────────────────────────────────────────
 #define KEY_TEMPERATURE  0
 #define KEY_WEATHER_ICON 1
@@ -78,10 +93,11 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_TOP_LEFT_SLOT 14
 #define KEY_TOP_CENTER_SLOT 15
 #define KEY_TOP_RIGHT_SLOT 16
+#define KEY_TIME_FORMAT    17
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     10
+#define SETTINGS_VERSION     11
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -127,6 +143,11 @@ typedef enum {
   TEMP_FAHRENHEIT = 0,
   TEMP_CELSIUS = 1
 } TemperatureUnit;
+
+typedef enum {
+  TIME_FORMAT_12H = 0,
+  TIME_FORMAT_24H = 1
+} ClockTimeFormat;
 
 typedef struct {
   uint8_t version;
@@ -184,6 +205,25 @@ typedef struct {
   uint8_t top_left_slot;
   uint8_t top_center_slot;
   uint8_t top_right_slot;
+} WatchfaceSettingsV10;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
+  uint8_t top_left_slot;
+  uint8_t top_center_slot;
+  uint8_t top_right_slot;
+  uint8_t time_format;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -204,6 +244,7 @@ static void settings_set_defaults(void) {
   s_settings.top_left_slot = SLOT_DAY;
   s_settings.top_center_slot = SLOT_DATE;
   s_settings.top_right_slot = SLOT_MONTH;
+  s_settings.time_format = TIME_FORMAT_12H;
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
@@ -219,7 +260,8 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
          settings->step_goal >= 1000 && settings->step_goal <= 30000 &&
-         settings->temp_unit <= TEMP_CELSIUS;
+         settings->temp_unit <= TEMP_CELSIUS &&
+         settings->time_format <= TIME_FORMAT_24H;
 }
 
 static void settings_load(void) {
@@ -233,6 +275,40 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV10)) {
+    // Migrate v1.4/v1.5 settings and default the new time format to 12-hour.
+    WatchfaceSettingsV10 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 10 &&
+        old.left_slot <= SLOT_MONTH &&
+        old.center_slot <= CENTER_MONTH &&
+        old.right_slot <= SLOT_MONTH &&
+        old.top_left_slot <= SLOT_MONTH &&
+        old.top_center_slot <= SLOT_MONTH &&
+        old.top_right_slot <= SLOT_MONTH &&
+        old.footer_mode <= BAR_HIDDEN &&
+        old.header_mode <= BAR_HIDDEN &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+        old.step_goal >= 1000 && old.step_goal <= 30000 &&
+        old.temp_unit <= TEMP_CELSIUS) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      s_settings.background_color = old.background_color;
+      s_settings.top_left_slot = old.top_left_slot;
+      s_settings.top_center_slot = old.top_center_slot;
+      s_settings.top_right_slot = old.top_right_slot;
+      s_settings.time_format = TIME_FORMAT_12H;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV9)) {
@@ -497,6 +573,27 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
 }
 
+static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
+  if (digit < 0 || digit > 9) return;
+  uint8_t s = DIGIT_SEGS[digit];
+  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+
+  int top_y = oy;
+  int mid_y = oy + HALF_V - H24_STK / 2;
+  int bot_y = oy + DIGIT_HEIGHT - H24_STK;
+  int lx = ox;
+  int rx = ox + width - H24_STK;
+
+  if (s & SEG_TOP) graphics_fill_rect(ctx, GRect(ox, top_y, width, H24_STK), 0, GCornerNone);
+  if (s & SEG_MID) graphics_fill_rect(ctx, GRect(ox, mid_y, width, H24_STK), 0, GCornerNone);
+  if (s & SEG_BOT) graphics_fill_rect(ctx, GRect(ox, bot_y, width, H24_STK), 0, GCornerNone);
+  if (s & SEG_TL) graphics_fill_rect(ctx, GRect(lx, top_y, H24_STK, mid_y - top_y + H24_STK), 0, GCornerNone);
+  if (s & SEG_TR) graphics_fill_rect(ctx, GRect(rx, top_y, H24_STK, mid_y - top_y + H24_STK), 0, GCornerNone);
+  if (s & SEG_BL) graphics_fill_rect(ctx, GRect(lx, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
+  if (s & SEG_BR) graphics_fill_rect(ctx, GRect(rx, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
+}
+
+
 // ── Weather icon ──────────────────────────────────────────────────────────────
 static void tint_weather_bitmap(GBitmap *bitmap, GColor color) {
   if (!bitmap) return;
@@ -585,11 +682,24 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   // Backlight-only modes reserve their step-bar space at all times so the clock
   // never jumps when the backlight turns the bar on or off.
   if (s_settings.stepbar_mode == STEPBAR_HIDDEN) sy -= 3;
-  if (h1 == 1) draw_one_h1(ctx, sy);
-  if (h2 == 1) draw_one(ctx, H2_X, sy); else draw_digit(ctx, H2_X, sy, h2);
-  draw_colon(ctx, COL_X, sy);
-  if (m1 == 1) draw_one(ctx, M1_X, sy); else draw_digit(ctx, M1_X, sy, m1);
-  if (m2 == 1) draw_one(ctx, M2_X, sy); else draw_digit(ctx, M2_X, sy, m2);
+  if (s_settings.time_format == TIME_FORMAT_24H) {
+    // In 24-hour mode every numeral uses the same full-width seven-segment
+    // geometry. In particular, "1" is no longer centered as a narrow special
+    // case; its right-hand segments occupy the normal digit cell width.
+    draw_digit_24(ctx, H24_H1_X, sy, h1, H24_H1_WIDTH);
+    draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);
+
+    draw_colon(ctx, H24_COL_X, sy);
+
+    draw_digit_24(ctx, H24_M1_X, sy, m1, H24_DIGIT_WIDTH);
+    draw_digit_24(ctx, H24_M2_X, sy, m2, H24_DIGIT_WIDTH);
+  } else {
+    if (h1 == 1) draw_one_h1(ctx, sy);
+    if (h2 == 1) draw_one(ctx, H2_X, sy); else draw_digit(ctx, H2_X, sy, h2);
+    draw_colon(ctx, COL_X, sy);
+    if (m1 == 1) draw_one(ctx, M1_X, sy); else draw_digit(ctx, M1_X, sy, m1);
+    if (m2 == 1) draw_one(ctx, M2_X, sy); else draw_digit(ctx, M2_X, sy, m2);
+  }
 }
 
 static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color);
@@ -1192,6 +1302,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_TIME_FORMAT: {
+        int32_t value = tuple_to_int32(t, s_settings.time_format);
+        if (value >= TIME_FORMAT_12H && value <= TIME_FORMAT_24H) {
+          s_settings.time_format = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Time format -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
       case KEY_FOOTER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.footer_mode);
         if (value >= BAR_ALWAYS && value <= BAR_HIDDEN) {
@@ -1349,6 +1469,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     update_stepbar_layout();
     update_bar_input_services();
     apply_bar_visibility();
+
+    // Time-format changes should be visible immediately instead of waiting for
+    // the next minute tick.
+    time_t now = time(NULL);
+    struct tm *current = localtime(&now);
+    if (current) update_time(current);
   }
 #endif
 }
@@ -1359,8 +1485,12 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 
 // ── Time / date update ────────────────────────────────────────────────────────
 static void update_time(struct tm *tick_time) {
-  s_hour   = tick_time->tm_hour % 12;
-  if (s_hour == 0) s_hour = 12;
+  if (s_settings.time_format == TIME_FORMAT_24H) {
+    s_hour = tick_time->tm_hour;
+  } else {
+    s_hour = tick_time->tm_hour % 12;
+    if (s_hour == 0) s_hour = 12;
+  }
   s_minute = tick_time->tm_min;
   layer_mark_dirty(s_clock_layer);
 
