@@ -1954,9 +1954,11 @@ static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
       watchface_kiezelpay_set_licensed(true);
       break;
     case KIEZELPAY_CODE_AVAILABLE:
-      // A purchase code means this installation is not currently licensed.
+      // KiezelPay's generated integration treats this as a purchase-flow event,
+      // not as an entitlement revocation. Do NOT clear a previously validated
+      // license here; KIEZELPAY_LICENSED is authoritative for successful unlock,
+      // and KiezelPay's own periodic status checks handle later revocation.
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available");
-      watchface_kiezelpay_set_licensed(false);
       break;
     case KIEZELPAY_PURCHASE_STARTED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase started");
