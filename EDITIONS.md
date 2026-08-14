@@ -1,14 +1,29 @@
-# Big Time Free / Pro model
+# Standard / Pro edition workflow
 
-Big Time now ships as **one watchface** with one UUID. Do not create separate Standard
-and Pro PBWs. Runtime entitlement controls the feature set.
+This project uses one source tree for both editions.
 
-- Free: 12/24-hour time format, Center 12 Hour Clock, 5000-step default goal.
-- 48-hour Pro trial: explicitly started by the user from Settings.
-- Pro: all customization features, permanently unlocked through KiezelPay.
+From PowerShell in the project root:
 
-`src/c/edition.h` intentionally keeps premium code compiled in (`WATCHFACE_PRO 1`) so
-the same installed watchface can transition between Free, Trial, and licensed Pro.
+```powershell
+.\tools\set-edition.ps1 standard
+```
 
-The old `tools/set-edition.ps1` workflow is retired and must not be used to create a
-separate Pro UUID.
+or:
+
+```powershell
+.\tools\set-edition.ps1 pro
+```
+
+The script keeps three edition-sensitive values synchronized:
+
+- `package.json`: display name and UUID
+- `src/c/edition.h`: native C feature flag
+- `src/pkjs/edition.js`: PebbleKit JS/config feature flag
+
+Standard keeps the original app UUID. Pro uses a separate UUID so both editions can exist as distinct Pebble apps/watchfaces.
+
+Current Pro-only customization:
+
+- Accent Color
+
+Before committing or building, run the edition command you intend to test/export, then confirm with `git diff` or `git status`.

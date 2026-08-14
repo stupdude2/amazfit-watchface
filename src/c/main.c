@@ -1,7 +1,7 @@
 #include <pebble.h>
+#include <stdlib.h>
 #include <pebble-events/pebble-events.h>
 #include <kiezelpay-core/kiezelpay.h>
-#include <stdlib.h>
 #include "edition.h"
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -108,21 +108,20 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_HIGH_TEMP      21
 #define KEY_LOW_TEMP       22
 #define KEY_RAISE_WAKE     23
-#define KEY_PRO_LICENSE    24
-#define KEY_LICENSE_CHECK  25
-#define KEY_TRIAL_START    26
-#define KEY_TRIAL_STATE    27
-#define KEY_TRIAL_REMAINING 28
-#define KEY_PURCHASE_PRO   29
-#define KEY_TRIAL_USED_HINT 30
+#define KEY_LICENSE_STATUS_REQUEST 24
+#define KEY_LICENSE_STATUS         25
+#define KEY_TRIAL_START            26
+#define KEY_PURCHASE_REQUEST       27
+#define KEY_TRIAL_SYNC_EPOCH       28
 
 // ── Persistent settings ──────────────────────────────────────────────────────
-#define SETTINGS_PERSIST_KEY      1
-#define TRIAL_USED_PERSIST_KEY    2
-#define TRIAL_START_PERSIST_KEY   3
-#define PRO_SETTINGS_PERSIST_KEY  4
-#define SETTINGS_VERSION          13
-#define PRO_TRIAL_SECONDS          (48 * 60 * 60)
+#define SETTINGS_PERSIST_KEY 1
+#define SETTINGS_VERSION     13
+#define TRIAL_START_PERSIST_KEY 200
+#define TRIAL_USED_PERSIST_KEY  201
+#define FREE_TIME_FORMAT_PERSIST_KEY 202
+#define FREE_CENTER_12H_PERSIST_KEY 203
+#define BIG_TIME_TRIAL_SECONDS (48 * 60 * 60)
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -305,74 +304,79 @@ typedef struct {
 
 static WatchfaceSettings s_settings;
 
-// Runtime Pro entitlement. KiezelPay's product-specific Pebble library should
-// call license_set_pro(true/false) from its license callback.
-// Default is free/locked so a failed or unavailable license check never grants
-// premium features accidentally.
-static bool s_pro_unlocked = false;
 static bool s_kiezelpay_licensed = false;
-static AppTimer *s_kiezelpay_retry_timer = NULL;
-static bool s_kiezelpay_purchase_pending = false;
-static bool s_trial_active = false;
+static bool s_trial_active_last_tick = false;
 
-static void license_send_status_to_phone(void);
-static void license_recompute_effective(void);
-static void trial_refresh_state(void);
+static bool trial_is_active(void) {
+  if (!persist_exists(TRIAL_START_PERSIST_KEY)) return false;
 
-static void settings_set_defaults(void) {
-  s_settings.version = SETTINGS_VERSION;
-  s_settings.accent_color = GColorCobaltBlue;
-  s_settings.left_slot = SLOT_WEATHER;
-  s_settings.center_slot = CENTER_HEART_RATE;
-  s_settings.right_slot = SLOT_STEPS;
-  s_settings.footer_mode = BAR_ALWAYS;
-  s_settings.header_mode = BAR_ALWAYS;
-  s_settings.stepbar_mode = STEPBAR_MIRRORED;
-  s_settings.step_goal = 5000;
-  s_settings.temp_unit = TEMP_FAHRENHEIT;
-  s_settings.clock_color = GColorWhite;
-  s_settings.background_color = GColorBlack;
-  s_settings.top_left_slot = SLOT_DAY;
-  s_settings.top_center_slot = SLOT_DATE;
-  s_settings.top_right_slot = SLOT_MONTH;
-  s_settings.time_format = TIME_FORMAT_12H;
-  s_settings.center_12h = 1;
-  s_settings.raise_wake_mode = RAISE_WAKE_OFF;
+  time_t started = (time_t)persist_read_int(TRIAL_START_PERSIST_KEY);
+  time_t now = time(NULL);
+  if (started <= 0 || now < started) return false;
+
+  if ((now - started) < BIG_TIME_TRIAL_SECONDS) return true;
+
+  persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
+  return false;
 }
 
+static bool trial_was_used(void) {
+  return persist_exists(TRIAL_USED_PERSIST_KEY) &&
+         persist_read_bool(TRIAL_USED_PERSIST_KEY);
+}
 
-static void enforce_free_defaults(void) {
-  // Preserve the two free customization choices.
+static bool pro_access_active(void) {
+  return s_kiezelpay_licensed || trial_is_active();
+}
+
+// 0 = free/trial available, 1 = active Big Time trial,
+// 2 = paid KiezelPay license, 3 = trial ended.
+static int entitlement_status(void) {
+  if (s_kiezelpay_licensed) return 2;
+  if (trial_is_active()) return 1;
+  if (trial_was_used()) return 3;
+  return 0;
+}
+
+static void save_free_clock_preferences(void) {
+  persist_write_int(FREE_TIME_FORMAT_PERSIST_KEY, s_settings.time_format);
+  persist_write_bool(FREE_CENTER_12H_PERSIST_KEY, s_settings.center_12h != 0);
+}
+
+static void load_free_clock_preferences(void) {
+  if (persist_exists(FREE_TIME_FORMAT_PERSIST_KEY)) {
+    int value = persist_read_int(FREE_TIME_FORMAT_PERSIST_KEY);
+    if (value >= TIME_FORMAT_12H && value <= TIME_FORMAT_24H) {
+      s_settings.time_format = (uint8_t)value;
+    }
+  }
+  if (persist_exists(FREE_CENTER_12H_PERSIST_KEY)) {
+    s_settings.center_12h = persist_read_bool(FREE_CENTER_12H_PERSIST_KEY) ? 1 : 0;
+  }
+}
+
+static void apply_free_premium_defaults(void) {
   uint8_t keep_time_format = s_settings.time_format;
   uint8_t keep_center_12h = s_settings.center_12h;
 
-  // Everything else returns to the standard watchface presentation.
   s_settings.accent_color = GColorCobaltBlue;
-  s_settings.clock_color = GColorWhite;
-  s_settings.background_color = GColorBlack;
-
   s_settings.left_slot = SLOT_WEATHER;
   s_settings.center_slot = CENTER_HEART_RATE;
   s_settings.right_slot = SLOT_STEPS;
   s_settings.footer_mode = BAR_ALWAYS;
-
-  s_settings.top_left_slot = SLOT_DAY;
-  s_settings.top_center_slot = SLOT_DATE;
-  s_settings.top_right_slot = SLOT_MONTH;
   s_settings.header_mode = BAR_ALWAYS;
-
   s_settings.stepbar_mode = STEPBAR_MIRRORED;
   s_settings.step_goal = 5000;
   s_settings.temp_unit = TEMP_FAHRENHEIT;
+  s_settings.clock_color = GColorWhite;
+  s_settings.background_color = GColorBlack;
+  s_settings.top_left_slot = SLOT_DAY;
+  s_settings.top_center_slot = SLOT_DATE;
+  s_settings.top_right_slot = SLOT_MONTH;
   s_settings.raise_wake_mode = RAISE_WAKE_OFF;
 
-  s_settings.time_format =
-      keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
-  s_settings.center_12h = keep_center_12h ? 1 : 0;
-}
-
-static bool key_is_free_customization(uint32_t key) {
-  return key == KEY_TIME_FORMAT || key == KEY_CENTER_12H;
+  s_settings.time_format = keep_time_format;
+  s_settings.center_12h = keep_center_12h;
 }
 
 static bool key_is_pro_customization(uint32_t key) {
@@ -398,6 +402,27 @@ static bool key_is_pro_customization(uint32_t key) {
   }
 }
 
+static void settings_set_defaults(void) {
+  s_settings.version = SETTINGS_VERSION;
+  s_settings.accent_color = GColorCobaltBlue;
+  s_settings.left_slot = SLOT_WEATHER;
+  s_settings.center_slot = CENTER_HEART_RATE;
+  s_settings.right_slot = SLOT_STEPS;
+  s_settings.footer_mode = BAR_ALWAYS;
+  s_settings.header_mode = BAR_ALWAYS;
+  s_settings.stepbar_mode = STEPBAR_MIRRORED;
+  s_settings.step_goal = 5000;
+  s_settings.temp_unit = TEMP_FAHRENHEIT;
+  s_settings.clock_color = GColorWhite;
+  s_settings.background_color = GColorBlack;
+  s_settings.top_left_slot = SLOT_DAY;
+  s_settings.top_center_slot = SLOT_DATE;
+  s_settings.top_right_slot = SLOT_MONTH;
+  s_settings.time_format = TIME_FORMAT_12H;
+  s_settings.center_12h = 0;
+  s_settings.raise_wake_mode = RAISE_WAKE_OFF;
+}
+
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
@@ -419,6 +444,7 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
 
 static void settings_load(void) {
   settings_set_defaults();
+#if WATCHFACE_PRO
   if (!persist_exists(SETTINGS_PERSIST_KEY)) return;
 
   int stored_size = persist_get_size(SETTINGS_PERSIST_KEY);
@@ -615,6 +641,7 @@ static void settings_load(void) {
 
   // Discard stale/corrupt settings that cannot be migrated safely.
   persist_delete(SETTINGS_PERSIST_KEY);
+#endif
 }
 
 
@@ -666,13 +693,9 @@ static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
 }
 
 static void settings_save(void) {
+#if WATCHFACE_PRO
   persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
-  // While Pro is active, continuously keep a second copy of the personalized
-  // setup. This lets startup safely render Free defaults until KiezelPay has
-  // revalidated a paid license, without destroying the user's Pro choices.
-  if (s_pro_unlocked) {
-    persist_write_data(PRO_SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
-  }
+#endif
 }
 
 // ── Segment bitmasks ──────────────────────────────────────────────────────────
@@ -1803,209 +1826,84 @@ static void update_background_contrast(void) {
 }
 
 
-static bool trial_has_been_used(void) {
-  return persist_exists(TRIAL_USED_PERSIST_KEY) && persist_read_bool(TRIAL_USED_PERSIST_KEY);
-}
 
-static time_t trial_start_time(void) {
-  if (!persist_exists(TRIAL_START_PERSIST_KEY)) return 0;
-  return (time_t)persist_read_int(TRIAL_START_PERSIST_KEY);
-}
 
-static uint32_t trial_remaining_seconds(void) {
-  if (!s_trial_active) return 0;
-  time_t start = trial_start_time();
-  if (start <= 0) return 0;
-  time_t now = time(NULL);
-  if (now <= start) return PRO_TRIAL_SECONDS;
-  uint32_t elapsed = (uint32_t)(now - start);
-  return elapsed >= PRO_TRIAL_SECONDS ? 0 : (PRO_TRIAL_SECONDS - elapsed);
-}
+static void refresh_watchface_from_settings(void) {
+  if (!s_window) return;
 
-static uint8_t trial_state_code(void) {
-  // 0 = available, 1 = active, 2 = used/expired, 3 = permanently licensed
-  if (s_kiezelpay_licensed) return 3;
-  if (s_trial_active) return 1;
-  return trial_has_been_used() ? 2 : 0;
-}
-
-static void pro_settings_save_current(void) {
-  persist_write_data(PRO_SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
-}
-
-static bool pro_settings_restore_saved(void) {
-  if (!persist_exists(PRO_SETTINGS_PERSIST_KEY) ||
-      persist_get_size(PRO_SETTINGS_PERSIST_KEY) != (int)sizeof(s_settings)) {
-    return false;
-  }
-
-  WatchfaceSettings saved;
-  if (persist_read_data(PRO_SETTINGS_PERSIST_KEY, &saved, sizeof(saved)) != (int)sizeof(saved) ||
-      !settings_values_valid(&saved)) {
-    return false;
-  }
-
-  // Free clock choices remain the user's choices even while Pro is inactive.
-  uint8_t keep_time_format = s_settings.time_format;
-  uint8_t keep_center_12h = s_settings.center_12h;
-  s_settings = saved;
-  s_settings.time_format = keep_time_format;
-  s_settings.center_12h = keep_center_12h;
-  return true;
-}
-
-static void license_send_status_to_phone(void) {
-  DictionaryIterator *iter = NULL;
-  if (app_message_outbox_begin(&iter) != APP_MSG_OK || !iter) return;
-  dict_write_uint8(iter, KEY_PRO_LICENSE, s_pro_unlocked ? 1 : 0);
-  dict_write_uint8(iter, KEY_TRIAL_STATE, trial_state_code());
-  dict_write_uint32(iter, KEY_TRIAL_REMAINING, trial_remaining_seconds());
-  app_message_outbox_send();
-}
-
-static void license_refresh_ui(void) {
-  if (!s_pro_unlocked) {
-    enforce_free_defaults();
-  }
-
-  settings_save();
+  window_set_background_color(s_window, s_settings.background_color);
+  update_accent_text_contrast();
+  update_background_contrast();
   update_footer_content();
   update_header_content();
   update_stepbar_layout();
   update_bar_input_services();
   update_raise_wake_service();
   apply_bar_visibility();
-  update_accent_text_contrast();
-  update_background_contrast();
 
   if (s_clock_layer) layer_mark_dirty(s_clock_layer);
   if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
-  if (s_header_layer) layer_mark_dirty(s_header_layer);
-  if (s_footer_layer) layer_mark_dirty(s_footer_layer);
 
-  license_send_status_to_phone();
+  time_t now = time(NULL);
+  struct tm *current = localtime(&now);
+  if (current) update_time(current);
 }
 
-static void license_recompute_effective(void) {
-  bool unlocked = s_kiezelpay_licensed || s_trial_active;
-  if (s_pro_unlocked == unlocked) {
-    license_send_status_to_phone();
+static void send_entitlement_status(void) {
+  DictionaryIterator *out = NULL;
+  AppMessageResult result = app_message_outbox_begin(&out);
+  if (result != APP_MSG_OK || !out) {
+    APP_LOG(APP_LOG_LEVEL_WARNING, "Could not begin entitlement status outbox: %d", (int)result);
     return;
   }
 
-  if (s_pro_unlocked && !unlocked) {
-    // Keep the personalized Pro setup so a later purchase restores it.
-    pro_settings_save_current();
-  }
-
-  s_pro_unlocked = unlocked;
-  if (unlocked) {
-    pro_settings_restore_saved();
-  }
-
-  APP_LOG(APP_LOG_LEVEL_INFO, "Pro entitlement -> %s (paid=%d trial=%d)",
-          unlocked ? "UNLOCKED" : "FREE",
-          s_kiezelpay_licensed ? 1 : 0, s_trial_active ? 1 : 0);
-  license_refresh_ui();
-}
-
-static bool trial_is_currently_active(void) {
-  if (!trial_has_been_used()) return false;
-  time_t start = trial_start_time();
-  if (start <= 0) return false;
-  time_t now = time(NULL);
-  return (now <= start) || ((uint32_t)(now - start) < PRO_TRIAL_SECONDS);
-}
-
-static void trial_refresh_state(void) {
-  bool should_be_active = trial_is_currently_active();
-
-  if (s_trial_active != should_be_active) {
-    s_trial_active = should_be_active;
-    APP_LOG(APP_LOG_LEVEL_INFO, "48-hour Pro trial -> %s",
-            s_trial_active ? "ACTIVE" : "INACTIVE");
-    license_recompute_effective();
+  dict_write_int32(out, KEY_LICENSE_STATUS, entitlement_status());
+  dict_write_end(out);
+  result = app_message_outbox_send();
+  if (result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_WARNING, "Could not send entitlement status: %d", (int)result);
   }
 }
 
-static void trial_start_if_available(void) {
-  if (s_kiezelpay_licensed || trial_has_been_used()) {
-    license_send_status_to_phone();
-    return;
-  }
-
-  time_t now = time(NULL);
-  persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
-  persist_write_int(TRIAL_START_PERSIST_KEY, (int32_t)now);
-  s_trial_active = true;
-  APP_LOG(APP_LOG_LEVEL_INFO, "48-hour Pro trial started by user");
-  license_recompute_effective();
-}
-
-// KiezelPay integration point. Paid licensing and the local opt-in trial are
-// intentionally separate; either one unlocks the same Pro customization layer.
-void watchface_kiezelpay_set_licensed(bool licensed) {
-  // KiezelPay is the sole authority for permanent paid entitlement.
-  // Do not maintain a second Big Time paid-license cache here.
-  s_kiezelpay_licensed = licensed;
-  license_recompute_effective();
-}
-
-static void kiezelpay_retry_timer_cb(void *context) {
-  s_kiezelpay_retry_timer = NULL;
-  if (!s_kiezelpay_purchase_pending || s_kiezelpay_licensed) return;
-
-  APP_LOG(APP_LOG_LEVEL_WARNING,
-          "KiezelPay: no purchase event after direct request; retrying fresh session");
-  kiezelpay_cancel_purchase();
-  kiezelpay_start_purchase();
-}
-
-static void kiezelpay_purchase_event_received(void) {
-  s_kiezelpay_purchase_pending = false;
-  if (s_kiezelpay_retry_timer) {
-    app_timer_cancel(s_kiezelpay_retry_timer);
-    s_kiezelpay_retry_timer = NULL;
-  }
-}
-
-static void kiezelpay_start_purchase_fast_with_fallback(void) {
-  s_kiezelpay_purchase_pending = true;
-  if (s_kiezelpay_retry_timer) {
-    app_timer_cancel(s_kiezelpay_retry_timer);
-    s_kiezelpay_retry_timer = NULL;
-  }
-
-  // Normal path: this was the original fast integration and usually produces
-  // the code immediately. Only reset/retry if KiezelPay produces no event.
-  kiezelpay_start_purchase();
-  s_kiezelpay_retry_timer = app_timer_register(2500, kiezelpay_retry_timer_cb, NULL);
-}
-
-static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
-  kiezelpay_purchase_event_received();
-  switch (event) {
-    case KIEZELPAY_LICENSED:
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed");
-      watchface_kiezelpay_set_licensed(true);
+static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
+  switch (e) {
+    case KIEZELPAY_ERROR:
+      APP_LOG(APP_LOG_LEVEL_WARNING, "KiezelPay: error");
+      break;
+    case KIEZELPAY_BLUETOOTH_UNAVAILABLE:
+      APP_LOG(APP_LOG_LEVEL_WARNING, "KiezelPay: Bluetooth unavailable");
+      break;
+    case KIEZELPAY_INTERNET_UNAVAILABLE:
+      APP_LOG(APP_LOG_LEVEL_WARNING, "KiezelPay: internet unavailable");
+      break;
+    case KIEZELPAY_TRIAL_ENDED:
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: trial ended event");
       break;
     case KIEZELPAY_CODE_AVAILABLE:
-      // A code is only issued when KiezelPay has validated this device as
-      // unlicensed. Treat this as the authoritative negative entitlement state.
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: unlicensed; purchase code available");
-      watchface_kiezelpay_set_licensed(false);
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available; device is unlicensed");
+      s_kiezelpay_licensed = false;
+      if (!trial_is_active()) {
+        apply_free_premium_defaults();
+        load_free_clock_preferences();
+        refresh_watchface_from_settings();
+      }
       break;
     case KIEZELPAY_PURCHASE_STARTED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase started");
       break;
-    case KIEZELPAY_ERROR:
-      APP_LOG(APP_LOG_LEVEL_ERROR, "KiezelPay: error");
+    case KIEZELPAY_LICENSED:
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed");
+      s_kiezelpay_licensed = true;
+      // Restore any previously saved Pro customization.
+      settings_load();
+      refresh_watchface_from_settings();
       break;
     default:
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "KiezelPay: event %d", (int)e);
       break;
   }
 
-  // Keep KiezelPay's built-in purchase/code/error messages.
+  // Let the official KiezelPay library display its purchase/error messages.
   return false;
 }
 
@@ -2017,6 +1915,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool background_changed = false;
   bool layout_changed = false;
   bool temperature_setting_changed = false;
+  bool entitlement_status_requested = false;
+  bool purchase_requested = false;
+  bool free_clock_changed = false;
   uint32_t new_accent_hex = 0;
   uint32_t new_clock_hex = 0;
   uint32_t new_background_hex = 0;
@@ -2027,42 +1928,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     APP_LOG(APP_LOG_LEVEL_INFO, "RX key=%lu type=%d len=%u",
             (unsigned long)t->key, (int)t->type, (unsigned)t->length);
 
-    // Security boundary: Pro controls are enforced on-watch, not just hidden in
-    // the settings page. A crafted AppMessage cannot unlock premium settings.
-    if (!s_pro_unlocked && key_is_pro_customization(t->key)) {
-      APP_LOG(APP_LOG_LEVEL_WARNING, "Ignoring locked Pro setting key=%lu",
+    if (!pro_access_active() && key_is_pro_customization(t->key)) {
+      APP_LOG(APP_LOG_LEVEL_INFO, "Ignoring Pro-only key %lu while unlicensed",
               (unsigned long)t->key);
       continue;
     }
 
     switch (t->key) {
-      case KEY_TRIAL_START:
-        if (tuple_to_int32(t, 0) == 1) trial_start_if_available();
-        break;
-
-      case KEY_TRIAL_USED_HINT:
-        // Phone-side storage can survive a watchface uninstall/reinstall. If it
-        // remembers that this user already consumed the opt-in trial, re-seed
-        // that fact on the watch so a reinstall does not offer another trial.
-        if (tuple_to_int32(t, 0) == 1 && !trial_has_been_used()) {
-          persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
-          persist_delete(TRIAL_START_PERSIST_KEY);
-          s_trial_active = false;
-          APP_LOG(APP_LOG_LEVEL_INFO, "Restored used-trial marker after reinstall");
-          license_recompute_effective();
-        }
-        break;
-
-      case KEY_PURCHASE_PRO:
-        if (tuple_to_int32(t, 0) == 1 && !s_kiezelpay_licensed) {
-          APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase requested from Settings");
-          // Start KiezelPay immediately. This matches the original integration
-          // path and avoids the ~15 second delay caused by canceling/resetting
-          // the purchase session before each request.
-          kiezelpay_start_purchase_fast_with_fallback();
-        }
-        break;
-
       case KEY_TEMPERATURE: {
         // Phone sends Celsius in tenths of a degree so the watch can switch
         // units locally without another network request.
@@ -2164,6 +2036,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
           s_settings.time_format = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Time format -> %ld", (long)value);
           layout_changed = true;
+          free_clock_changed = true;
         }
         break;
       }
@@ -2174,6 +2047,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
           s_settings.center_12h = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center 12h -> %ld", (long)value);
           layout_changed = true;
+          free_clock_changed = true;
         }
         break;
       }
@@ -2254,13 +2128,33 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
 #endif
 
-      case KEY_LICENSE_CHECK:
-        trial_refresh_state();
-        license_send_status_to_phone();
+      case KEY_LICENSE_STATUS_REQUEST:
+        entitlement_status_requested = true;
         break;
 
-      // Phone cannot grant a license. KEY_PRO_LICENSE is watch -> phone only.
-      case KEY_PRO_LICENSE:
+      case KEY_TRIAL_START: {
+        int32_t start_trial = tuple_to_int32(t, 0);
+        if (start_trial == 1 && !s_kiezelpay_licensed && !trial_was_used()) {
+          time_t now = time(NULL);
+          persist_write_int(TRIAL_START_PERSIST_KEY, (int32_t)now);
+          persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
+          APP_LOG(APP_LOG_LEVEL_INFO, "Big Time Pro trial started");
+        }
+        break;
+      }
+
+      case KEY_TRIAL_SYNC_EPOCH: {
+        int32_t start_epoch = tuple_to_int32(t, 0);
+        if (start_epoch > 0 && !persist_exists(TRIAL_USED_PERSIST_KEY)) {
+          persist_write_int(TRIAL_START_PERSIST_KEY, start_epoch);
+          persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
+          APP_LOG(APP_LOG_LEVEL_INFO, "Restored Big Time trial marker from phone");
+        }
+        break;
+      }
+
+      case KEY_PURCHASE_REQUEST:
+        if (tuple_to_int32(t, 0) == 1) purchase_requested = true;
         break;
 
       default:
@@ -2304,7 +2198,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     }
   }
 
-  if (accent_changed || clock_color_changed || background_changed || layout_changed || temperature_setting_changed) {
+  if (free_clock_changed) {
+    save_free_clock_preferences();
+  }
+
+  if (pro_access_active() &&
+      (accent_changed || clock_color_changed || background_changed ||
+       layout_changed || temperature_setting_changed)) {
     settings_save();
   }
 #endif
@@ -2363,6 +2263,18 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (current) update_time(current);
   }
 #endif
+
+  // Start KiezelPay only after the inbound dictionary has been fully parsed.
+  // This mirrors the KiezelPay sample's explicit purchase flow when automatic
+  // timed trials are disabled.
+  if (purchase_requested) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Starting KiezelPay purchase/license check");
+    kiezelpay_start_purchase();
+  }
+
+  if (entitlement_status_requested) {
+    send_entitlement_status();
+  }
 }
 
 static void inbox_dropped_handler(AppMessageResult reason, void *context) {
@@ -2396,7 +2308,14 @@ static void update_time(struct tm *tick_time) {
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits changed) {
-  trial_refresh_state();
+  bool trial_active_now = trial_is_active();
+  if (s_trial_active_last_tick && !trial_active_now && !s_kiezelpay_licensed) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Big Time Pro trial expired; returning to Free defaults");
+    apply_free_premium_defaults();
+    load_free_clock_preferences();
+    refresh_watchface_from_settings();
+  }
+  s_trial_active_last_tick = trial_active_now;
   update_time(tick_time);
 }
 
@@ -2623,21 +2542,20 @@ static void window_unload(Window *window) {
   fonts_unload_custom_font(s_font_header);
 }
 
+static EventHandle s_appmessage_received_handle;
+static EventHandle s_appmessage_dropped_handle;
+
 static void init(void) {
   settings_load();
+  load_free_clock_preferences();
 
-  // Permanent paid entitlement always starts unknown/free until KiezelPay
-  // reports the current state. The opt-in Big Time trial remains independent.
-  s_kiezelpay_licensed = false;
-  s_trial_active = trial_is_currently_active();
-  s_pro_unlocked = s_trial_active;
-  if (!s_pro_unlocked) {
-    enforce_free_defaults();
-    settings_save();
-  } else {
-    // Keep the active trial's current settings backed up as Pro settings.
-    settings_save();
+  // Big Time's 48-hour trial is developer-managed. KiezelPay is authoritative
+  // only for paid licensing.
+  if (!trial_is_active()) {
+    apply_free_premium_defaults();
+    load_free_clock_preferences();
   }
+  s_trial_active_last_tick = trial_is_active();
 
   s_window = window_create();
   window_set_background_color(s_window, s_settings.background_color);
@@ -2647,14 +2565,19 @@ static void init(void) {
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
 
-  // KiezelPay and the watchface both consume AppMessage, so use pebble-events
-  // to multiplex callbacks and open the shared channel exactly once.
-  events_app_message_register_inbox_received(inbox_received_handler, NULL);
-  events_app_message_register_inbox_dropped(inbox_dropped_handler, NULL);
+  // Follow KiezelPay's integration order: handler -> init -> subscribe our own
+  // AppMessage callbacks through pebble-events -> open AppMessage once.
   kiezelpay_set_event_handler(kiezelpay_event_callback);
   kiezelpay_init();
+
+  s_appmessage_received_handle =
+      events_app_message_register_inbox_received(inbox_received_handler, NULL);
+  s_appmessage_dropped_handle =
+      events_app_message_register_inbox_dropped(inbox_dropped_handler, NULL);
+  events_app_message_request_inbox_size(256);
+  events_app_message_request_outbox_size(256);
   events_app_message_open();
-  license_send_status_to_phone();
+
   battery_state_service_subscribe(battery_handler);
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler
@@ -2670,12 +2593,15 @@ static void init(void) {
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
-  if (s_kiezelpay_retry_timer) {
-    app_timer_cancel(s_kiezelpay_retry_timer);
-    s_kiezelpay_retry_timer = NULL;
+
+  if (s_appmessage_received_handle) {
+    events_app_message_unsubscribe(s_appmessage_received_handle);
   }
-  s_kiezelpay_purchase_pending = false;
+  if (s_appmessage_dropped_handle) {
+    events_app_message_unsubscribe(s_appmessage_dropped_handle);
+  }
   kiezelpay_deinit();
+
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();

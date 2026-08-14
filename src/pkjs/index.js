@@ -1,19 +1,20 @@
-// ── Big Time — PebbleKit JS companion ───────────────────────────────────────
-// Fetches weather from OpenWeatherMap and sends temperature + icon code
-// to the watch via AppMessage.
-//
-// SETUP: Replace YOUR_API_KEY below with a free key from openweathermap.org
+// Big Time — PebbleKit JS companion
+// KiezelPay paid licensing follows the official KiezelPay Pebble integration.
+// Big Time's 48-hour Pro trial is opt-in and managed separately.
 
-// ── Configuration ────────────────────────────────────────────────────────────
-// Clay automatically opens the settings page and sends configured messageKey
-// values to the watch when Save Settings is pressed.
+var KIEZELPAY_LOGGING = true; // TEST BUILD: set false before release.
+var KiezelPay = require('kiezelpay-core');
+var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
+
 var Clay = require('@rebble/clay');
-var buildClayConfig = require('./config');
+var buildConfig = require('./config');
+var messageKeys = require('message_keys');
 
-// Injected into Clay's generated settings page. Clay's custom-function API
-// exposes each config item through getItemByMessageKey()/getItemById(), and
-// each item supports set()/get(). This lets us provide a real Restore Defaults
-// button without adding another AppMessage key.
+var currentClay = null;
+var latestEntitlementStatus = 0;
+var pendingStatusOpen = false;
+var statusOpenTimer = null;
+
 function customClay(minified) {
   var clayPage = this;
 
@@ -25,13 +26,6 @@ function customClay(minified) {
   }
 
   clayPage.on(clayPage.EVENTS.AFTER_BUILD, function() {
-    // Trial/purchase controls are actions, not persistent preferences. Reset
-    // them whenever Settings opens so a later Save cannot accidentally repeat.
-    var trialAction = clayPage.getItemByMessageKey('TRIAL_START');
-    var purchaseAction = clayPage.getItemByMessageKey('PURCHASE_PRO');
-    if (trialAction) trialAction.set(false);
-    if (purchaseAction) purchaseAction.set(false);
-
     var timeFormat = clayPage.getItemByMessageKey('TIME_FORMAT');
     var center12h = clayPage.getItemByMessageKey('CENTER_12H');
 
@@ -199,76 +193,6 @@ function customClay(minified) {
   });
 }
 
-// Build Settings only after the watch reports its current entitlement.
-// Phone localStorage is a cache only; it must never decide whether Pro controls
-// are shown because it can survive a watchface uninstall/reinstall.
-var clay = null;
-var settingsOpenPending = false;
-var settingsOpenTimer = null;
-var currentProUnlocked = false;
-var currentTrialState = 0;
-var currentTrialRemaining = 0;
-
-function openSettingsWithCurrentEntitlement() {
-  if (!settingsOpenPending) return;
-  settingsOpenPending = false;
-  if (settingsOpenTimer) {
-    clearTimeout(settingsOpenTimer);
-    settingsOpenTimer = null;
-  }
-
-  // Clay keeps internal item/page state. Reusing one instance while swapping
-  // configs can leave partially-built Pro sections after an entitlement change.
-  // Build a brand-new Clay instance for every Settings open instead.
-  clay = new Clay(
-    buildClayConfig(currentProUnlocked, currentTrialState, currentTrialRemaining),
-    customClay,
-    { autoHandleEvents: false }
-  );
-  console.log('Opening Settings as ' + (currentProUnlocked ? 'PRO' : 'FREE') +
-              ', trialState=' + currentTrialState);
-  Pebble.openURL(clay.generateUrl());
-}
-
-Pebble.addEventListener('showConfiguration', function() {
-  settingsOpenPending = true;
-
-  // Pessimistic fallback: if the watch cannot answer, never expose Pro controls
-  // based solely on stale phone-side state.
-  currentProUnlocked = false;
-  currentTrialState = 0;
-  currentTrialRemaining = 0;
-
-  Pebble.sendAppMessage({'LICENSE_CHECK': 1}, function() {
-    console.log('Requested current entitlement before opening Settings');
-  }, function() {
-    console.log('Could not request entitlement; opening Settings in Free mode');
-    openSettingsWithCurrentEntitlement();
-  });
-
-  settingsOpenTimer = setTimeout(function() {
-    console.log('Entitlement response timeout; opening Settings in Free mode');
-    openSettingsWithCurrentEntitlement();
-  }, 1500);
-});
-
-Pebble.addEventListener('webviewclosed', function(e) {
-  if (!e || !e.response) return;
-  if (!clay) return;
-  var dict = clay.getSettings(e.response);
-  Pebble.sendAppMessage(dict, function() {
-    console.log('Sent config data to Pebble');
-  }, function(err) {
-    console.log('Failed to send config data: ' + JSON.stringify(err));
-  });
-});
-var messageKeys = require('message_keys');
-
-// KiezelPay phone-side bridge. Keep logging enabled while this package is in
-// test mode; set it to false for the Store release.
-var KIEZELPAY_LOGGING = true;
-var KiezelPay = require('kiezelpay-core');
-var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
 
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
 var UNITS   = 'metric';     // Always fetch Celsius; watch converts to the user's unit
@@ -385,36 +309,120 @@ function fetchWeather(lat, lon) {
   xhr.send();
 }
 
-// Messages from the watch: configuration acknowledgement or weather request.
+
+var TRIAL_STORAGE_KEY = 'bigTimeTrialStartEpoch';
+
+function sendTrialSyncIfNeeded() {
+  var stored = parseInt(localStorage.getItem(TRIAL_STORAGE_KEY) || '0', 10);
+  if (!stored) return;
+
+  var payload = {};
+  payload[messageKeys.TRIAL_SYNC_EPOCH] = stored;
+  Pebble.sendAppMessage(payload,
+    function() { console.log('Trial marker synced to watch'); },
+    function(e) { console.log('Trial sync failed: ' + JSON.stringify(e)); });
+}
+
+function openSettingsWithStatus(status) {
+  latestEntitlementStatus = status;
+  pendingStatusOpen = false;
+
+  if (statusOpenTimer) {
+    clearTimeout(statusOpenTimer);
+    statusOpenTimer = null;
+  }
+
+  currentClay = new Clay(buildConfig(status), customClay, { autoHandleEvents: false });
+  Pebble.openURL(currentClay.generateUrl());
+}
+
+function requestEntitlementAndOpenSettings() {
+  pendingStatusOpen = true;
+
+  var payload = {};
+  payload[messageKeys.LICENSE_STATUS_REQUEST] = 1;
+
+  Pebble.sendAppMessage(payload,
+    function() {
+      console.log('Requested current entitlement from watch');
+    },
+    function(e) {
+      console.log('Entitlement request failed: ' + JSON.stringify(e));
+    });
+
+  // If the watch cannot answer, fail closed to the Free UI rather than ever
+  // exposing Pro controls from stale phone-side state.
+  statusOpenTimer = setTimeout(function() {
+    if (pendingStatusOpen) {
+      console.log('Entitlement response timed out; opening Free settings');
+      openSettingsWithStatus(0);
+    }
+  }, 1500);
+}
+
+Pebble.addEventListener('showConfiguration', function() {
+  requestEntitlementAndOpenSettings();
+});
+
+Pebble.addEventListener('webviewclosed', function(e) {
+  if (!e || !e.response || !currentClay) return;
+
+  var dict = currentClay.getSettings(e.response);
+
+  // Record the original trial start on the phone before sending it to the
+  // watch. This lets a reinstall restore the original one-time trial marker
+  // instead of granting a new trial.
+  if (dict[messageKeys.TRIAL_START] === 1) {
+    var existing = parseInt(localStorage.getItem(TRIAL_STORAGE_KEY) || '0', 10);
+    if (!existing) {
+      existing = Math.floor(Date.now() / 1000);
+      localStorage.setItem(TRIAL_STORAGE_KEY, String(existing));
+    }
+    dict[messageKeys.TRIAL_SYNC_EPOCH] = existing;
+  }
+
+  Pebble.sendAppMessage(dict,
+    function() { console.log('Sent config data to Big Time'); },
+    function(err) { console.log('Failed to send config data: ' + JSON.stringify(err)); });
+});
+
+// Messages from the watch: entitlement response, configuration acknowledgement,
+// or weather request.
 Pebble.addEventListener('appmessage', function(e) {
-  if (e.payload && typeof e.payload.CONFIG_ACK !== 'undefined') {
+  if (!e.payload) return;
+
+  if (typeof e.payload.LICENSE_STATUS !== 'undefined') {
+    var status = parseInt(e.payload.LICENSE_STATUS, 10);
+    console.log('Big Time entitlement status: ' + status);
+    latestEntitlementStatus = status;
+    if (pendingStatusOpen) openSettingsWithStatus(status);
+    return;
+  }
+
+  if (typeof e.payload.CONFIG_ACK !== 'undefined') {
     console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);
     return;
   }
 
-  // Entitlement/trial status messages are not weather requests.
-  if (e.payload && (typeof e.payload.PRO_LICENSE !== 'undefined' ||
-                    typeof e.payload.TRIAL_STATE !== 'undefined' ||
-                    typeof e.payload.TRIAL_REMAINING !== 'undefined')) {
-    return;
+  // The watch requests weather by sending key TEMPERATURE with a dummy value.
+  // Do not treat KiezelPay's own AppMessages as weather requests.
+  if (typeof e.payload.TEMPERATURE !== 'undefined') {
+    console.log('Watch requested weather update');
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        fetchWeather(pos.coords.latitude, pos.coords.longitude);
+      },
+      function(err) {
+        console.log('Geolocation error: ' + err.message);
+      },
+      { timeout: 15000, maximumAge: 60000 }
+    );
   }
-
-  console.log('Watch requested weather update');
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      fetchWeather(pos.coords.latitude, pos.coords.longitude);
-    },
-    function(err) {
-      console.log('Geolocation error: ' + err.message);
-    },
-    { timeout: 15000, maximumAge: 60000 }
-  );
 });
 
-// Fetch on launch
 Pebble.addEventListener('ready', function() {
-  Pebble.sendAppMessage({'LICENSE_CHECK': 1}, function(){}, function(){});
   console.log('PebbleKit JS ready');
+  sendTrialSyncIfNeeded();
 
   navigator.geolocation.getCurrentPosition(
     function(pos) {
@@ -425,58 +433,4 @@ Pebble.addEventListener('ready', function() {
     },
     { timeout: 15000, maximumAge: 300000 }
   );
-});
-
-// Runtime Pro status is authoritative from the watch/C side.
-// The product-specific KiezelPay library will call watchface_kiezelpay_set_licensed()
-// in C; the watch mirrors that state to JS with PRO_LICENSE.
-Pebble.addEventListener('appmessage', function(e) {
-  if (!e || !e.payload) return;
-
-  var receivedEntitlement = false;
-
-  if (typeof e.payload.PRO_LICENSE !== 'undefined') {
-    currentProUnlocked = Number(e.payload.PRO_LICENSE) === 1;
-    try { localStorage.setItem('big_time_pro', currentProUnlocked ? '1' : '0'); } catch (err) {}
-    console.log('Pro entitlement from watch: ' + (currentProUnlocked ? 'unlocked' : 'free'));
-    receivedEntitlement = true;
-  }
-
-  if (typeof e.payload.TRIAL_STATE !== 'undefined') {
-    currentTrialState = Number(e.payload.TRIAL_STATE) || 0;
-    try {
-      localStorage.setItem('big_time_trial_state', String(currentTrialState));
-      if (currentTrialState === 1 || currentTrialState === 2 || currentTrialState === 3) {
-        localStorage.setItem('big_time_trial_ever_used', '1');
-      }
-    } catch (err2) {}
-    console.log('Pro trial state from watch: ' + currentTrialState);
-    receivedEntitlement = true;
-  }
-
-  if (typeof e.payload.TRIAL_REMAINING !== 'undefined') {
-    currentTrialRemaining = Number(e.payload.TRIAL_REMAINING) || 0;
-    try { localStorage.setItem('big_time_trial_remaining', String(currentTrialRemaining)); } catch (err3) {}
-    receivedEntitlement = true;
-  }
-
-  if (settingsOpenPending && receivedEntitlement &&
-      typeof e.payload.PRO_LICENSE !== 'undefined' &&
-      typeof e.payload.TRIAL_STATE !== 'undefined') {
-    // A watchface reinstall clears Pebble persistent storage, but PebbleKit JS
-    // localStorage normally survives. Use that surviving marker only to prevent
-    // a second developer-managed trial; it never grants Pro entitlement.
-    var trialEverUsed = false;
-    try { trialEverUsed = localStorage.getItem('big_time_trial_ever_used') === '1'; } catch (err4) {}
-    if (!currentProUnlocked && currentTrialState === 0 && trialEverUsed) {
-      currentTrialState = 2;
-      try { localStorage.setItem('big_time_trial_state', '2'); } catch (err5) {}
-      Pebble.sendAppMessage({'TRIAL_USED_HINT': 1}, function() {
-        console.log('Restored used-trial marker to watch after reinstall');
-      }, function() {
-        console.log('Could not restore used-trial marker to watch');
-      });
-    }
-    openSettingsWithCurrentEntitlement();
-  }
 });
