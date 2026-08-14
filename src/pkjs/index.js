@@ -8,7 +8,7 @@
 // Clay automatically opens the settings page and sends configured messageKey
 // values to the watch when Save Settings is pressed.
 var Clay = require('@rebble/clay');
-var clayConfig = require('./config');
+var buildClayConfig = require('./config');
 
 // Injected into Clay's generated settings page. Clay's custom-function API
 // exposes each config item through getItemByMessageKey()/getItemById(), and
@@ -199,7 +199,61 @@ function customClay(minified) {
   });
 }
 
-var clay = new Clay(clayConfig, customClay);
+// Build Settings only after the watch reports its current entitlement.
+// Phone localStorage is a cache only; it must never decide whether Pro controls
+// are shown because it can survive a watchface uninstall/reinstall.
+var clay = new Clay(buildClayConfig(false, 0, 0), customClay, { autoHandleEvents: false });
+var settingsOpenPending = false;
+var settingsOpenTimer = null;
+var currentProUnlocked = false;
+var currentTrialState = 0;
+var currentTrialRemaining = 0;
+
+function openSettingsWithCurrentEntitlement() {
+  if (!settingsOpenPending) return;
+  settingsOpenPending = false;
+  if (settingsOpenTimer) {
+    clearTimeout(settingsOpenTimer);
+    settingsOpenTimer = null;
+  }
+
+  clay.config = buildClayConfig(currentProUnlocked, currentTrialState, currentTrialRemaining);
+  console.log('Opening Settings as ' + (currentProUnlocked ? 'PRO' : 'FREE') +
+              ', trialState=' + currentTrialState);
+  Pebble.openURL(clay.generateUrl());
+}
+
+Pebble.addEventListener('showConfiguration', function() {
+  settingsOpenPending = true;
+
+  // Pessimistic fallback: if the watch cannot answer, never expose Pro controls
+  // based solely on stale phone-side state.
+  currentProUnlocked = false;
+  currentTrialState = 0;
+  currentTrialRemaining = 0;
+
+  Pebble.sendAppMessage({'LICENSE_CHECK': 1}, function() {
+    console.log('Requested current entitlement before opening Settings');
+  }, function() {
+    console.log('Could not request entitlement; opening Settings in Free mode');
+    openSettingsWithCurrentEntitlement();
+  });
+
+  settingsOpenTimer = setTimeout(function() {
+    console.log('Entitlement response timeout; opening Settings in Free mode');
+    openSettingsWithCurrentEntitlement();
+  }, 1500);
+});
+
+Pebble.addEventListener('webviewclosed', function(e) {
+  if (!e || !e.response) return;
+  var dict = clay.getSettings(e.response);
+  Pebble.sendAppMessage(dict, function() {
+    console.log('Sent config data to Pebble');
+  }, function(err) {
+    console.log('Failed to send config data: ' + JSON.stringify(err));
+  });
+});
 var messageKeys = require('message_keys');
 
 // KiezelPay phone-side bridge. Keep logging enabled while this package is in
@@ -371,18 +425,50 @@ Pebble.addEventListener('ready', function() {
 Pebble.addEventListener('appmessage', function(e) {
   if (!e || !e.payload) return;
 
+  var receivedEntitlement = false;
+
   if (typeof e.payload.PRO_LICENSE !== 'undefined') {
-    var unlocked = Number(e.payload.PRO_LICENSE) === 1;
-    try { localStorage.setItem('big_time_pro', unlocked ? '1' : '0'); } catch (err) {}
-    console.log('Pro entitlement from watch: ' + (unlocked ? 'unlocked' : 'free'));
+    currentProUnlocked = Number(e.payload.PRO_LICENSE) === 1;
+    try { localStorage.setItem('big_time_pro', currentProUnlocked ? '1' : '0'); } catch (err) {}
+    console.log('Pro entitlement from watch: ' + (currentProUnlocked ? 'unlocked' : 'free'));
+    receivedEntitlement = true;
   }
 
   if (typeof e.payload.TRIAL_STATE !== 'undefined') {
-    try { localStorage.setItem('big_time_trial_state', String(Number(e.payload.TRIAL_STATE))); } catch (err2) {}
-    console.log('Pro trial state from watch: ' + e.payload.TRIAL_STATE);
+    currentTrialState = Number(e.payload.TRIAL_STATE) || 0;
+    try {
+      localStorage.setItem('big_time_trial_state', String(currentTrialState));
+      if (currentTrialState === 1 || currentTrialState === 2 || currentTrialState === 3) {
+        localStorage.setItem('big_time_trial_ever_used', '1');
+      }
+    } catch (err2) {}
+    console.log('Pro trial state from watch: ' + currentTrialState);
+    receivedEntitlement = true;
   }
 
   if (typeof e.payload.TRIAL_REMAINING !== 'undefined') {
-    try { localStorage.setItem('big_time_trial_remaining', String(Number(e.payload.TRIAL_REMAINING))); } catch (err3) {}
+    currentTrialRemaining = Number(e.payload.TRIAL_REMAINING) || 0;
+    try { localStorage.setItem('big_time_trial_remaining', String(currentTrialRemaining)); } catch (err3) {}
+    receivedEntitlement = true;
+  }
+
+  if (settingsOpenPending && receivedEntitlement &&
+      typeof e.payload.PRO_LICENSE !== 'undefined' &&
+      typeof e.payload.TRIAL_STATE !== 'undefined') {
+    // A watchface reinstall clears Pebble persistent storage, but PebbleKit JS
+    // localStorage normally survives. Use that surviving marker only to prevent
+    // a second developer-managed trial; it never grants Pro entitlement.
+    var trialEverUsed = false;
+    try { trialEverUsed = localStorage.getItem('big_time_trial_ever_used') === '1'; } catch (err4) {}
+    if (!currentProUnlocked && currentTrialState === 0 && trialEverUsed) {
+      currentTrialState = 2;
+      try { localStorage.setItem('big_time_trial_state', '2'); } catch (err5) {}
+      Pebble.sendAppMessage({'TRIAL_USED_HINT': 1}, function() {
+        console.log('Restored used-trial marker to watch after reinstall');
+      }, function() {
+        console.log('Could not restore used-trial marker to watch');
+      });
+    }
+    openSettingsWithCurrentEntitlement();
   }
 });

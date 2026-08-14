@@ -114,6 +114,7 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_TRIAL_STATE    27
 #define KEY_TRIAL_REMAINING 28
 #define KEY_PURCHASE_PRO   29
+#define KEY_TRIAL_USED_HINT 30
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY      1
@@ -2034,6 +2035,19 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     switch (t->key) {
       case KEY_TRIAL_START:
         if (tuple_to_int32(t, 0) == 1) trial_start_if_available();
+        break;
+
+      case KEY_TRIAL_USED_HINT:
+        // Phone-side storage can survive a watchface uninstall/reinstall. If it
+        // remembers that this user already consumed the opt-in trial, re-seed
+        // that fact on the watch so a reinstall does not offer another trial.
+        if (tuple_to_int32(t, 0) == 1 && !trial_has_been_used()) {
+          persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
+          persist_delete(TRIAL_START_PERSIST_KEY);
+          s_trial_active = false;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Restored used-trial marker after reinstall");
+          license_recompute_effective();
+        }
         break;
 
       case KEY_PURCHASE_PRO:

@@ -1,8 +1,3 @@
-var edition = require('./edition');
-
-var trialState = 0;
-try { trialState = Number(localStorage.getItem('big_time_trial_state') || '0'); } catch (e) {}
-
 var sideOptions = [
   { "label": "Weather", "value": "0" },
   { "label": "Steps", "value": "1" },
@@ -37,10 +32,15 @@ var centerOptions = [
   { "label": "Date", "value": "6" }
 ];
 
-var config = [
+module.exports = function buildConfig(isPro, trialState, remainingSeconds) {
+  isPro = !!isPro;
+  trialState = Number(trialState) || 0;
+  remainingSeconds = Number(remainingSeconds) || 0;
+
+  var config = [
   {
     "type": "heading",
-    "defaultValue": edition.isPro ? "Big Time Pro" : "Big Time"
+    "defaultValue": isPro ? "Big Time Pro" : "Big Time"
   },
   {
     "type": "section",
@@ -68,7 +68,7 @@ var config = [
   }
 ];
 
-if (!edition.isPro) {
+if (!isPro) {
   var proItems = [
     { "type": "heading", "defaultValue": "Big Time Pro" },
     {
@@ -105,10 +105,8 @@ if (!edition.isPro) {
   config.push({ "type": "section", "items": proItems });
 }
 
-if (edition.isPro && trialState === 1) {
-  var remainingSeconds = 0;
-  try { remainingSeconds = Number(localStorage.getItem('big_time_trial_remaining') || '0'); } catch (e2) {}
-  var remainingHours = Math.max(1, Math.ceil(remainingSeconds / 3600));
+if (isPro && trialState === 1) {
+  var remainingHours = Math.max(1, Math.ceil((Number(remainingSeconds) || 0) / 3600));
   config.push({
     "type": "section",
     "items": [
@@ -118,7 +116,7 @@ if (edition.isPro && trialState === 1) {
   });
 }
 
-if (edition.isPro) {
+if (isPro) {
   config.push({
     "type": "section",
     "items": [
@@ -244,4 +242,5 @@ if (edition.isPro) {
 }
 
 config.push({ "type": "submit", "id": "save_settings", "defaultValue": "Save Settings" });
-module.exports = config;
+  return config;
+};

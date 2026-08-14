@@ -41,3 +41,12 @@ Before publishing to the Pebble Store, change them to:
 
 Keep `KIEZELPAY_DISABLE_TIME_TRIAL 1` in both test and production. Big Time owns
 the opt-in 48-hour trial; KiezelPay's automatic timed-trial behavior must remain disabled.
+
+
+## v2.0.3 entitlement/UI correction
+
+- The watch is the authority for whether Pro controls are shown. Settings requests `LICENSE_CHECK` every time it opens and waits for the watch response before Clay builds the page.
+- Phone `localStorage` is cache/history only and cannot grant Pro. This prevents a prior Pro value from surviving a watchface uninstall/reinstall and incorrectly rendering Pro controls.
+- KiezelPay remains authoritative for permanent paid licensing and periodic server revalidation remains enabled.
+- The 48-hour opt-in trial remains developer-managed (`KIEZELPAY_DISABLE_TIME_TRIAL 1`) so it never starts automatically.
+- Because Pebble persistent storage is removed with the watchface, PebbleKit JS also remembers that the developer-managed trial was used and re-seeds that marker after reinstall. This marker can only remove trial eligibility; it never grants Pro.
