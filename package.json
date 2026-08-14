@@ -46,8 +46,7 @@
       "TRIAL_STATE": 27,
       "TRIAL_REMAINING": 28,
       "PURCHASE_PRO": 29,
-      "TRIAL_USED_HINT": 30,
-      "RESTORE_PRO": 31
+      "TRIAL_USED_HINT": 30
     },
     "projectType": "native",
     "resources": {
@@ -117,5 +116,5 @@
       "watchface": true
     }
   },
-  "version": "2.0.10"
+  "version": "2.0.11"
 }

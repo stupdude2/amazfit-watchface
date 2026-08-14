@@ -44,8 +44,7 @@ module.exports = function buildConfig(isPro, trialState, remainingSeconds) {
   }
 ];
 
-// Paid Pro gets its thank-you immediately below the main title. Keep this
-// separate from the trial so trial users are never thanked for a purchase.
+// Paid Pro gets its thank-you immediately below the main title.
 if (isPro && trialState !== 1) {
   config.push({
     "type": "section",
@@ -105,34 +104,13 @@ if (!isPro) {
     });
   }
 
-  // Generic Clay buttons are clearer than action toggles. Hidden toggle
-  // values carry the selected action through Clay's normal Save flow.
-  proItems.push({
-    "type": "button",
-    "id": "purchase_pro_button",
-    "primary": true,
-    "defaultValue": "Purchase Big Time Pro",
-    "description": "Buy a new Big Time Pro license with KiezelPay."
-  });
-  proItems.push({
-    "type": "button",
-    "id": "restore_pro_button",
-    "defaultValue": "Restore Previous Purchase",
-    "description": "Already purchased Big Time Pro? Ask KiezelPay to restore your existing license."
-  });
   proItems.push({
     "type": "toggle",
     "id": "purchase_pro_action",
     "messageKey": "PURCHASE_PRO",
     "defaultValue": false,
-    "label": "Purchase action"
-  });
-  proItems.push({
-    "type": "toggle",
-    "id": "restore_pro_action",
-    "messageKey": "RESTORE_PRO",
-    "defaultValue": false,
-    "label": "Restore action"
+    "label": "Unlock Pro with KiezelPay",
+    "description": "Turn this on and tap Save Settings. If you have already purchased Big Time Pro, KiezelPay will restore your existing purchase when recognized; otherwise it will show a purchase code on your watch."
   });
 
   config.push({ "type": "section", "items": proItems });

@@ -104,7 +104,7 @@
 */
 #define KIEZELPAY_CODE_AVAILABLE_MSG "To continue using BIG TIME please visit kzl.io/code and enter this code:"
 #define KIEZELPAY_PURCHASE_STARTED_MSG "Please complete the purchase process on kzl.io/code to unlock BIG TIME"
-#define KIEZELPAY_LICENSED_MSG "Big Time Pro is active! Purchase or restore confirmed."
+#define KIEZELPAY_LICENSED_MSG "Big Time Pro unlocked! Thank you for your purchase."
 
 
 /***************************************************/
