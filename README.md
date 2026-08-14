@@ -1,3 +1,10 @@
+
+## v2.0.4 Clay settings fix
+
+- Fixed Pro/Trial settings page truncating at the Appearance card.
+- Clay color defaults now use the documented six-digit hex format without a `0x` prefix.
+- Restore Defaults uses the same Clay-compatible color value format.
+
 # Big Time — Pebble Time 2 Watchface
 
 A faithful port of the Amazfit Bip digital watchface to the Pebble Time 2 (Basalt platform, 144×168 px color display).

@@ -121,9 +121,9 @@ if (isPro) {
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Appearance — Pro" },
-      { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0x0000AA", "label": "Accent Color" },
-      { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color" },
-      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color" }
+      { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0000AA", "label": "Accent Color" },
+      { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "FFFFFF", "label": "Clock Color" },
+      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "000000", "label": "Background Color" }
     ]
   });
 

@@ -145,12 +145,12 @@ function customClay(minified) {
       cancel.addEventListener('click', closeOverlay);
 
       restore.addEventListener('click', function() {
-        setValue('ACCENT_COLOR', '0x0000AA');
-        setValue('CLOCK_COLOR', '0xFFFFFF');
+        setValue('ACCENT_COLOR', '0000AA');
+        setValue('CLOCK_COLOR', 'FFFFFF');
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');
-        setValue('BACKGROUND_COLOR', '0x000000');
+        setValue('BACKGROUND_COLOR', '000000');
         setValue('TEMP_UNIT', '0');
 
         setValue('TOP_LEFT_SLOT', '5');
