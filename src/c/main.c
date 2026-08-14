@@ -121,7 +121,6 @@ static bool stepbar_is_left_to_right(void);
 #define TRIAL_USED_PERSIST_KEY    2
 #define TRIAL_START_PERSIST_KEY   3
 #define PRO_SETTINGS_PERSIST_KEY  4
-#define PAID_LICENSE_PERSIST_KEY  5
 #define SETTINGS_VERSION          13
 #define PRO_TRIAL_SECONDS          (48 * 60 * 60)
 
@@ -1946,14 +1945,9 @@ static void trial_start_if_available(void) {
 // KiezelPay integration point. Paid licensing and the local opt-in trial are
 // intentionally separate; either one unlocks the same Pro customization layer.
 void watchface_kiezelpay_set_licensed(bool licensed) {
+  // KiezelPay is the sole authority for permanent paid entitlement.
+  // Do not maintain a second Big Time paid-license cache here.
   s_kiezelpay_licensed = licensed;
-  if (licensed) {
-    // Cache only a KiezelPay-confirmed paid entitlement so switching faces or
-    // restarting Big Time does not briefly fall back to Free before KiezelPay
-    // finishes its background validation. Uninstalling the watchface clears
-    // this Pebble persistent value, as expected.
-    persist_write_bool(PAID_LICENSE_PERSIST_KEY, true);
-  }
   license_recompute_effective();
 }
 
@@ -1996,11 +1990,10 @@ static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
       watchface_kiezelpay_set_licensed(true);
       break;
     case KIEZELPAY_CODE_AVAILABLE:
-      // KiezelPay's generated integration treats this as a purchase-flow event,
-      // not as an entitlement revocation. Do NOT clear a previously validated
-      // license here; KIEZELPAY_LICENSED is authoritative for successful unlock,
-      // and KiezelPay's own periodic status checks handle later revocation.
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available");
+      // A code is only issued when KiezelPay has validated this device as
+      // unlicensed. Treat this as the authoritative negative entitlement state.
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: unlicensed; purchase code available");
+      watchface_kiezelpay_set_licensed(false);
       break;
     case KIEZELPAY_PURCHASE_STARTED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase started");
@@ -2633,13 +2626,10 @@ static void window_unload(Window *window) {
 static void init(void) {
   settings_load();
 
-  // Start from persisted trial state, then let KiezelPay independently validate
-  // permanent entitlement. A trial never starts merely because the face runs.
-  s_kiezelpay_licensed = persist_exists(PAID_LICENSE_PERSIST_KEY) &&
-                          persist_read_bool(PAID_LICENSE_PERSIST_KEY);
+  // Permanent paid entitlement always starts unknown/free until KiezelPay
+  // reports the current state. The opt-in Big Time trial remains independent.
+  s_kiezelpay_licensed = false;
   s_trial_active = trial_is_currently_active();
-  APP_LOG(APP_LOG_LEVEL_INFO, "Cached paid entitlement on startup: %d",
-          s_kiezelpay_licensed ? 1 : 0);
   s_pro_unlocked = s_trial_active;
   if (!s_pro_unlocked) {
     enforce_free_defaults();
