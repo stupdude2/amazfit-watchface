@@ -1,4 +1,4 @@
-# Big Time 2.0.1 — KiezelPay / Pro trial test checklist
+# Big Time 2.0.2 — KiezelPay / Pro trial test checklist
 
 This archive is a **test build**. KiezelPay test mode and verbose logging are ON.
 
@@ -49,3 +49,8 @@ Change:
 
 Do **not** change `KIEZELPAY_DISABLE_TIME_TRIAL`; it must remain `1` because Big Time
 uses its own explicit opt-in trial rather than KiezelPay's automatic timed trial.
+
+
+## Reinstall / repeat purchase test (v2.0.2)
+
+If a previous KiezelPay test purchase was completed and the watchface is reinstalled, use **Unlock Pro with KiezelPay** and Save Settings. Big Time now waits until the settings AppMessage is complete, cancels any stale KiezelPay purchase session, and then starts a fresh purchase/status request. Expected result: KiezelPay either restores licensed status or shows a fresh code.

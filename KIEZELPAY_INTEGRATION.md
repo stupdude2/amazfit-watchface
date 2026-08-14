@@ -27,7 +27,7 @@ watch-side 48-hour Pro trial. The trial is deliberately **not** started on insta
 
 ## IMPORTANT — test vs. Store release
 
-The delivered 2.0.1 integration build is intentionally configured for purchase testing:
+The delivered 2.0.2 integration build is intentionally configured for purchase testing:
 
 - `src/c/kiezelpay.c`: `KIEZELPAY_TEST_MODE 1`
 - `src/c/kiezelpay.c`: `KIEZELPAY_LOG_VERBOSE 1`
