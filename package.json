@@ -12,7 +12,7 @@
       "health",
       "configurable"
     ],
-    "displayName": "Amazfit Bip Port Pro",
+    "displayName": "Amazfit Bip Port",
     "enableMultiJS": true,
     "messageKeys": {
       "TEMPERATURE": 0,
@@ -38,7 +38,9 @@
       "SUNSET": 20,
       "HIGH_TEMP": 21,
       "LOW_TEMP": 22,
-      "RAISE_WAKE": 23
+      "RAISE_WAKE": 23,
+      "PRO_LICENSE": 24,
+      "LICENSE_CHECK": 25
     },
     "projectType": "native",
     "resources": {
@@ -108,5 +110,5 @@
       "watchface": true
     }
   },
-  "version": "1.9.4"
+  "version": "2.0.0"
 }

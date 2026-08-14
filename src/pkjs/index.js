@@ -331,6 +331,7 @@ Pebble.addEventListener('appmessage', function(e) {
 
 // Fetch on launch
 Pebble.addEventListener('ready', function() {
+  Pebble.sendAppMessage({'LICENSE_CHECK': 1}, function(){}, function(){});
   console.log('PebbleKit JS ready');
 
   navigator.geolocation.getCurrentPosition(
@@ -342,4 +343,16 @@ Pebble.addEventListener('ready', function() {
     },
     { timeout: 15000, maximumAge: 300000 }
   );
+});
+
+// Runtime Pro status is authoritative from the watch/C side.
+// The product-specific KiezelPay library will call watchface_kiezelpay_set_licensed()
+// in C; the watch mirrors that state to JS with PRO_LICENSE.
+Pebble.addEventListener('appmessage', function(e) {
+  if (!e || !e.payload || typeof e.payload.PRO_LICENSE === 'undefined') return;
+  var unlocked = Number(e.payload.PRO_LICENSE) === 1;
+  try {
+    localStorage.setItem('amazfit_bip_port_pro', unlocked ? '1' : '0');
+  } catch (err) {}
+  console.log('Pro license status from watch: ' + (unlocked ? 'unlocked' : 'free'));
 });

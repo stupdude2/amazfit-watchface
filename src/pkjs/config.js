@@ -38,14 +38,11 @@ var config = [
   {
     "type": "heading",
     "defaultValue": edition.isPro ? "Amazfit Bip Port Pro" : "Amazfit Bip Port"
-  }
-];
-
-if (edition.isPro) {
-  config.push({
+  },
+  {
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Appearance" },
+      { "type": "heading", "defaultValue": "Clock" },
       {
         "type": "select",
         "messageKey": "TIME_FORMAT",
@@ -60,42 +57,48 @@ if (edition.isPro) {
       {
         "type": "toggle",
         "messageKey": "CENTER_12H",
-        "defaultValue": false,
+        "defaultValue": true,
         "label": "Center 12 Hour Clock",
-        "description": "Centers H:MM when the hour is 1-9. Times 10-12 keep the original spacing."
-      },
-      {
-        "type": "color",
-        "messageKey": "ACCENT_COLOR",
-        "defaultValue": "0x0000AA",
-        "label": "Accent Color"
-      },
-      {
-        "type": "color",
-        "messageKey": "CLOCK_COLOR",
-        "defaultValue": "0xFFFFFF",
-        "label": "Clock Color"
-      },
-      {
-        "type": "color",
-        "messageKey": "BACKGROUND_COLOR",
-        "defaultValue": "0x000000",
-        "label": "Background Color"
+        "description": "Centers H:MM when the hour is 1-9. Available in the free version."
       }
+    ]
+  }
+];
+
+if (!edition.isPro) {
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Pro Customization" },
+      {
+        "type": "text",
+        "defaultValue": "Unlock Pro with KiezelPay for colors, bar layouts, weather units, step-goal customization, raise-to-wake, and all advanced options."
+      }
+    ]
+  });
+}
+
+if (edition.isPro) {
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Appearance — Pro" },
+      { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0x0000AA", "label": "Accent Color" },
+      { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color" },
+      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color" }
     ]
   });
 
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Raise to Wake" },
+      { "type": "heading", "defaultValue": "Raise to Wake — Pro" },
       {
         "type": "select",
         "messageKey": "RAISE_WAKE",
         "defaultValue": "0",
         "serializeValueAs": "integer",
         "label": "Wrist Raise Backlight",
-        "description": "Uses wrist orientation and motion to turn on the backlight when you raise the watch to read it.",
         "options": [
           { "label": "Off", "value": "0" },
           { "label": "Normal", "value": "1" },
@@ -108,7 +111,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Weather" },
+      { "type": "heading", "defaultValue": "Weather — Pro" },
       {
         "type": "select",
         "messageKey": "TEMP_UNIT",
@@ -126,16 +129,13 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Top Bar" },
+      { "type": "heading", "defaultValue": "Top Bar — Pro" },
       { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
       { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions },
       { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
       {
-        "type": "select",
-        "messageKey": "HEADER_MODE",
-        "defaultValue": "0",
-        "serializeValueAs": "integer",
-        "label": "Top Bar Visibility",
+        "type": "select", "messageKey": "HEADER_MODE", "defaultValue": "0",
+        "serializeValueAs": "integer", "label": "Top Bar Visibility",
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
@@ -148,37 +148,13 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Bottom Bar" },
+      { "type": "heading", "defaultValue": "Bottom Bar — Pro" },
+      { "type": "select", "messageKey": "LEFT_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
+      { "type": "select", "messageKey": "CENTER_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Center", "options": centerOptions },
+      { "type": "select", "messageKey": "RIGHT_SLOT", "defaultValue": "1", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
       {
-        "type": "select",
-        "messageKey": "LEFT_SLOT",
-        "defaultValue": "0",
-        "serializeValueAs": "integer",
-        "label": "Left Side",
-        "options": sideOptions
-      },
-      {
-        "type": "select",
-        "messageKey": "CENTER_SLOT",
-        "defaultValue": "0",
-        "serializeValueAs": "integer",
-        "label": "Center",
-        "options": centerOptions
-      },
-      {
-        "type": "select",
-        "messageKey": "RIGHT_SLOT",
-        "defaultValue": "1",
-        "serializeValueAs": "integer",
-        "label": "Right Side",
-        "options": sideOptions
-      },
-      {
-        "type": "select",
-        "messageKey": "FOOTER_MODE",
-        "defaultValue": "0",
-        "serializeValueAs": "integer",
-        "label": "Bottom Bar Visibility",
+        "type": "select", "messageKey": "FOOTER_MODE", "defaultValue": "0",
+        "serializeValueAs": "integer", "label": "Bottom Bar Visibility",
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
@@ -191,23 +167,14 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Step Progress Bar" },
+      { "type": "heading", "defaultValue": "Step Progress Bar — Pro" },
       {
-        "type": "slider",
-        "messageKey": "STEP_GOAL",
-        "defaultValue": 5000,
-        "label": "Daily Step Goal",
-        "description": "Sets the goal represented by a full progress bar.",
-        "min": 1000,
-        "max": 30000,
-        "step": 500
+        "type": "slider", "messageKey": "STEP_GOAL", "defaultValue": 5000,
+        "label": "Daily Step Goal", "min": 1000, "max": 30000, "step": 500
       },
       {
-        "type": "select",
-        "messageKey": "STEPBAR_MODE",
-        "defaultValue": "0",
-        "serializeValueAs": "integer",
-        "label": "Progress Style",
+        "type": "select", "messageKey": "STEPBAR_MODE", "defaultValue": "0",
+        "serializeValueAs": "integer", "label": "Progress Style",
         "options": [
           { "label": "Mirrored Below Time", "value": "0" },
           { "label": "Left to Right Below Time", "value": "1" },
@@ -222,14 +189,7 @@ if (edition.isPro) {
       }
     ]
   });
-} else {
-  config.push({
-    "type": "text",
-    "defaultValue": "Standard edition. Pro customization options are not enabled in this build."
-  });
-}
 
-if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
@@ -237,8 +197,7 @@ if (edition.isPro) {
       {
         "type": "button",
         "id": "restore_defaults",
-        "defaultValue": "Restore Default Settings",
-        "description": "Resets all customization controls to the original watchface defaults. You will still need to tap Save Settings."
+        "defaultValue": "Restore Default Settings"
       }
     ]
   });

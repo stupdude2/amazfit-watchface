@@ -106,6 +106,8 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_HIGH_TEMP      21
 #define KEY_LOW_TEMP       22
 #define KEY_RAISE_WAKE     23
+#define KEY_PRO_LICENSE    24
+#define KEY_LICENSE_CHECK  25
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
@@ -292,6 +294,15 @@ typedef struct {
 
 static WatchfaceSettings s_settings;
 
+// Runtime Pro entitlement. KiezelPay's product-specific Pebble library should
+// call license_set_pro(true/false) from its license callback.
+// Default is free/locked so a failed or unavailable license check never grants
+// premium features accidentally.
+static bool s_pro_unlocked = false;
+
+static void license_send_status_to_phone(void);
+static void license_set_pro(bool unlocked);
+
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
   s_settings.accent_color = GColorCobaltBlue;
@@ -309,8 +320,66 @@ static void settings_set_defaults(void) {
   s_settings.top_center_slot = SLOT_DATE;
   s_settings.top_right_slot = SLOT_MONTH;
   s_settings.time_format = TIME_FORMAT_12H;
-  s_settings.center_12h = 0;
+  s_settings.center_12h = 1;
   s_settings.raise_wake_mode = RAISE_WAKE_OFF;
+}
+
+
+static void enforce_free_defaults(void) {
+  // Preserve the two free customization choices.
+  uint8_t keep_time_format = s_settings.time_format;
+  uint8_t keep_center_12h = s_settings.center_12h;
+
+  // Everything else returns to the standard watchface presentation.
+  s_settings.accent_color = GColorCobaltBlue;
+  s_settings.clock_color = GColorWhite;
+  s_settings.background_color = GColorBlack;
+
+  s_settings.left_slot = SLOT_WEATHER;
+  s_settings.center_slot = CENTER_HEART_RATE;
+  s_settings.right_slot = SLOT_STEPS;
+  s_settings.footer_mode = BAR_ALWAYS;
+
+  s_settings.top_left_slot = SLOT_DAY;
+  s_settings.top_center_slot = SLOT_DATE;
+  s_settings.top_right_slot = SLOT_MONTH;
+  s_settings.header_mode = BAR_ALWAYS;
+
+  s_settings.stepbar_mode = STEPBAR_MIRRORED;
+  s_settings.step_goal = 5000;
+  s_settings.temp_unit = TEMP_FAHRENHEIT;
+  s_settings.raise_wake_mode = RAISE_WAKE_OFF;
+
+  s_settings.time_format =
+      keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
+  s_settings.center_12h = keep_center_12h ? 1 : 0;
+}
+
+static bool key_is_free_customization(uint32_t key) {
+  return key == KEY_TIME_FORMAT || key == KEY_CENTER_12H;
+}
+
+static bool key_is_pro_customization(uint32_t key) {
+  switch (key) {
+    case KEY_ACCENT_COLOR:
+    case KEY_LEFT_SLOT:
+    case KEY_CENTER_SLOT:
+    case KEY_RIGHT_SLOT:
+    case KEY_FOOTER_MODE:
+    case KEY_STEPBAR_MODE:
+    case KEY_HEADER_MODE:
+    case KEY_STEP_GOAL:
+    case KEY_TEMP_UNIT:
+    case KEY_CLOCK_COLOR:
+    case KEY_BACKGROUND_COLOR:
+    case KEY_TOP_LEFT_SLOT:
+    case KEY_TOP_CENTER_SLOT:
+    case KEY_TOP_RIGHT_SLOT:
+    case KEY_RAISE_WAKE:
+      return true;
+    default:
+      return false;
+  }
 }
 
 static bool settings_values_valid(const WatchfaceSettings *settings) {
@@ -334,7 +403,6 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
 
 static void settings_load(void) {
   settings_set_defaults();
-#if WATCHFACE_PRO
   if (!persist_exists(SETTINGS_PERSIST_KEY)) return;
 
   int stored_size = persist_get_size(SETTINGS_PERSIST_KEY);
@@ -531,7 +599,6 @@ static void settings_load(void) {
 
   // Discard stale/corrupt settings that cannot be migrated safely.
   persist_delete(SETTINGS_PERSIST_KEY);
-#endif
 }
 
 
@@ -583,9 +650,7 @@ static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
 }
 
 static void settings_save(void) {
-#if WATCHFACE_PRO
   persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
-#endif
 }
 
 // ── Segment bitmasks ──────────────────────────────────────────────────────────
@@ -1716,6 +1781,54 @@ static void update_background_contrast(void) {
 }
 
 
+static void license_send_status_to_phone(void) {
+  DictionaryIterator *iter = NULL;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK || !iter) return;
+  dict_write_uint8(iter, KEY_PRO_LICENSE, s_pro_unlocked ? 1 : 0);
+  app_message_outbox_send();
+}
+
+static void license_refresh_ui(void) {
+  if (!s_pro_unlocked) {
+    enforce_free_defaults();
+  }
+
+  settings_save();
+  update_footer_content();
+  update_header_content();
+  update_stepbar_layout();
+  update_bar_input_services();
+  update_raise_wake_service();
+  apply_bar_visibility();
+  update_accent_text_contrast();
+  update_background_contrast();
+
+  if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+  if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+  if (s_header_layer) layer_mark_dirty(s_header_layer);
+  if (s_footer_layer) layer_mark_dirty(s_footer_layer);
+
+  license_send_status_to_phone();
+}
+
+static void license_set_pro(bool unlocked) {
+  if (s_pro_unlocked == unlocked) {
+    license_send_status_to_phone();
+    return;
+  }
+
+  s_pro_unlocked = unlocked;
+  APP_LOG(APP_LOG_LEVEL_INFO, "Pro license -> %s", unlocked ? "UNLOCKED" : "FREE");
+  license_refresh_ui();
+}
+
+// KiezelPay integration point:
+// Call this from the product-specific KiezelPay license callback.
+// Licensed/trial behavior can be mapped here according to the product settings.
+void watchface_kiezelpay_set_licensed(bool licensed) {
+  license_set_pro(licensed);
+}
+
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool weather_changed = false;
@@ -1733,6 +1846,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
     APP_LOG(APP_LOG_LEVEL_INFO, "RX key=%lu type=%d len=%u",
             (unsigned long)t->key, (int)t->type, (unsigned)t->length);
+
+    // Security boundary: Pro controls are enforced on-watch, not just hidden in
+    // the settings page. A crafted AppMessage cannot unlock premium settings.
+    if (!s_pro_unlocked && key_is_pro_customization(t->key)) {
+      APP_LOG(APP_LOG_LEVEL_WARNING, "Ignoring locked Pro setting key=%lu",
+              (unsigned long)t->key);
+      continue;
+    }
 
     switch (t->key) {
       case KEY_TEMPERATURE: {
@@ -1925,6 +2046,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
 #endif
+
+      case KEY_LICENSE_CHECK:
+        license_send_status_to_phone();
+        break;
+
+      // Phone cannot grant a license. KEY_PRO_LICENSE is watch -> phone only.
+      case KEY_PRO_LICENSE:
+        break;
 
       default:
         break;
@@ -2286,6 +2415,12 @@ static void window_unload(Window *window) {
 static void init(void) {
   settings_load();
 
+  // Start locked. The product-specific KiezelPay library may unlock Pro after
+  // it validates this installation. Free users retain Time Format and Center
+  // 12 Hour Clock; all premium settings are forced to defaults.
+  s_pro_unlocked = false;
+  enforce_free_defaults();
+
   s_window = window_create();
   window_set_background_color(s_window, s_settings.background_color);
   window_set_window_handlers(s_window, (WindowHandlers){
@@ -2296,6 +2431,7 @@ static void init(void) {
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);
   app_message_open(256, 256);
+  license_send_status_to_phone();
   battery_state_service_subscribe(battery_handler);
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler

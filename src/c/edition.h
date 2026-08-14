@@ -1,5 +1,5 @@
 #pragma once
 
-// Generated/updated by tools/set-edition.ps1.
-// 0 = Standard, 1 = Pro
+// Single-build runtime licensing.
+// Keep premium code compiled in; KiezelPay entitlement decides availability.
 #define WATCHFACE_PRO 1
