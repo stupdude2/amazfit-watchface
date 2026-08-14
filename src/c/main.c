@@ -1,4 +1,6 @@
 #include <pebble.h>
+#include <pebble-events/pebble-events.h>
+#include <kiezelpay-core/kiezelpay.h>
 #include <stdlib.h>
 #include "edition.h"
 
@@ -108,10 +110,18 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_RAISE_WAKE     23
 #define KEY_PRO_LICENSE    24
 #define KEY_LICENSE_CHECK  25
+#define KEY_TRIAL_START    26
+#define KEY_TRIAL_STATE    27
+#define KEY_TRIAL_REMAINING 28
+#define KEY_PURCHASE_PRO   29
 
 // ── Persistent settings ──────────────────────────────────────────────────────
-#define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     13
+#define SETTINGS_PERSIST_KEY      1
+#define TRIAL_USED_PERSIST_KEY    2
+#define TRIAL_START_PERSIST_KEY   3
+#define PRO_SETTINGS_PERSIST_KEY  4
+#define SETTINGS_VERSION          13
+#define PRO_TRIAL_SECONDS          (48 * 60 * 60)
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -299,9 +309,12 @@ static WatchfaceSettings s_settings;
 // Default is free/locked so a failed or unavailable license check never grants
 // premium features accidentally.
 static bool s_pro_unlocked = false;
+static bool s_kiezelpay_licensed = false;
+static bool s_trial_active = false;
 
 static void license_send_status_to_phone(void);
-static void license_set_pro(bool unlocked);
+static void license_recompute_effective(void);
+static void trial_refresh_state(void);
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
@@ -651,6 +664,12 @@ static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
 
 static void settings_save(void) {
   persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
+  // While Pro is active, continuously keep a second copy of the personalized
+  // setup. This lets startup safely render Free defaults until KiezelPay has
+  // revalidated a paid license, without destroying the user's Pro choices.
+  if (s_pro_unlocked) {
+    persist_write_data(PRO_SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
+  }
 }
 
 // ── Segment bitmasks ──────────────────────────────────────────────────────────
@@ -1781,10 +1800,63 @@ static void update_background_contrast(void) {
 }
 
 
+static bool trial_has_been_used(void) {
+  return persist_exists(TRIAL_USED_PERSIST_KEY) && persist_read_bool(TRIAL_USED_PERSIST_KEY);
+}
+
+static time_t trial_start_time(void) {
+  if (!persist_exists(TRIAL_START_PERSIST_KEY)) return 0;
+  return (time_t)persist_read_int(TRIAL_START_PERSIST_KEY);
+}
+
+static uint32_t trial_remaining_seconds(void) {
+  if (!s_trial_active) return 0;
+  time_t start = trial_start_time();
+  if (start <= 0) return 0;
+  time_t now = time(NULL);
+  if (now <= start) return PRO_TRIAL_SECONDS;
+  uint32_t elapsed = (uint32_t)(now - start);
+  return elapsed >= PRO_TRIAL_SECONDS ? 0 : (PRO_TRIAL_SECONDS - elapsed);
+}
+
+static uint8_t trial_state_code(void) {
+  // 0 = available, 1 = active, 2 = used/expired, 3 = permanently licensed
+  if (s_kiezelpay_licensed) return 3;
+  if (s_trial_active) return 1;
+  return trial_has_been_used() ? 2 : 0;
+}
+
+static void pro_settings_save_current(void) {
+  persist_write_data(PRO_SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
+}
+
+static bool pro_settings_restore_saved(void) {
+  if (!persist_exists(PRO_SETTINGS_PERSIST_KEY) ||
+      persist_get_size(PRO_SETTINGS_PERSIST_KEY) != (int)sizeof(s_settings)) {
+    return false;
+  }
+
+  WatchfaceSettings saved;
+  if (persist_read_data(PRO_SETTINGS_PERSIST_KEY, &saved, sizeof(saved)) != (int)sizeof(saved) ||
+      !settings_values_valid(&saved)) {
+    return false;
+  }
+
+  // Free clock choices remain the user's choices even while Pro is inactive.
+  uint8_t keep_time_format = s_settings.time_format;
+  uint8_t keep_center_12h = s_settings.center_12h;
+  s_settings = saved;
+  s_settings.time_format = keep_time_format;
+  s_settings.center_12h = keep_center_12h;
+  return true;
+}
+
 static void license_send_status_to_phone(void) {
   DictionaryIterator *iter = NULL;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK || !iter) return;
   dict_write_uint8(iter, KEY_PRO_LICENSE, s_pro_unlocked ? 1 : 0);
+  dict_write_uint8(iter, KEY_TRIAL_STATE, trial_state_code());
+  dict_write_uint32(iter, KEY_TRIAL_REMAINING, trial_remaining_seconds());
   app_message_outbox_send();
 }
 
@@ -1811,22 +1883,92 @@ static void license_refresh_ui(void) {
   license_send_status_to_phone();
 }
 
-static void license_set_pro(bool unlocked) {
+static void license_recompute_effective(void) {
+  bool unlocked = s_kiezelpay_licensed || s_trial_active;
   if (s_pro_unlocked == unlocked) {
     license_send_status_to_phone();
     return;
   }
 
+  if (s_pro_unlocked && !unlocked) {
+    // Keep the personalized Pro setup so a later purchase restores it.
+    pro_settings_save_current();
+  }
+
   s_pro_unlocked = unlocked;
-  APP_LOG(APP_LOG_LEVEL_INFO, "Pro license -> %s", unlocked ? "UNLOCKED" : "FREE");
+  if (unlocked) {
+    pro_settings_restore_saved();
+  }
+
+  APP_LOG(APP_LOG_LEVEL_INFO, "Pro entitlement -> %s (paid=%d trial=%d)",
+          unlocked ? "UNLOCKED" : "FREE",
+          s_kiezelpay_licensed ? 1 : 0, s_trial_active ? 1 : 0);
   license_refresh_ui();
 }
 
-// KiezelPay integration point:
-// Call this from the product-specific KiezelPay license callback.
-// Licensed/trial behavior can be mapped here according to the product settings.
+static bool trial_is_currently_active(void) {
+  if (!trial_has_been_used()) return false;
+  time_t start = trial_start_time();
+  if (start <= 0) return false;
+  time_t now = time(NULL);
+  return (now <= start) || ((uint32_t)(now - start) < PRO_TRIAL_SECONDS);
+}
+
+static void trial_refresh_state(void) {
+  bool should_be_active = trial_is_currently_active();
+
+  if (s_trial_active != should_be_active) {
+    s_trial_active = should_be_active;
+    APP_LOG(APP_LOG_LEVEL_INFO, "48-hour Pro trial -> %s",
+            s_trial_active ? "ACTIVE" : "INACTIVE");
+    license_recompute_effective();
+  }
+}
+
+static void trial_start_if_available(void) {
+  if (s_kiezelpay_licensed || trial_has_been_used()) {
+    license_send_status_to_phone();
+    return;
+  }
+
+  time_t now = time(NULL);
+  persist_write_bool(TRIAL_USED_PERSIST_KEY, true);
+  persist_write_int(TRIAL_START_PERSIST_KEY, (int32_t)now);
+  s_trial_active = true;
+  APP_LOG(APP_LOG_LEVEL_INFO, "48-hour Pro trial started by user");
+  license_recompute_effective();
+}
+
+// KiezelPay integration point. Paid licensing and the local opt-in trial are
+// intentionally separate; either one unlocks the same Pro customization layer.
 void watchface_kiezelpay_set_licensed(bool licensed) {
-  license_set_pro(licensed);
+  s_kiezelpay_licensed = licensed;
+  license_recompute_effective();
+}
+
+static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
+  switch (event) {
+    case KIEZELPAY_LICENSED:
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed");
+      watchface_kiezelpay_set_licensed(true);
+      break;
+    case KIEZELPAY_CODE_AVAILABLE:
+      // A purchase code means this installation is not currently licensed.
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available");
+      watchface_kiezelpay_set_licensed(false);
+      break;
+    case KIEZELPAY_PURCHASE_STARTED:
+      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase started");
+      break;
+    case KIEZELPAY_ERROR:
+      APP_LOG(APP_LOG_LEVEL_ERROR, "KiezelPay: error");
+      break;
+    default:
+      break;
+  }
+
+  // Keep KiezelPay's built-in purchase/code/error messages.
+  return false;
 }
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
@@ -1856,6 +1998,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     }
 
     switch (t->key) {
+      case KEY_TRIAL_START:
+        if (tuple_to_int32(t, 0) == 1) trial_start_if_available();
+        break;
+
+      case KEY_PURCHASE_PRO:
+        if (tuple_to_int32(t, 0) == 1 && !s_kiezelpay_licensed) {
+          kiezelpay_start_purchase();
+        }
+        break;
+
       case KEY_TEMPERATURE: {
         // Phone sends Celsius in tenths of a degree so the watch can switch
         // units locally without another network request.
@@ -2048,6 +2200,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
       case KEY_LICENSE_CHECK:
+        trial_refresh_state();
         license_send_status_to_phone();
         break;
 
@@ -2187,7 +2340,10 @@ static void update_time(struct tm *tick_time) {
   }
 }
 
-static void tick_handler(struct tm *tick_time, TimeUnits changed) { update_time(tick_time); }
+static void tick_handler(struct tm *tick_time, TimeUnits changed) {
+  trial_refresh_state();
+  update_time(tick_time);
+}
 
 #if defined(PBL_HEALTH)
 static void health_handler(HealthEventType event, void *context) {
@@ -2415,11 +2571,18 @@ static void window_unload(Window *window) {
 static void init(void) {
   settings_load();
 
-  // Start locked. The product-specific KiezelPay library may unlock Pro after
-  // it validates this installation. Free users retain Time Format and Center
-  // 12 Hour Clock; all premium settings are forced to defaults.
-  s_pro_unlocked = false;
-  enforce_free_defaults();
+  // Start from persisted trial state, then let KiezelPay independently validate
+  // permanent entitlement. A trial never starts merely because the face runs.
+  s_kiezelpay_licensed = false;
+  s_trial_active = trial_is_currently_active();
+  s_pro_unlocked = s_trial_active;
+  if (!s_pro_unlocked) {
+    enforce_free_defaults();
+    settings_save();
+  } else {
+    // Keep the active trial's current settings backed up as Pro settings.
+    settings_save();
+  }
 
   s_window = window_create();
   window_set_background_color(s_window, s_settings.background_color);
@@ -2428,9 +2591,14 @@ static void init(void) {
   });
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
-  app_message_register_inbox_received(inbox_received_handler);
-  app_message_register_inbox_dropped(inbox_dropped_handler);
-  app_message_open(256, 256);
+
+  // KiezelPay and the watchface both consume AppMessage, so use pebble-events
+  // to multiplex callbacks and open the shared channel exactly once.
+  events_app_message_register_inbox_received(inbox_received_handler, NULL);
+  events_app_message_register_inbox_dropped(inbox_dropped_handler, NULL);
+  kiezelpay_set_event_handler(kiezelpay_event_callback);
+  kiezelpay_init();
+  events_app_message_open();
   license_send_status_to_phone();
   battery_state_service_subscribe(battery_handler);
   connection_service_subscribe((ConnectionHandlers){
@@ -2447,7 +2615,7 @@ static void init(void) {
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
-  app_message_deregister_callbacks();
+  kiezelpay_deinit();
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();

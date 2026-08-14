@@ -1,4 +1,4 @@
-# Amazfit Bip Port — Pebble Time 2 Watchface
+# Big Time — Pebble Time 2 Watchface
 
 A faithful port of the Amazfit Bip digital watchface to the Pebble Time 2 (Basalt platform, 144×168 px color display).
 

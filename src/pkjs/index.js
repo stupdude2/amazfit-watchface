@@ -1,4 +1,4 @@
-// ── Amazfit Bip Port — PebbleKit JS companion ────────────────────────────────
+// ── Big Time — PebbleKit JS companion ───────────────────────────────────────
 // Fetches weather from OpenWeatherMap and sends temperature + icon code
 // to the watch via AppMessage.
 //
@@ -25,6 +25,13 @@ function customClay(minified) {
   }
 
   clayPage.on(clayPage.EVENTS.AFTER_BUILD, function() {
+    // Trial/purchase controls are actions, not persistent preferences. Reset
+    // them whenever Settings opens so a later Save cannot accidentally repeat.
+    var trialAction = clayPage.getItemByMessageKey('TRIAL_START');
+    var purchaseAction = clayPage.getItemByMessageKey('PURCHASE_PRO');
+    if (trialAction) trialAction.set(false);
+    if (purchaseAction) purchaseAction.set(false);
+
     var timeFormat = clayPage.getItemByMessageKey('TIME_FORMAT');
     var center12h = clayPage.getItemByMessageKey('CENTER_12H');
 
@@ -195,6 +202,12 @@ function customClay(minified) {
 var clay = new Clay(clayConfig, customClay);
 var messageKeys = require('message_keys');
 
+// KiezelPay phone-side bridge. Keep logging enabled while this package is in
+// test mode; set it to false for the Store release.
+var KIEZELPAY_LOGGING = true;
+var KiezelPay = require('kiezelpay-core');
+var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
+
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
 var UNITS   = 'metric';     // Always fetch Celsius; watch converts to the user's unit
 
@@ -317,6 +330,13 @@ Pebble.addEventListener('appmessage', function(e) {
     return;
   }
 
+  // Entitlement/trial status messages are not weather requests.
+  if (e.payload && (typeof e.payload.PRO_LICENSE !== 'undefined' ||
+                    typeof e.payload.TRIAL_STATE !== 'undefined' ||
+                    typeof e.payload.TRIAL_REMAINING !== 'undefined')) {
+    return;
+  }
+
   console.log('Watch requested weather update');
   navigator.geolocation.getCurrentPosition(
     function(pos) {
@@ -349,10 +369,20 @@ Pebble.addEventListener('ready', function() {
 // The product-specific KiezelPay library will call watchface_kiezelpay_set_licensed()
 // in C; the watch mirrors that state to JS with PRO_LICENSE.
 Pebble.addEventListener('appmessage', function(e) {
-  if (!e || !e.payload || typeof e.payload.PRO_LICENSE === 'undefined') return;
-  var unlocked = Number(e.payload.PRO_LICENSE) === 1;
-  try {
-    localStorage.setItem('amazfit_bip_port_pro', unlocked ? '1' : '0');
-  } catch (err) {}
-  console.log('Pro license status from watch: ' + (unlocked ? 'unlocked' : 'free'));
+  if (!e || !e.payload) return;
+
+  if (typeof e.payload.PRO_LICENSE !== 'undefined') {
+    var unlocked = Number(e.payload.PRO_LICENSE) === 1;
+    try { localStorage.setItem('big_time_pro', unlocked ? '1' : '0'); } catch (err) {}
+    console.log('Pro entitlement from watch: ' + (unlocked ? 'unlocked' : 'free'));
+  }
+
+  if (typeof e.payload.TRIAL_STATE !== 'undefined') {
+    try { localStorage.setItem('big_time_trial_state', String(Number(e.payload.TRIAL_STATE))); } catch (err2) {}
+    console.log('Pro trial state from watch: ' + e.payload.TRIAL_STATE);
+  }
+
+  if (typeof e.payload.TRIAL_REMAINING !== 'undefined') {
+    try { localStorage.setItem('big_time_trial_remaining', String(Number(e.payload.TRIAL_REMAINING))); } catch (err3) {}
+  }
 });

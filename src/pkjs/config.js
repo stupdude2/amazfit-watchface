@@ -1,5 +1,8 @@
 var edition = require('./edition');
 
+var trialState = 0;
+try { trialState = Number(localStorage.getItem('big_time_trial_state') || '0'); } catch (e) {}
+
 var sideOptions = [
   { "label": "Weather", "value": "0" },
   { "label": "Steps", "value": "1" },
@@ -37,7 +40,7 @@ var centerOptions = [
 var config = [
   {
     "type": "heading",
-    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro" : "Amazfit Bip Port"
+    "defaultValue": edition.isPro ? "Big Time Pro" : "Big Time"
   },
   {
     "type": "section",
@@ -66,14 +69,51 @@ var config = [
 ];
 
 if (!edition.isPro) {
+  var proItems = [
+    { "type": "heading", "defaultValue": "Big Time Pro" },
+    {
+      "type": "text",
+      "defaultValue": "Unlock colors, bar layouts, weather units, custom step goals, raise-to-wake, and all advanced options. The free version remains fully usable."
+    }
+  ];
+
+  if (trialState === 0) {
+    proItems.push({
+      "type": "toggle",
+      "id": "trial_start_action",
+      "messageKey": "TRIAL_START",
+      "defaultValue": false,
+      "label": "Try Pro Free — 48 Hours",
+      "description": "Turn this on and tap Save Settings to begin. The trial does not start automatically."
+    });
+  } else if (trialState === 2) {
+    proItems.push({
+      "type": "text",
+      "defaultValue": "Your Pro trial has ended. Your personalized Pro setup is saved and will return after you unlock Pro."
+    });
+  }
+
+  proItems.push({
+    "type": "toggle",
+    "id": "purchase_pro_action",
+    "messageKey": "PURCHASE_PRO",
+    "defaultValue": false,
+    "label": "Unlock Pro with KiezelPay",
+    "description": "Turn this on and tap Save Settings. Big Time will show the KiezelPay purchase code on your watch."
+  });
+
+  config.push({ "type": "section", "items": proItems });
+}
+
+if (edition.isPro && trialState === 1) {
+  var remainingSeconds = 0;
+  try { remainingSeconds = Number(localStorage.getItem('big_time_trial_remaining') || '0'); } catch (e2) {}
+  var remainingHours = Math.max(1, Math.ceil(remainingSeconds / 3600));
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Pro Customization" },
-      {
-        "type": "text",
-        "defaultValue": "Unlock Pro with KiezelPay for colors, bar layouts, weather units, step-goal customization, raise-to-wake, and all advanced options."
-      }
+      { "type": "heading", "defaultValue": "Pro Trial Active" },
+      { "type": "text", "defaultValue": "All Pro features are unlocked. About " + remainingHours + " hour" + (remainingHours === 1 ? "" : "s") + " remaining." }
     ]
   });
 }
@@ -203,5 +243,5 @@ if (edition.isPro) {
   });
 }
 
-config.push({ "type": "submit", "defaultValue": "Save Settings" });
+config.push({ "type": "submit", "id": "save_settings", "defaultValue": "Save Settings" });
 module.exports = config;
