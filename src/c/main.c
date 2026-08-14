@@ -115,6 +115,7 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_TRIAL_REMAINING 28
 #define KEY_PURCHASE_PRO   29
 #define KEY_TRIAL_USED_HINT 30
+#define KEY_RESTORE_PRO     31
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY      1
@@ -314,6 +315,7 @@ static bool s_pro_unlocked = false;
 static bool s_kiezelpay_licensed = false;
 static AppTimer *s_kiezelpay_retry_timer = NULL;
 static bool s_kiezelpay_purchase_pending = false;
+static bool s_kiezelpay_restore_requested = false;
 static bool s_trial_active = false;
 
 static void license_send_status_to_phone(void);
@@ -1992,8 +1994,12 @@ static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
   kiezelpay_purchase_event_received();
   switch (event) {
     case KIEZELPAY_LICENSED:
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed");
+      APP_LOG(APP_LOG_LEVEL_INFO, s_kiezelpay_restore_requested
+              ? "KiezelPay: existing license restored"
+              : "KiezelPay: purchase/license confirmed");
       watchface_kiezelpay_set_licensed(true);
+      vibes_short_pulse();
+      s_kiezelpay_restore_requested = false;
       break;
     case KIEZELPAY_CODE_AVAILABLE:
       // KiezelPay's generated integration treats this as a purchase-flow event,
@@ -2062,10 +2068,20 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_PURCHASE_PRO:
         if (tuple_to_int32(t, 0) == 1 && !s_kiezelpay_licensed) {
-          APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase requested from Settings");
-          // Start KiezelPay immediately. This matches the original integration
-          // path and avoids the ~15 second delay caused by canceling/resetting
-          // the purchase session before each request.
+          s_kiezelpay_restore_requested = false;
+          APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: new purchase requested from Settings");
+          kiezelpay_start_purchase_fast_with_fallback();
+        }
+        break;
+
+      case KEY_RESTORE_PRO:
+        if (tuple_to_int32(t, 0) == 1 && !s_kiezelpay_licensed) {
+          // KiezelPay exposes a single start/check entry point. For an existing
+          // purchaser this can restore entitlement without a new charge; if it
+          // cannot identify the purchase it may show a code for KiezelPay's
+          // existing-purchase recovery flow.
+          s_kiezelpay_restore_requested = true;
+          APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: restore requested from Settings");
           kiezelpay_start_purchase_fast_with_fallback();
         }
         break;

@@ -41,8 +41,21 @@ module.exports = function buildConfig(isPro, trialState, remainingSeconds) {
   {
     "type": "heading",
     "defaultValue": (isPro && trialState !== 1) ? "Big Time Pro" : "Big Time"
-  },
-  {
+  }
+];
+
+// Paid Pro gets its thank-you immediately below the main title. Keep this
+// separate from the trial so trial users are never thanked for a purchase.
+if (isPro && trialState !== 1) {
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "text", "defaultValue": "Thank you for purchasing Big Time Pro! Your support is greatly appreciated." }
+    ]
+  });
+}
+
+config.push({
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Clock" },
@@ -65,8 +78,7 @@ module.exports = function buildConfig(isPro, trialState, remainingSeconds) {
         "description": "Centers H:MM when the hour is 1-9. Available in the free version."
       }
     ]
-  }
-];
+  });
 
 if (!isPro) {
   var proItems = [
@@ -93,25 +105,37 @@ if (!isPro) {
     });
   }
 
+  // Generic Clay buttons are clearer than action toggles. Hidden toggle
+  // values carry the selected action through Clay's normal Save flow.
+  proItems.push({
+    "type": "button",
+    "id": "purchase_pro_button",
+    "primary": true,
+    "defaultValue": "Purchase Big Time Pro",
+    "description": "Buy a new Big Time Pro license with KiezelPay."
+  });
+  proItems.push({
+    "type": "button",
+    "id": "restore_pro_button",
+    "defaultValue": "Restore Previous Purchase",
+    "description": "Already purchased Big Time Pro? Ask KiezelPay to restore your existing license."
+  });
   proItems.push({
     "type": "toggle",
     "id": "purchase_pro_action",
     "messageKey": "PURCHASE_PRO",
     "defaultValue": false,
-    "label": "Unlock Pro with KiezelPay",
-    "description": "Turn this on and tap Save Settings. Big Time will show the KiezelPay purchase code on your watch."
+    "label": "Purchase action"
+  });
+  proItems.push({
+    "type": "toggle",
+    "id": "restore_pro_action",
+    "messageKey": "RESTORE_PRO",
+    "defaultValue": false,
+    "label": "Restore action"
   });
 
   config.push({ "type": "section", "items": proItems });
-}
-
-if (isPro && trialState !== 1) {
-  config.push({
-    "type": "section",
-    "items": [
-      { "type": "text", "defaultValue": "Thank you for purchasing Big Time Pro! Your support is greatly appreciated." }
-    ]
-  });
 }
 
 if (isPro && trialState === 1) {

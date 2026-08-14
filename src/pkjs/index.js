@@ -29,8 +29,50 @@ function customClay(minified) {
     // them whenever Settings opens so a later Save cannot accidentally repeat.
     var trialAction = clayPage.getItemByMessageKey('TRIAL_START');
     var purchaseAction = clayPage.getItemByMessageKey('PURCHASE_PRO');
+    var restoreAction = clayPage.getItemByMessageKey('RESTORE_PRO');
     if (trialAction) trialAction.set(false);
-    if (purchaseAction) purchaseAction.set(false);
+    if (purchaseAction) { purchaseAction.set(false); purchaseAction.hide(); }
+    if (restoreAction) { restoreAction.set(false); restoreAction.hide(); }
+
+    function showActionStatus(text) {
+      if (typeof document === 'undefined') return;
+      var existing = document.getElementById('kiezelpay-action-status');
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      var status = document.createElement('div');
+      status.id = 'kiezelpay-action-status';
+      status.textContent = text;
+      status.style.position = 'fixed';
+      status.style.left = '16px';
+      status.style.right = '16px';
+      status.style.bottom = '16px';
+      status.style.zIndex = '99999';
+      status.style.background = '#333333';
+      status.style.color = '#ffffff';
+      status.style.padding = '12px 14px';
+      status.style.borderRadius = '6px';
+      status.style.textAlign = 'center';
+      document.body.appendChild(status);
+      setTimeout(function() {
+        if (status.parentNode) status.parentNode.removeChild(status);
+      }, 4500);
+    }
+
+    var purchaseButton = clayPage.getItemById('purchase_pro_button');
+    var restoreButton = clayPage.getItemById('restore_pro_button');
+    if (purchaseButton && purchaseAction) {
+      purchaseButton.on('click', function() {
+        purchaseAction.set(true);
+        if (restoreAction) restoreAction.set(false);
+        showActionStatus('Purchase selected. Tap Save Settings to continue with KiezelPay.');
+      });
+    }
+    if (restoreButton && restoreAction) {
+      restoreButton.on('click', function() {
+        restoreAction.set(true);
+        if (purchaseAction) purchaseAction.set(false);
+        showActionStatus('Restore selected. Tap Save Settings to check your KiezelPay license.');
+      });
+    }
 
     var timeFormat = clayPage.getItemByMessageKey('TIME_FORMAT');
     var center12h = clayPage.getItemByMessageKey('CENTER_12H');
