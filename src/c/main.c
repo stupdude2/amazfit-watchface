@@ -121,6 +121,7 @@ static bool stepbar_is_left_to_right(void);
 #define TRIAL_USED_PERSIST_KEY    2
 #define TRIAL_START_PERSIST_KEY   3
 #define PRO_SETTINGS_PERSIST_KEY  4
+#define PAID_LICENSE_PERSIST_KEY  5
 #define SETTINGS_VERSION          13
 #define PRO_TRIAL_SECONDS          (48 * 60 * 60)
 
@@ -311,6 +312,8 @@ static WatchfaceSettings s_settings;
 // premium features accidentally.
 static bool s_pro_unlocked = false;
 static bool s_kiezelpay_licensed = false;
+static AppTimer *s_kiezelpay_retry_timer = NULL;
+static bool s_kiezelpay_purchase_pending = false;
 static bool s_trial_active = false;
 
 static void license_send_status_to_phone(void);
@@ -1944,10 +1947,49 @@ static void trial_start_if_available(void) {
 // intentionally separate; either one unlocks the same Pro customization layer.
 void watchface_kiezelpay_set_licensed(bool licensed) {
   s_kiezelpay_licensed = licensed;
+  if (licensed) {
+    // Cache only a KiezelPay-confirmed paid entitlement so switching faces or
+    // restarting Big Time does not briefly fall back to Free before KiezelPay
+    // finishes its background validation. Uninstalling the watchface clears
+    // this Pebble persistent value, as expected.
+    persist_write_bool(PAID_LICENSE_PERSIST_KEY, true);
+  }
   license_recompute_effective();
 }
 
+static void kiezelpay_retry_timer_cb(void *context) {
+  s_kiezelpay_retry_timer = NULL;
+  if (!s_kiezelpay_purchase_pending || s_kiezelpay_licensed) return;
+
+  APP_LOG(APP_LOG_LEVEL_WARNING,
+          "KiezelPay: no purchase event after direct request; retrying fresh session");
+  kiezelpay_cancel_purchase();
+  kiezelpay_start_purchase();
+}
+
+static void kiezelpay_purchase_event_received(void) {
+  s_kiezelpay_purchase_pending = false;
+  if (s_kiezelpay_retry_timer) {
+    app_timer_cancel(s_kiezelpay_retry_timer);
+    s_kiezelpay_retry_timer = NULL;
+  }
+}
+
+static void kiezelpay_start_purchase_fast_with_fallback(void) {
+  s_kiezelpay_purchase_pending = true;
+  if (s_kiezelpay_retry_timer) {
+    app_timer_cancel(s_kiezelpay_retry_timer);
+    s_kiezelpay_retry_timer = NULL;
+  }
+
+  // Normal path: this was the original fast integration and usually produces
+  // the code immediately. Only reset/retry if KiezelPay produces no event.
+  kiezelpay_start_purchase();
+  s_kiezelpay_retry_timer = app_timer_register(2500, kiezelpay_retry_timer_cb, NULL);
+}
+
 static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
+  kiezelpay_purchase_event_received();
   switch (event) {
     case KIEZELPAY_LICENSED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed");
@@ -2024,7 +2066,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
           // Start KiezelPay immediately. This matches the original integration
           // path and avoids the ~15 second delay caused by canceling/resetting
           // the purchase session before each request.
-          kiezelpay_start_purchase();
+          kiezelpay_start_purchase_fast_with_fallback();
         }
         break;
 
@@ -2593,8 +2635,11 @@ static void init(void) {
 
   // Start from persisted trial state, then let KiezelPay independently validate
   // permanent entitlement. A trial never starts merely because the face runs.
-  s_kiezelpay_licensed = false;
+  s_kiezelpay_licensed = persist_exists(PAID_LICENSE_PERSIST_KEY) &&
+                          persist_read_bool(PAID_LICENSE_PERSIST_KEY);
   s_trial_active = trial_is_currently_active();
+  APP_LOG(APP_LOG_LEVEL_INFO, "Cached paid entitlement on startup: %d",
+          s_kiezelpay_licensed ? 1 : 0);
   s_pro_unlocked = s_trial_active;
   if (!s_pro_unlocked) {
     enforce_free_defaults();
@@ -2635,6 +2680,11 @@ static void init(void) {
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
+  if (s_kiezelpay_retry_timer) {
+    app_timer_cancel(s_kiezelpay_retry_timer);
+    s_kiezelpay_retry_timer = NULL;
+  }
+  s_kiezelpay_purchase_pending = false;
   kiezelpay_deinit();
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();

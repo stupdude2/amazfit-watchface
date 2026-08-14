@@ -56,7 +56,7 @@ uses its own explicit opt-in trial rather than KiezelPay's automatic timed trial
 If a previous KiezelPay test purchase was completed and the watchface is reinstalled, use **Unlock Pro with KiezelPay** and Save Settings. Big Time starts the KiezelPay purchase request immediately when the saved Settings message reaches the watch. Expected result: the purchase code appears promptly; KiezelPay either restores licensed status or shows a fresh code.
 
 
-## Reinstall / stale entitlement test (v2.0.7)
+## Reinstall / stale entitlement test (v2.0.8)
 
 1. Complete a KiezelPay test purchase and verify Pro controls appear.
 2. Remove Big Time from the watch and reinstall it.
@@ -65,3 +65,12 @@ If a previous KiezelPay test purchase was completed and the watchface is reinsta
 5. If KiezelPay validates the previous license, Settings may open in Pro mode.
 6. After a 48-hour trial has ever been started, reinstalling Big Time should not offer a new `Try Pro Free` action on the same phone; it should show the trial as used/expired unless KiezelPay reports a permanent license.
 7. Confirm a Free watch ignores crafted/saved Pro customization values.
+
+
+## v2.0.8 regression test
+
+1. With an existing KiezelPay test purchase, install/update Big Time and switch to another watchface and back. Pro should remain stable after KiezelPay has confirmed the license once.
+2. Open Settings repeatedly. A Pro page must render completely through the Save button; it must never stop at an empty Appearance — Pro section.
+3. Delete the test purchase in KiezelPay, then use Unlock Pro. The normal direct path should show a code immediately. If KiezelPay is stuck in a stale session, the one-time fallback retry runs after 2.5 seconds.
+4. Complete the test purchase, close Settings, reopen Settings, and switch watchfaces and back. Pro should remain enabled.
+5. Fully uninstall/reinstall. A previous paid license may require KiezelPay's existing-purchase restore flow; Big Time must not grant Pro solely from phone cache.

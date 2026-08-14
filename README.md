@@ -1,5 +1,5 @@
 
-## v2.0.7 Clay settings fix
+## v2.0.8 Clay settings fix
 
 - Fixed Pro/Trial settings page truncating at the Appearance card.
 - Clay color defaults now use the documented six-digit hex format without a `0x` prefix.

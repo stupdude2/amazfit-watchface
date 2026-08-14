@@ -202,7 +202,7 @@ function customClay(minified) {
 // Build Settings only after the watch reports its current entitlement.
 // Phone localStorage is a cache only; it must never decide whether Pro controls
 // are shown because it can survive a watchface uninstall/reinstall.
-var clay = new Clay(buildClayConfig(false, 0, 0), customClay, { autoHandleEvents: false });
+var clay = null;
 var settingsOpenPending = false;
 var settingsOpenTimer = null;
 var currentProUnlocked = false;
@@ -217,7 +217,14 @@ function openSettingsWithCurrentEntitlement() {
     settingsOpenTimer = null;
   }
 
-  clay.config = buildClayConfig(currentProUnlocked, currentTrialState, currentTrialRemaining);
+  // Clay keeps internal item/page state. Reusing one instance while swapping
+  // configs can leave partially-built Pro sections after an entitlement change.
+  // Build a brand-new Clay instance for every Settings open instead.
+  clay = new Clay(
+    buildClayConfig(currentProUnlocked, currentTrialState, currentTrialRemaining),
+    customClay,
+    { autoHandleEvents: false }
+  );
   console.log('Opening Settings as ' + (currentProUnlocked ? 'PRO' : 'FREE') +
               ', trialState=' + currentTrialState);
   Pebble.openURL(clay.generateUrl());
@@ -247,6 +254,7 @@ Pebble.addEventListener('showConfiguration', function() {
 
 Pebble.addEventListener('webviewclosed', function(e) {
   if (!e || !e.response) return;
+  if (!clay) return;
   var dict = clay.getSettings(e.response);
   Pebble.sendAppMessage(dict, function() {
     console.log('Sent config data to Pebble');
