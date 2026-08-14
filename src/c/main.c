@@ -672,6 +672,14 @@ static bool s_have_high_low = false;
 static bool s_backlight_on = false;
 static bool s_backlight_subscribed = false;
 
+// Conditional bars/step bar should follow "the user is interacting with the
+// watch", not only whether the LED physically illuminated. In bright ambient
+// light the OS may suppress the LED even though a raise/touch was recognized.
+static bool s_interaction_active = false;
+static AppTimer *s_interaction_timer = NULL;
+static bool s_touch_subscribed = false;
+#define INTERACTION_WINDOW_MS 4000
+
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
 // Pebble Z is perpendicular to the display. A normal glance holds the display
 // much more vertically than "face up", so the read pose is detected primarily
@@ -1053,7 +1061,8 @@ static void update_stepbar_layout(void) {
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
   const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
   const bool backlight_only = stepbar_is_backlight_only();
-  const bool bar_visible = !permanently_hidden && (!backlight_only || s_backlight_on);
+  const bool interaction_visible = s_backlight_on || s_interaction_active;
+  const bool bar_visible = !permanently_hidden && (!backlight_only || interaction_visible);
 
   if (permanently_hidden) {
     // Only the true Hidden mode gives the clock the step-bar space.
@@ -1411,17 +1420,61 @@ static void update_footer_content(void) {
   if (s_footer_layer) layer_mark_dirty(s_footer_layer);
 }
 
+static void apply_bar_visibility(void);
+
+static bool interaction_should_be_visible(void) {
+  return s_backlight_on || s_interaction_active;
+}
+
+static void interaction_timeout_handler(void *context) {
+  s_interaction_timer = NULL;
+  s_interaction_active = false;
+
+  // Re-sample the actual LED state in case a physical backlight interval is
+  // still active after our logical interaction timer expires.
+  s_backlight_on = light_is_on();
+  apply_bar_visibility();
+  update_stepbar_layout();
+}
+
+static void begin_interaction_window(void) {
+  s_interaction_active = true;
+
+  if (s_interaction_timer) {
+    if (!app_timer_reschedule(s_interaction_timer, INTERACTION_WINDOW_MS)) {
+      s_interaction_timer = app_timer_register(
+          INTERACTION_WINDOW_MS, interaction_timeout_handler, NULL);
+    }
+  } else {
+    s_interaction_timer = app_timer_register(
+        INTERACTION_WINDOW_MS, interaction_timeout_handler, NULL);
+  }
+
+  apply_bar_visibility();
+  update_stepbar_layout();
+}
+
+static void touch_handler(const TouchEvent *event, void *context) {
+  if (!event || event->type != TouchEvent_Touchdown) return;
+
+  // Treat a screen touch exactly like an attempted backlight interaction.
+  // This keeps conditional data visible even when ambient-light logic decides
+  // the LED itself is unnecessary.
+  begin_interaction_window();
+  light_enable_interaction();
+}
+
 static void apply_bar_visibility(void) {
   if (s_header_layer) {
     const bool header_visible =
         (s_settings.header_mode == BAR_ALWAYS) ||
-        (s_settings.header_mode == BAR_BACKLIGHT && s_backlight_on);
+        (s_settings.header_mode == BAR_BACKLIGHT && interaction_should_be_visible());
     layer_set_hidden(s_header_layer, !header_visible);
   }
   if (s_footer_layer) {
     const bool footer_visible =
         (s_settings.footer_mode == BAR_ALWAYS) ||
-        (s_settings.footer_mode == BAR_BACKLIGHT && s_backlight_on);
+        (s_settings.footer_mode == BAR_BACKLIGHT && interaction_should_be_visible());
     layer_set_hidden(s_footer_layer, !footer_visible);
   }
 }
@@ -1456,6 +1509,16 @@ static void update_bar_input_services(void) {
   } else if (!want_backlight && s_backlight_subscribed) {
     backlight_service_unsubscribe();
     s_backlight_subscribed = false;
+  }
+
+  // On PT2, touchscreen intent is useful even when ambient light suppresses
+  // the physical LED. Subscribe only when some UI actually depends on it.
+  if (want_backlight && !s_touch_subscribed) {
+    touch_service_subscribe(touch_handler, NULL);
+    s_touch_subscribed = true;
+  } else if (!want_backlight && s_touch_subscribed) {
+    touch_service_unsubscribe();
+    s_touch_subscribed = false;
   }
 
   // Synchronize immediately rather than waiting for the next on/off transition.
@@ -1554,13 +1617,21 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
       bool cooldown_done =
           s_raise_last_wake_at == 0 || now_ms - s_raise_last_wake_at >= cooldown_ms;
 
-      if (recent_motion && cooldown_done && !light_is_on()) {
-        light_enable_interaction();
+      if (recent_motion && cooldown_done) {
+        // Mark the UI as actively viewed even if ambient-light logic suppresses
+        // the LED. This is what allows backlight-only bars to work outdoors.
+        begin_interaction_window();
+
+        if (!light_is_on()) {
+          light_enable_interaction();
+        }
+
         s_raise_last_wake_at = now_ms;
         APP_LOG(APP_LOG_LEVEL_INFO,
-                "Raise wake: mode=%d x=%d y=%d z=%d",
+                "Raise wake: mode=%d x=%d y=%d z=%d logical=1 light=%d",
                 (int)s_settings.raise_wake_mode,
-                (int)sample->x, (int)sample->y, (int)sample->z);
+                (int)sample->x, (int)sample->y, (int)sample->z,
+                light_is_on() ? 1 : 0);
       }
 
       // Treat this as one entry into the pose whether it woke the light or not.
@@ -2244,6 +2315,11 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
+  if (s_touch_subscribed) touch_service_unsubscribe();
+  if (s_interaction_timer) {
+    app_timer_cancel(s_interaction_timer);
+    s_interaction_timer = NULL;
+  }
   if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
 #if defined(PBL_HEALTH)

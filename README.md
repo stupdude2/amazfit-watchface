@@ -87,16 +87,16 @@ Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single 
 Pro builds now include a Background Color picker. Text and native footer icons that sit directly on the background automatically switch between light and dark foreground colors using Pebble's `gcolor_legible_over()`. Weather icons are tinted at runtime from the existing white RGBA assets, preserving their transparency while automatically matching the light/dark foreground selected for the current background. Accent-box text continues to contrast against the accent color, while Clock Color remains independently user-selectable.
 
 
-## v1.9.3 clock auto-contrast refinement
+## v1.9.4 clock auto-contrast refinement
 
 When the clock color is pure white or pure black, changing the background color now automatically switches the clock between white and black using Pebble's legibility helper. Any non-neutral custom clock color remains unchanged.
 
 
-## v1.9.3
+## v1.9.4
 Top and bottom bars now share customizable content choices. Day of Week, Date, and Month are available in bottom slots, while Weather, Steps, Battery, Heart Rate, Bluetooth, Day of Week, Date, and Month can be assigned to any top slot.
 
 
-## v1.9.3
+## v1.9.4
 - Added Restore Default Settings button with confirmation dialog in Clay.
 - Added Always Hidden modes for both Top Bar and Bottom Bar.
 - Renamed the step progress bar's Hidden option to Always Hidden for consistency.
@@ -107,56 +107,56 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 
 - Constrained restore confirmation buttons to equal 92px widths for reliable mobile layout.
 
-## v1.9.3
+## v1.9.4
 - Added selectable 12-hour / 24-hour clock format.
 - Preserved the original 12-hour digit geometry unchanged.
 - Added dedicated 24-hour geometry: 110px height, 12px strokes, 36px first-hour cell, 42px remaining digit cells, with the original 6px digit/colon spacing.
 - Existing settings migrate forward with 12-hour mode as the default.
 
-## v1.9.3
+## v1.9.4
 - 24-hour digit 1 now uses the same full-width seven-segment cell geometry as the other numerals.
 - 12-hour digit geometry is unchanged.
 
-## v1.9.3
+## v1.9.4
 - Increased 24-hour digit stroke thickness from 12px to 13px.
 - Narrowed the three regular 24-hour digit cells from 42px to 41px, increasing the outer margins while preserving the existing 6px digit/colon gaps and 110px clock height.
 
-## v1.9.3
+## v1.9.4
 - Increased 24-hour stroke thickness from 13px to 14px.
 - Narrowed regular 24-hour digit cells from 41px to 40px, increasing the outer margins to about 5.5px per side.
 - Applied the original 12-hour first-digit 1px inset to the leading 24-hour digit cell while retaining its wider geometry.
 
-## v1.9.3
+## v1.9.4
 - 24-hour digit 1 keeps a full-width allocated cell but now uses the same deliberate left-biased glyph placement as the 12-hour clock.
 - Regular 1s use the existing 8px ONE_X_OFFSET.
 - The leading hour 1 uses the existing 1px H1_ONE_X offset.
 - All 24-hour spacing, 14px stroke thickness, and outer margins remain unchanged.
 
-## v1.9.3
+## v1.9.4
 - 24-hour leading digit 1 now uses the same 8px ONE_X_OFFSET as every other 1.
 - 12-hour leading-digit geometry remains unchanged.
 
-## v1.9.3
+## v1.9.4
 - Moved Time Format to the first setting under Appearance.
 
-## v1.9.3
+## v1.9.4
 - Added Center 12 Hour Clock.
 - When enabled, 1:00-9:59 centers the visible H:MM group.
 - 10:00-12:59 keeps the original four-digit spacing.
 
-## v1.9.3
+## v1.9.4
 - Disabled Center 12 Hour Clock in settings whenever 24 Hour Time Format is selected; it re-enables when returning to 12 Hour.
 - All four 24-hour digit cells now use the same 39px width.
 - Removed the special first-digit geometry/inset in 24-hour mode.
 - Kept the 24-hour clock at the previous 189px total width with 14px strokes and existing digit/colon spacing.
 
-## v1.9.3
+## v1.9.4
 - Bottom-bar Day of Week, Date, and Month now match the header calendar style.
 - Calendar items use the large custom header font with no small label.
 - Calendar values are centered horizontally and vertically in left, center, or right footer slots.
 - Other footer item layouts are unchanged.
 
-## v1.9.3
+## v1.9.4
 - Added left/right-only bar choices for Calories, Distance, Sunrise, Sunset, and High / Low Temp.
 - Calories use Pebble Health active kilocalories for the current day.
 - Distance uses Pebble Health walked distance; miles are shown with Fahrenheit and kilometers with Celsius.
@@ -164,36 +164,43 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - High/Low uses the current temperature plus today's available 3-hour OpenWeather forecast points.
 - Top and bottom center choices remain unchanged.
 
-## v1.9.3
+## v1.9.4
 - Removed Day of Week and Month from top-center and bottom-center choices.
 - Center Weather now displays TEMP as the label with a centered temperature value and no weather icon.
 - Moved the top-center battery icon upward and matched its value layout to the bottom-center battery.
 
-## v1.9.3
+## v1.9.4
 - Step progress bar now switches to the Accent Color when the daily step goal is reached.
 
-## v1.9.3
+## v1.9.4
 - Added optional Raise to Wake modes: Off, Normal, and Sensitive.
 - Uses 10 Hz accelerometer samples batched five at a time (two app callbacks per second).
 - Detects a lowered/edge-on wrist followed by a stable face-toward-user orientation within a short gesture window.
 - Ignores vibration-contaminated samples, rejects high-impact samples, and uses a cooldown to reduce false wakes.
 - Triggers Pebble's system-managed short backlight with light_enable_interaction().
 
-## v1.9.3
+## v1.9.4
 - Reworked Raise to Wake around an upright, wearer-facing read pose instead of a face-up pose.
 - The detector no longer requires the wrist to begin from a hanging/down position.
 - Any meaningful recent wrist motion can arm the detector; entering and briefly stabilizing in the read pose triggers the backlight.
 - Uses Y-dominant / low-Z orientation thresholds, motion memory, stable-pose confirmation, and cooldown filtering.
 - Raise logs now include x/y/z values for tuning on real hardware.
 
-## v1.9.3
+## v1.9.4
 - Raise to Wake now preserves the Y-axis sign instead of using |Y|.
 - Wearer-facing orientation requires negative Y, based on PT2 hardware logs.
 - Mirror-image positive-Y orientation (watch flipped away) is rejected.
 
-## v1.9.3
+## v1.9.4
 - Normal Raise to Wake now requires slightly more wrist movement (motion threshold 180 -> 210).
 - Normal motion-memory window shortened from 1100 ms to 950 ms to reduce incidental triggers.
 - Accelerometer remains at 10 Hz, but batching increased from 5 to 10 samples.
 - App-side accelerometer callbacks drop from about 2 per second to about 1 per second, reducing CPU wakeups while retaining the same sensor sampling fidelity.
 - Sensitive mode thresholds remain unchanged.
+
+## v1.9.4
+- Decoupled conditional UI visibility from the physical backlight LED.
+- Successful Raise to Wake starts a 4-second logical interaction window even if ambient light suppresses the LED.
+- PT2 screen Touchdown also starts the logical interaction window and requests the normal system backlight interaction.
+- Top Bar, Bottom Bar, and backlight-only Step Bar now show whenever either the real backlight is on OR the logical interaction window is active.
+- Added raise logs showing both logical interaction and physical light state for outdoor testing.
