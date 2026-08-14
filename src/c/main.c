@@ -311,7 +311,6 @@ static WatchfaceSettings s_settings;
 // premium features accidentally.
 static bool s_pro_unlocked = false;
 static bool s_kiezelpay_licensed = false;
-static AppTimer *s_kiezelpay_purchase_timer = NULL;
 static bool s_trial_active = false;
 
 static void license_send_status_to_phone(void);
@@ -1973,39 +1972,6 @@ static bool kiezelpay_event_callback(kiezelpay_event event, void *extra_data) {
   return false;
 }
 
-static void kiezelpay_purchase_retry_timer_cb(void *context) {
-  s_kiezelpay_purchase_timer = NULL;
-
-  if (s_kiezelpay_licensed) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase retry skipped; already licensed");
-    return;
-  }
-
-  // A previous test purchase/reinstall can leave KiezelPay with a stale
-  // purchase session. Explicitly cancel that session before requesting a new
-  // code/status. This call happens after the Settings AppMessage transaction
-  // has completed so KiezelPay is free to use the shared AppMessage channel.
-  APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: resetting purchase session and requesting fresh code/status");
-  kiezelpay_cancel_purchase();
-  kiezelpay_start_purchase();
-}
-
-static void kiezelpay_request_purchase_fresh(void) {
-  if (s_kiezelpay_licensed) {
-    license_send_status_to_phone();
-    return;
-  }
-
-  if (s_kiezelpay_purchase_timer) {
-    app_timer_cancel(s_kiezelpay_purchase_timer);
-    s_kiezelpay_purchase_timer = NULL;
-  }
-
-  // Do not start another AppMessage-driven transaction from inside the inbox
-  // callback that delivered the Clay settings. Defer very briefly instead.
-  s_kiezelpay_purchase_timer = app_timer_register(250, kiezelpay_purchase_retry_timer_cb, NULL);
-}
-
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool weather_changed = false;
@@ -2052,8 +2018,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_PURCHASE_PRO:
         if (tuple_to_int32(t, 0) == 1 && !s_kiezelpay_licensed) {
-          APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: fresh purchase requested from Settings");
-          kiezelpay_request_purchase_fresh();
+          APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase requested from Settings");
+          // Start KiezelPay immediately. This matches the original integration
+          // path and avoids the ~15 second delay caused by canceling/resetting
+          // the purchase session before each request.
+          kiezelpay_start_purchase();
         }
         break;
 
