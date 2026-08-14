@@ -2633,10 +2633,6 @@ static void init(void) {
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
-  if (s_kiezelpay_purchase_timer) {
-    app_timer_cancel(s_kiezelpay_purchase_timer);
-    s_kiezelpay_purchase_timer = NULL;
-  }
   kiezelpay_deinit();
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();

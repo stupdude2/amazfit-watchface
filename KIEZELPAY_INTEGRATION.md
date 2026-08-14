@@ -43,7 +43,7 @@ Keep `KIEZELPAY_DISABLE_TIME_TRIAL 1` in both test and production. Big Time owns
 the opt-in 48-hour trial; KiezelPay's automatic timed-trial behavior must remain disabled.
 
 
-## v2.0.5 entitlement/UI correction
+## v2.0.6 entitlement/UI correction
 
 - The watch is the authority for whether Pro controls are shown. Settings requests `LICENSE_CHECK` every time it opens and waits for the watch response before Clay builds the page.
 - Phone `localStorage` is cache/history only and cannot grant Pro. This prevents a prior Pro value from surviving a watchface uninstall/reinstall and incorrectly rendering Pro controls.
