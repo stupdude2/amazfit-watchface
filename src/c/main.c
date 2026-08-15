@@ -1918,6 +1918,19 @@ static void license_send_status_to_phone(void) {
   }
 
   dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
+
+  // Reuse LICENSE_CHECK in the watch -> phone response to report remaining
+  // trial seconds. Phone -> watch still uses the same key as the status request.
+  int32_t trial_remaining = 0;
+  if (entitlement == 1 && persist_exists(PRO_TRIAL_PERSIST_KEY)) {
+    int32_t expires_at = persist_read_int(PRO_TRIAL_PERSIST_KEY);
+    int32_t now = (int32_t)time(NULL);
+    if (expires_at > now) {
+      trial_remaining = expires_at - now;
+    }
+  }
+  dict_write_int32(iter, KEY_LICENSE_CHECK, trial_remaining);
+
   app_message_outbox_send();
 }
 

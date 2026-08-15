@@ -34,11 +34,26 @@ var centerOptions = [
   { "label": "Date", "value": "6" }
 ];
 
+function formatTrialRemaining(totalSeconds) {
+  var seconds = Math.max(0, Number(totalSeconds) || 0);
+  var hours = Math.floor(seconds / 3600);
+  var minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return hours + " hr " + minutes + " min remaining";
+  }
+  if (minutes > 0) {
+    return minutes + " min remaining";
+  }
+  return "Less than 1 min remaining";
+}
+
 var statusText =
   edition.isPurchased
     ? "Pro — Thank you for purchasing Big Time Pro!"
     : edition.isTrial
-      ? "Free Trial — Your Big Time Pro trial is currently active."
+      ? "Free Trial — Your Big Time Pro trial is currently active. " +
+        formatTrialRemaining(edition.trialRemaining) + "."
       : "Free";
 
 var config = [

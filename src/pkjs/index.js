@@ -200,6 +200,7 @@ function customClay(minified) {
 
 var sessionProUnlocked = false;
 var sessionEntitlement = 0; // 0 Free, 1 Trial, 2 Purchased Pro
+var sessionTrialRemaining = 0;
 var sessionLicenseKnown = false;
 var pendingOpenSettings = false;
 
@@ -216,6 +217,7 @@ function openSettingsPage() {
     editionModule.entitlement = sessionEntitlement;
     editionModule.isTrial = sessionEntitlement === 1;
     editionModule.isPurchased = sessionEntitlement === 2;
+    editionModule.trialRemaining = sessionTrialRemaining;
     editionModule.isPro = sessionEntitlement > 0;
     sessionProUnlocked = editionModule.isPro;
 
@@ -470,6 +472,13 @@ Pebble.addEventListener('appmessage', function(e) {
   }
   sessionProUnlocked = sessionEntitlement > 0;
   sessionLicenseKnown = true;
+
+  if (typeof e.payload.LICENSE_CHECK !== 'undefined') {
+    var remaining = Number(e.payload.LICENSE_CHECK);
+    sessionTrialRemaining = (!isNaN(remaining) && remaining > 0) ? remaining : 0;
+  } else if (sessionEntitlement !== 1) {
+    sessionTrialRemaining = 0;
+  }
 
   var entitlementLabel =
       sessionEntitlement === 2 ? 'purchased Pro' :

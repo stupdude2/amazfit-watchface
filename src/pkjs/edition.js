@@ -4,5 +4,6 @@ module.exports = {
   isPro: false,
   entitlement: 0,
   isTrial: false,
-  isPurchased: false
+  isPurchased: false,
+  trialRemaining: 0
 };
