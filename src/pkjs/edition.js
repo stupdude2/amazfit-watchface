@@ -1,4 +1,6 @@
-// Generated/updated by tools/set-edition.ps1.
+// Runtime licensing.
+// Never trust a cached phone-side flag to expose Pro controls.
+// The watch/KiezelPay entitlement is authoritative.
 module.exports = {
-  isPro: true
+  isPro: false
 };

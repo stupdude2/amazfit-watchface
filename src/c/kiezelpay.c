@@ -50,7 +50,7 @@
   Set to 0 to let kiezelpay automatically initiate the purchase as soon as the time-based trial configured on the server has ended.
   In case no time based trial is configured on the server, this will require the user to purchase the app immediately after installing it.
 */
-#define KIEZELPAY_DISABLE_TIME_TRIAL 0
+#define KIEZELPAY_DISABLE_TIME_TRIAL 1
 
 /**
   Set to 1 when you want to remove all code that has to do with message display to save memory and code space, in this mode the message display needs to be handled by yourself!

@@ -198,19 +198,64 @@ function customClay(minified) {
   });
 }
 
+var sessionProUnlocked = false;
+var sessionLicenseKnown = false;
+var pendingOpenSettings = false;
+
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
 
 // Explicitly own the configuration-page lifecycle instead of relying on
 // Clay's automatic Pebble event registration. This is more robust alongside
 // KiezelPay/other packages that also register PebbleKit JS listeners.
-Pebble.addEventListener('showConfiguration', function() {
+function openSettingsPage() {
   try {
-    var url = clay.generateUrl();
-    console.log('Opening Clay configuration page');
-    Pebble.openURL(url);
+    // Rebuild Clay with the current session entitlement so Pro controls are
+    // shown only after the watch has actually confirmed a license.
+    var editionModule = require('./edition');
+    editionModule.isPro = sessionProUnlocked;
+
+    // config.js is loaded once by CommonJS, so create a fresh config module
+    // snapshot by clearing its cache when available.
+    try {
+      delete require.cache[require.resolve('./config')];
+    } catch (e) {}
+
+    var liveConfig = require('./config');
+    clay = new Clay(liveConfig, customClay, { autoHandleEvents: false });
+
+    console.log('Opening Clay configuration page; pro=' + sessionProUnlocked);
+    Pebble.openURL(clay.generateUrl());
   } catch (e) {
     console.log('Failed to open configuration: ' + e);
   }
+}
+
+Pebble.addEventListener('showConfiguration', function() {
+  pendingOpenSettings = true;
+
+  // Ask the watch for authoritative entitlement every time settings opens.
+  Pebble.sendAppMessage(
+    {'LICENSE_CHECK': 1},
+    function() {},
+    function() {
+      // If the watch cannot be reached, fail closed to Free settings.
+      sessionLicenseKnown = true;
+      sessionProUnlocked = false;
+      if (pendingOpenSettings) {
+        pendingOpenSettings = false;
+        openSettingsPage();
+      }
+    }
+  );
+
+  // Failsafe: never leave the Settings button hanging.
+  setTimeout(function() {
+    if (pendingOpenSettings) {
+      pendingOpenSettings = false;
+      if (!sessionLicenseKnown) sessionProUnlocked = false;
+      openSettingsPage();
+    }
+  }, 900);
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
@@ -379,7 +424,6 @@ Pebble.addEventListener('appmessage', function(e) {
 
 // Fetch on launch
 Pebble.addEventListener('ready', function() {
-  Pebble.sendAppMessage({'LICENSE_CHECK': 1}, function(){}, function(){});
   console.log('PebbleKit JS ready');
 
   navigator.geolocation.getCurrentPosition(
@@ -394,13 +438,16 @@ Pebble.addEventListener('ready', function() {
 });
 
 // Runtime Pro status is authoritative from the watch/C side.
-// The product-specific KiezelPay library will call watchface_kiezelpay_set_licensed()
-// in C; the watch mirrors that state to JS with PRO_LICENSE.
 Pebble.addEventListener('appmessage', function(e) {
   if (!e || !e.payload || typeof e.payload.PRO_LICENSE === 'undefined') return;
-  var unlocked = Number(e.payload.PRO_LICENSE) === 1;
-  try {
-    localStorage.setItem('amazfit_bip_port_pro', unlocked ? '1' : '0');
-  } catch (err) {}
-  console.log('Pro license status from watch: ' + (unlocked ? 'unlocked' : 'free'));
+
+  sessionProUnlocked = Number(e.payload.PRO_LICENSE) === 1;
+  sessionLicenseKnown = true;
+  console.log('Pro license status from watch: ' +
+              (sessionProUnlocked ? 'unlocked' : 'free'));
+
+  if (pendingOpenSettings) {
+    pendingOpenSettings = false;
+    openSettingsPage();
+  }
 });

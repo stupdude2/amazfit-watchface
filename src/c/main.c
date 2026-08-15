@@ -1788,27 +1788,13 @@ static void update_background_contrast(void) {
 
 static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
   switch (e) {
-#if KIEZELPAY_DISABLE_TIME_TRIAL == 0
-    case KIEZELPAY_TRIAL_STARTED:
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: trial started -> Pro enabled");
-      license_set_pro(true);
-      break;
-#endif
-
     case KIEZELPAY_LICENSED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed -> Pro enabled");
       license_set_pro(true);
       break;
 
-    case KIEZELPAY_TRIAL_ENDED:
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: trial ended -> Free mode");
-      license_set_pro(false);
-      break;
-
     case KIEZELPAY_CODE_AVAILABLE:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available");
-      // Remain Free while waiting for purchase.
-      license_set_pro(false);
       break;
 
     case KIEZELPAY_PURCHASE_STARTED:
@@ -1880,7 +1866,7 @@ static void license_set_pro(bool unlocked) {
 
 // KiezelPay integration point:
 // Call this from the product-specific KiezelPay license callback.
-// Licensed/trial behavior can be mapped here according to the product settings.
+// Only a verified KiezelPay license should call this true. The optional Pro trial is managed separately by Big Time.
 void watchface_kiezelpay_set_licensed(bool licensed) {
   license_set_pro(licensed);
 }
