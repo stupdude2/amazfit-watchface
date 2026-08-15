@@ -110,6 +110,8 @@ static bool stepbar_is_left_to_right(void);
 #define KEY_RAISE_WAKE     23
 #define KEY_PRO_LICENSE    24
 #define KEY_LICENSE_CHECK  25
+#define KEY_TRY_PRO_FREE   26
+#define KEY_UNLOCK_PRO     27
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
@@ -301,6 +303,14 @@ static WatchfaceSettings s_settings;
 // Default is free/locked so a failed or unavailable license check never grants
 // premium features accidentally.
 static bool s_pro_unlocked = false;
+
+// Big Time's trial is deliberately user-started rather than KiezelPay's
+// automatic timed trial. This preserves a permanently usable Free edition.
+#define PRO_TRIAL_PERSIST_KEY  1002
+#define PRO_TRIAL_SECONDS      (48 * 60 * 60)
+static bool s_trial_active = false;
+static bool s_kiezelpay_licensed = false;
+
 static EventHandle s_appmsg_received_handle;
 static EventHandle s_appmsg_dropped_handle;
 static bool s_appmsg_handlers_registered = false;
@@ -1786,10 +1796,79 @@ static void update_background_contrast(void) {
 }
 
 
+static bool pro_trial_is_active(void) {
+  if (!persist_exists(PRO_TRIAL_PERSIST_KEY)) {
+    s_trial_active = false;
+    return false;
+  }
+
+  time_t expires_at = (time_t)persist_read_int(PRO_TRIAL_PERSIST_KEY);
+  time_t now = time(NULL);
+
+  if (expires_at > now) {
+    s_trial_active = true;
+    return true;
+  }
+
+  persist_delete(PRO_TRIAL_PERSIST_KEY);
+  s_trial_active = false;
+  return false;
+}
+
+static bool pro_trial_has_been_used(void) {
+  // A negative persisted value marks an already-used/expired trial.
+  return persist_exists(PRO_TRIAL_PERSIST_KEY) &&
+         persist_read_int(PRO_TRIAL_PERSIST_KEY) < 0;
+}
+
+static void pro_trial_mark_expired(void) {
+  persist_write_int(PRO_TRIAL_PERSIST_KEY, -1);
+  s_trial_active = false;
+}
+
+static void pro_trial_start(void) {
+  if (pro_trial_is_active()) {
+    license_set_pro(true);
+    return;
+  }
+
+  if (pro_trial_has_been_used()) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Pro trial already used");
+    return;
+  }
+
+  time_t expires_at = time(NULL) + PRO_TRIAL_SECONDS;
+  persist_write_int(PRO_TRIAL_PERSIST_KEY, (int32_t)expires_at);
+  s_trial_active = true;
+  APP_LOG(APP_LOG_LEVEL_INFO, "Big Time Pro trial started; expires=%ld",
+          (long)expires_at);
+  license_set_pro(true);
+}
+
+static void pro_trial_refresh(void) {
+  if (!persist_exists(PRO_TRIAL_PERSIST_KEY)) return;
+
+  int32_t stored = persist_read_int(PRO_TRIAL_PERSIST_KEY);
+  if (stored < 0) {
+    s_trial_active = false;
+    return;
+  }
+
+  if ((time_t)stored > time(NULL)) {
+    s_trial_active = true;
+    license_set_pro(true);
+  } else {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Big Time Pro trial expired");
+    pro_trial_mark_expired();
+    if (!s_pro_unlocked) license_set_pro(false);
+  }
+}
+
 static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
   switch (e) {
     case KIEZELPAY_LICENSED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed -> Pro enabled");
+      s_kiezelpay_licensed = true;
       license_set_pro(true);
       break;
 
@@ -2089,7 +2168,21 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
 #endif
 
+      case KEY_TRY_PRO_FREE:
+        if (tuple_to_int32(t) != 0 && !s_kiezelpay_licensed) {
+          pro_trial_start();
+        }
+        break;
+
+      case KEY_UNLOCK_PRO:
+        if (tuple_to_int32(t) != 0 && !s_kiezelpay_licensed) {
+          APP_LOG(APP_LOG_LEVEL_INFO, "Starting KiezelPay purchase on user request");
+          kiezelpay_start_purchase();
+        }
+        break;
+
       case KEY_LICENSE_CHECK:
+        pro_trial_refresh();
         license_send_status_to_phone();
         break;
 
@@ -2486,6 +2579,8 @@ static void init(void) {
   events_app_message_request_outbox_size(256);
   events_app_message_open();
 
+  // Restore an explicitly-started Big Time trial across watchface restarts.
+  pro_trial_refresh();
   license_send_status_to_phone();
   battery_state_service_subscribe(battery_handler);
   connection_service_subscribe((ConnectionHandlers){

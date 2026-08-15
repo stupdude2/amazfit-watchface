@@ -42,7 +42,9 @@
       "LOW_TEMP": 22,
       "RAISE_WAKE": 23,
       "PRO_LICENSE": 24,
-      "LICENSE_CHECK": 25
+      "LICENSE_CHECK": 25,
+      "TRY_PRO_FREE": 26,
+      "UNLOCK_PRO": 27
     },
     "projectType": "native",
     "resources": {
@@ -112,5 +114,5 @@
       "watchface": true
     }
   },
-  "version": "2.0.5"
+  "version": "2.0.6"
 }

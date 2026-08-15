@@ -69,10 +69,28 @@ if (!edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Pro Customization" },
+      { "type": "heading", "defaultValue": "Big Time Pro" },
       {
         "type": "text",
-        "defaultValue": "Unlock Pro with KiezelPay for colors, bar layouts, weather units, step-goal customization, raise-to-wake, and all advanced options."
+        "defaultValue": "48-hour Pro trial available. The trial does not start automatically."
+      },
+      {
+        "type": "toggle",
+        "messageKey": "TRY_PRO_FREE",
+        "defaultValue": false,
+        "label": "Try Pro Free",
+        "description": "Enable and tap Save Settings to start your 48-hour Pro trial."
+      },
+      {
+        "type": "toggle",
+        "messageKey": "UNLOCK_PRO",
+        "defaultValue": false,
+        "label": "Unlock Pro with KiezelPay",
+        "description": "Enable and tap Save Settings. Your purchase code will appear on the watch. This also restores an existing purchase."
+      },
+      {
+        "type": "text",
+        "defaultValue": "Pro unlocks colors, layouts, custom step goals, weather options, Raise to Wake, and all advanced customization."
       }
     ]
   });
@@ -186,6 +204,20 @@ if (edition.isPro) {
           { "label": "Mirrored Above Time — With Backlight", "value": "7" },
           { "label": "Left to Right Above Time — With Backlight", "value": "8" }
         ]
+      }
+    ]
+  });
+
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "KiezelPay" },
+      {
+        "type": "toggle",
+        "messageKey": "UNLOCK_PRO",
+        "defaultValue": false,
+        "label": "Purchase / Restore Pro",
+        "description": "Enable and tap Save Settings to display a KiezelPay purchase code or restore an existing purchase."
       }
     ]
   });
