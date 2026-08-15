@@ -1905,7 +1905,19 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
 static void license_send_status_to_phone(void) {
   DictionaryIterator *iter = NULL;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK || !iter) return;
-  dict_write_uint8(iter, KEY_PRO_LICENSE, s_pro_unlocked ? 1 : 0);
+
+  // Reuse the existing PRO_LICENSE key as an entitlement state:
+  //   0 = Free
+  //   1 = Free Trial
+  //   2 = Purchased / restored Pro
+  uint8_t entitlement = 0;
+  if (s_kiezelpay_licensed) {
+    entitlement = 2;
+  } else if (s_trial_active && s_pro_unlocked) {
+    entitlement = 1;
+  }
+
+  dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
   app_message_outbox_send();
 }
 

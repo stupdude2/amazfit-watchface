@@ -34,10 +34,21 @@ var centerOptions = [
   { "label": "Date", "value": "6" }
 ];
 
+var statusText =
+  edition.isPurchased
+    ? "Pro — Thank you for purchasing Big Time Pro!"
+    : edition.isTrial
+      ? "Free Trial — Your Big Time Pro trial is currently active."
+      : "Free";
+
 var config = [
   {
     "type": "heading",
-    "defaultValue": edition.isPro ? "Amazfit Bip Port Pro" : "Amazfit Bip Port"
+    "defaultValue": "Big Time"
+  },
+  {
+    "type": "text",
+    "defaultValue": statusText
   },
   {
     "type": "section",
@@ -69,7 +80,7 @@ if (!edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Big Time Pro" },
+      { "type": "heading", "defaultValue": "Upgrade to Pro" },
       {
         "type": "text",
         "defaultValue": "48-hour Pro trial available. The trial does not start automatically."

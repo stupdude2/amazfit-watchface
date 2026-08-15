@@ -199,6 +199,7 @@ function customClay(minified) {
 }
 
 var sessionProUnlocked = false;
+var sessionEntitlement = 0; // 0 Free, 1 Trial, 2 Purchased Pro
 var sessionLicenseKnown = false;
 var pendingOpenSettings = false;
 
@@ -212,7 +213,11 @@ function openSettingsPage() {
     // Rebuild Clay with the current session entitlement so Pro controls are
     // shown only after the watch has actually confirmed a license.
     var editionModule = require('./edition');
-    editionModule.isPro = sessionProUnlocked;
+    editionModule.entitlement = sessionEntitlement;
+    editionModule.isTrial = sessionEntitlement === 1;
+    editionModule.isPurchased = sessionEntitlement === 2;
+    editionModule.isPro = sessionEntitlement > 0;
+    sessionProUnlocked = editionModule.isPro;
 
     // config.js is loaded once by CommonJS, so create a fresh config module
     // snapshot by clearing its cache when available.
@@ -255,6 +260,7 @@ Pebble.addEventListener('showConfiguration', function() {
     function() {
       // If the watch cannot be reached, fail closed to Free settings.
       sessionLicenseKnown = true;
+      sessionEntitlement = 0;
       sessionProUnlocked = false;
       if (pendingOpenSettings) {
         pendingOpenSettings = false;
@@ -458,11 +464,17 @@ Pebble.addEventListener('ready', function() {
 Pebble.addEventListener('appmessage', function(e) {
   if (!e || !e.payload || typeof e.payload.PRO_LICENSE === 'undefined') return;
 
-  sessionProUnlocked = Number(e.payload.PRO_LICENSE) === 1;
+  sessionEntitlement = Number(e.payload.PRO_LICENSE);
+  if (isNaN(sessionEntitlement) || sessionEntitlement < 0 || sessionEntitlement > 2) {
+    sessionEntitlement = 0;
+  }
+  sessionProUnlocked = sessionEntitlement > 0;
   sessionLicenseKnown = true;
 
-  console.log('Pro license status from watch: ' +
-              (sessionProUnlocked ? 'unlocked' : 'free'));
+  var entitlementLabel =
+      sessionEntitlement === 2 ? 'purchased Pro' :
+      sessionEntitlement === 1 ? 'free trial' : 'free';
+  console.log('Big Time entitlement from watch: ' + entitlementLabel);
 
   if (pendingOpenSettings) {
     pendingOpenSettings = false;

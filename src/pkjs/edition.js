@@ -1,6 +1,8 @@
-// Runtime licensing.
-// Never trust a cached phone-side flag to expose Pro controls.
-// The watch/KiezelPay entitlement is authoritative.
+// Runtime licensing state populated by index.js immediately before Clay config is built.
+// 0 = Free, 1 = Free Trial, 2 = Purchased / restored Pro.
 module.exports = {
-  isPro: false
+  isPro: false,
+  entitlement: 0,
+  isTrial: false,
+  isPurchased: false
 };
