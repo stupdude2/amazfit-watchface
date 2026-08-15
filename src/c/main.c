@@ -757,8 +757,10 @@ static bool s_backlight_subscribed = false;
 // light the OS may suppress the LED even though a raise/touch was recognized.
 static bool s_interaction_active = false;
 static AppTimer *s_interaction_timer = NULL;
+static time_t s_interaction_expires_at = 0;
 static bool s_touch_subscribed = false;
 #define INTERACTION_WINDOW_MS 4000
+#define INTERACTION_WINDOW_SECONDS 4
 
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
 // Pebble Z is perpendicular to the display. A normal glance holds the display
@@ -1141,7 +1143,7 @@ static void update_stepbar_layout(void) {
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
   const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
   const bool backlight_only = stepbar_is_backlight_only();
-  const bool interaction_visible = s_backlight_on || s_interaction_active;
+  const bool interaction_visible = interaction_should_be_visible();
   const bool bar_visible = !permanently_hidden && (!backlight_only || interaction_visible);
 
   if (permanently_hidden) {
@@ -1502,33 +1504,69 @@ static void update_footer_content(void) {
 
 static void apply_bar_visibility(void);
 
+static bool logical_interaction_is_active(void) {
+  if (!s_interaction_active) return false;
+
+  time_t now = time(NULL);
+  if (s_interaction_expires_at > 0 && now >= s_interaction_expires_at) {
+    s_interaction_active = false;
+    s_interaction_expires_at = 0;
+
+    if (s_interaction_timer) {
+      app_timer_cancel(s_interaction_timer);
+      s_interaction_timer = NULL;
+    }
+
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Interaction window expired by deadline check");
+    return false;
+  }
+
+  return true;
+}
+
 static bool interaction_should_be_visible(void) {
-  return s_backlight_on || s_interaction_active;
+  return s_backlight_on || logical_interaction_is_active();
 }
 
 static void interaction_timeout_handler(void *context) {
   s_interaction_timer = NULL;
-  s_interaction_active = false;
 
-  // Re-sample the actual LED state in case a physical backlight interval is
-  // still active after our logical interaction timer expires.
+  // The absolute deadline is authoritative. This callback is only an efficient
+  // way to refresh the UI at approximately the right time.
+  if (s_interaction_expires_at > 0 && time(NULL) >= s_interaction_expires_at) {
+    s_interaction_active = false;
+    s_interaction_expires_at = 0;
+  }
+
   s_backlight_on = light_is_on();
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Interaction timeout: logical=%d light=%d",
+          s_interaction_active ? 1 : 0,
+          s_backlight_on ? 1 : 0);
+
   apply_bar_visibility();
   update_stepbar_layout();
 }
 
 static void begin_interaction_window(void) {
   s_interaction_active = true;
+  s_interaction_expires_at = time(NULL) + INTERACTION_WINDOW_SECONDS;
 
+  // Always cancel and create a fresh one-shot timer. This avoids depending on
+  // app_timer_reschedule() state if focus/services changed during the old timer.
   if (s_interaction_timer) {
-    if (!app_timer_reschedule(s_interaction_timer, INTERACTION_WINDOW_MS)) {
-      s_interaction_timer = app_timer_register(
-          INTERACTION_WINDOW_MS, interaction_timeout_handler, NULL);
-    }
-  } else {
-    s_interaction_timer = app_timer_register(
-        INTERACTION_WINDOW_MS, interaction_timeout_handler, NULL);
+    app_timer_cancel(s_interaction_timer);
+    s_interaction_timer = NULL;
   }
+
+  s_interaction_timer = app_timer_register(
+      INTERACTION_WINDOW_MS, interaction_timeout_handler, NULL);
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Interaction begin: expires=%ld light=%d",
+          (long)s_interaction_expires_at,
+          light_is_on() ? 1 : 0);
 
   apply_bar_visibility();
   update_stepbar_layout();
@@ -1537,42 +1575,62 @@ static void begin_interaction_window(void) {
 static void touch_handler(const TouchEvent *event, void *context) {
   if (!event || event->type != TouchEvent_Touchdown) return;
 
-  // Treat a screen touch exactly like an attempted backlight interaction.
-  // This keeps conditional data visible even when ambient-light logic decides
-  // the LED itself is unnecessary.
   begin_interaction_window();
   light_enable_interaction();
 }
 
 static void apply_bar_visibility(void) {
+  const bool interaction_visible = interaction_should_be_visible();
+
   if (s_header_layer) {
     const bool header_visible =
         (s_settings.header_mode == BAR_ALWAYS) ||
-        (s_settings.header_mode == BAR_BACKLIGHT && interaction_should_be_visible());
+        (s_settings.header_mode == BAR_BACKLIGHT && interaction_visible);
     layer_set_hidden(s_header_layer, !header_visible);
   }
+
   if (s_footer_layer) {
     const bool footer_visible =
         (s_settings.footer_mode == BAR_ALWAYS) ||
-        (s_settings.footer_mode == BAR_BACKLIGHT && interaction_should_be_visible());
+        (s_settings.footer_mode == BAR_BACKLIGHT && interaction_visible);
     layer_set_hidden(s_footer_layer, !footer_visible);
   }
 }
 
 static void backlight_handler(bool on) {
   s_backlight_on = on;
+
+  // Also validate the logical deadline on every physical light transition.
+  logical_interaction_is_active();
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Backlight event: on=%d logical=%d",
+          on ? 1 : 0,
+          s_interaction_active ? 1 : 0);
+
   apply_bar_visibility();
   update_stepbar_layout();
 }
 
 static void focus_handler(bool in_focus) {
-  if (!in_focus) return;
+  if (!in_focus) {
+    // Do not destroy a legitimate short interaction merely because a system
+    // overlay appeared, but make sure its absolute expiration remains valid.
+    logical_interaction_is_active();
+    return;
+  }
 
-  // BacklightService is edge-triggered. If the user leaves the watchface while
-  // the light is on and returns before it switches off, no new "on" edge occurs.
-  // Query the current hardware state whenever the watchface regains focus so
-  // backlight-controlled bars immediately match what the user can actually see.
+  // BacklightService is edge-triggered. Re-read physical state when returning
+  // from menus/notifications and independently validate the logical deadline.
   s_backlight_on = light_is_on();
+  logical_interaction_is_active();
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Focus returned: light=%d logical=%d expires=%ld",
+          s_backlight_on ? 1 : 0,
+          s_interaction_active ? 1 : 0,
+          (long)s_interaction_expires_at);
+
   apply_bar_visibility();
   update_stepbar_layout();
 }
@@ -1603,6 +1661,7 @@ static void update_bar_input_services(void) {
 
   // Synchronize immediately rather than waiting for the next on/off transition.
   s_backlight_on = light_is_on();
+  logical_interaction_is_active();
   apply_bar_visibility();
   update_stepbar_layout();
 }
@@ -2648,6 +2707,8 @@ static void deinit(void) {
     app_timer_cancel(s_interaction_timer);
     s_interaction_timer = NULL;
   }
+  s_interaction_active = false;
+  s_interaction_expires_at = 0;
   if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
 #if defined(PBL_HEALTH)
