@@ -37,6 +37,7 @@
 static bool stepbar_is_backlight_only(void);
 static bool stepbar_is_above(void);
 static bool stepbar_is_left_to_right(void);
+static bool interaction_should_be_visible(void);
 
 #define STEP_GOAL        5000
 #define BAR_MARGIN        8
