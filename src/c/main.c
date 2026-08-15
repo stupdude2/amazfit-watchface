@@ -2169,13 +2169,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
       case KEY_TRY_PRO_FREE:
-        if (tuple_to_int32(t) != 0 && !s_kiezelpay_licensed) {
+        if (tuple_to_int32(t, 0) != 0 && !s_kiezelpay_licensed) {
           pro_trial_start();
         }
         break;
 
       case KEY_UNLOCK_PRO:
-        if (tuple_to_int32(t) != 0 && !s_kiezelpay_licensed) {
+        if (tuple_to_int32(t, 0) != 0 && !s_kiezelpay_licensed) {
           APP_LOG(APP_LOG_LEVEL_INFO, "Starting KiezelPay purchase on user request");
           kiezelpay_start_purchase();
         }
