@@ -50,7 +50,7 @@
   Set to 0 to let kiezelpay automatically initiate the purchase as soon as the time-based trial configured on the server has ended.
   In case no time based trial is configured on the server, this will require the user to purchase the app immediately after installing it.
 */
-#define KIEZELPAY_DISABLE_TIME_TRIAL 1
+#define KIEZELPAY_DISABLE_TIME_TRIAL 0
 
 /**
   Set to 1 when you want to remove all code that has to do with message display to save memory and code space, in this mode the message display needs to be handled by yourself!
@@ -104,7 +104,7 @@
 */
 #define KIEZELPAY_CODE_AVAILABLE_MSG "To continue using BIG TIME please visit kzl.io/code and enter this code:"
 #define KIEZELPAY_PURCHASE_STARTED_MSG "Please complete the purchase process on kzl.io/code to unlock BIG TIME"
-#define KIEZELPAY_LICENSED_MSG "Big Time Pro unlocked! Thank you for your purchase."
+#define KIEZELPAY_LICENSED_MSG "Thank you for your purchase!"
 
 
 /***************************************************/

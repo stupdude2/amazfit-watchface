@@ -2,8 +2,8 @@
   "author": "Bradford",
   "dependencies": {
     "@rebble/clay": "^1.0.0",
-    "kiezelpay-core": "^2.0.3",
-    "pebble-events": "^1.0.2"
+    "kiezelpay-core": "^2.2.4",
+    "pebble-events": "^1.2.1"
   },
   "keywords": [
     "pebble-app"
@@ -112,5 +112,5 @@
       "watchface": true
     }
   },
-  "version": "2.0.3"
+  "version": "2.0.4"
 }

@@ -10,6 +10,12 @@
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 
+// Official KiezelPay phone-side companion. Keep verbose logging enabled while
+// test purchases/trials are being validated; disable before store release.
+var KIEZELPAY_LOGGING = true;
+var KiezelPay = require('kiezelpay-core');
+var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
+
 // Injected into Clay's generated settings page. Clay's custom-function API
 // exposes each config item through getItemByMessageKey()/getItemById(), and
 // each item supports set()/get(). This lets us provide a real Restore Defaults
@@ -346,8 +352,16 @@ function fetchWeather(lat, lon) {
 
 // Messages from the watch: configuration acknowledgement or weather request.
 Pebble.addEventListener('appmessage', function(e) {
-  if (e.payload && typeof e.payload.CONFIG_ACK !== 'undefined') {
+  if (!e || !e.payload) return;
+
+  if (typeof e.payload.CONFIG_ACK !== 'undefined') {
     console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);
+    return;
+  }
+
+  // KiezelPay also uses AppMessage. Only key 0 / WEATHER_REQUEST belongs to
+  // Big Time's weather bridge; ignore all other package traffic here.
+  if (typeof e.payload.WEATHER_REQUEST === 'undefined') {
     return;
   }
 
