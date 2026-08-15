@@ -1,20 +1,18 @@
 {
   "author": "Bradford",
   "dependencies": {
-    "@rebble/clay": "^1.0.0",
-    "kiezelpay-core": "^2.2.4",
-    "pebble-events": "^1.2.1"
+    "@rebble/clay": "^1.0.0"
   },
   "keywords": [
     "pebble-app"
   ],
-  "name": "big-time",
+  "name": "amazfit-bip-port",
   "pebble": {
     "capabilities": [
       "health",
       "configurable"
     ],
-    "displayName": "Big Time",
+    "displayName": "Amazfit Bip Port",
     "enableMultiJS": true,
     "messageKeys": {
       "TEMPERATURE": 0,
@@ -41,11 +39,8 @@
       "HIGH_TEMP": 21,
       "LOW_TEMP": 22,
       "RAISE_WAKE": 23,
-      "LICENSE_STATUS_REQUEST": 24,
-      "LICENSE_STATUS": 25,
-      "TRIAL_START": 26,
-      "PURCHASE_REQUEST": 27,
-      "TRIAL_SYNC_EPOCH": 28
+      "PRO_LICENSE": 24,
+      "LICENSE_CHECK": 25
     },
     "projectType": "native",
     "resources": {
@@ -115,5 +110,5 @@
       "watchface": true
     }
   },
-  "version": "2.1.0"
+  "version": "2.0.1"
 }
