@@ -1,20 +1,19 @@
-// Big Time — PebbleKit JS companion
-// KiezelPay paid licensing follows the official KiezelPay Pebble integration.
-// Big Time's 48-hour Pro trial is opt-in and managed separately.
+// ── Amazfit Bip Port — PebbleKit JS companion ────────────────────────────────
+// Fetches weather from OpenWeatherMap and sends temperature + icon code
+// to the watch via AppMessage.
+//
+// SETUP: Replace YOUR_API_KEY below with a free key from openweathermap.org
 
-var KIEZELPAY_LOGGING = true; // TEST BUILD: set false before release.
-var KiezelPay = require('kiezelpay-core');
-var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
-
+// ── Configuration ────────────────────────────────────────────────────────────
+// Clay automatically opens the settings page and sends configured messageKey
+// values to the watch when Save Settings is pressed.
 var Clay = require('@rebble/clay');
-var buildConfig = require('./config');
-var messageKeys = require('message_keys');
+var clayConfig = require('./config');
 
-var currentClay = null;
-var latestEntitlementStatus = 0;
-var pendingStatusOpen = false;
-var statusOpenTimer = null;
-
+// Injected into Clay's generated settings page. Clay's custom-function API
+// exposes each config item through getItemByMessageKey()/getItemById(), and
+// each item supports set()/get(). This lets us provide a real Restore Defaults
+// button without adding another AppMessage key.
 function customClay(minified) {
   var clayPage = this;
 
@@ -139,12 +138,12 @@ function customClay(minified) {
       cancel.addEventListener('click', closeOverlay);
 
       restore.addEventListener('click', function() {
-        setValue('ACCENT_COLOR', '0000AA');
-        setValue('CLOCK_COLOR', 'FFFFFF');
+        setValue('ACCENT_COLOR', '0x0000AA');
+        setValue('CLOCK_COLOR', '0xFFFFFF');
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');
-        setValue('BACKGROUND_COLOR', '000000');
+        setValue('BACKGROUND_COLOR', '0x000000');
         setValue('TEMP_UNIT', '0');
 
         setValue('TOP_LEFT_SLOT', '5');
@@ -193,6 +192,42 @@ function customClay(minified) {
   });
 }
 
+var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
+
+// Explicitly own the configuration-page lifecycle instead of relying on
+// Clay's automatic Pebble event registration. This is more robust alongside
+// KiezelPay/other packages that also register PebbleKit JS listeners.
+Pebble.addEventListener('showConfiguration', function() {
+  try {
+    var url = clay.generateUrl();
+    console.log('Opening Clay configuration page');
+    Pebble.openURL(url);
+  } catch (e) {
+    console.log('Failed to open configuration: ' + e);
+  }
+});
+
+Pebble.addEventListener('webviewclosed', function(e) {
+  if (!e || !e.response) {
+    console.log('Configuration closed without saving');
+    return;
+  }
+
+  try {
+    var settings = clay.getSettings(e.response);
+    Pebble.sendAppMessage(
+      settings,
+      function() { console.log('Sent config data to Pebble'); },
+      function(err) {
+        console.log('Failed to send config data: ' + JSON.stringify(err));
+      }
+    );
+  } catch (err) {
+    console.log('Failed to process configuration response: ' + err);
+  }
+});
+
+var messageKeys = require('message_keys');
 
 var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
 var UNITS   = 'metric';     // Always fetch Celsius; watch converts to the user's unit
@@ -309,120 +344,29 @@ function fetchWeather(lat, lon) {
   xhr.send();
 }
 
-
-var TRIAL_STORAGE_KEY = 'bigTimeTrialStartEpoch';
-
-function sendTrialSyncIfNeeded() {
-  var stored = parseInt(localStorage.getItem(TRIAL_STORAGE_KEY) || '0', 10);
-  if (!stored) return;
-
-  var payload = {};
-  payload[messageKeys.TRIAL_SYNC_EPOCH] = stored;
-  Pebble.sendAppMessage(payload,
-    function() { console.log('Trial marker synced to watch'); },
-    function(e) { console.log('Trial sync failed: ' + JSON.stringify(e)); });
-}
-
-function openSettingsWithStatus(status) {
-  latestEntitlementStatus = status;
-  pendingStatusOpen = false;
-
-  if (statusOpenTimer) {
-    clearTimeout(statusOpenTimer);
-    statusOpenTimer = null;
-  }
-
-  currentClay = new Clay(buildConfig(status), customClay, { autoHandleEvents: false });
-  Pebble.openURL(currentClay.generateUrl());
-}
-
-function requestEntitlementAndOpenSettings() {
-  pendingStatusOpen = true;
-
-  var payload = {};
-  payload[messageKeys.LICENSE_STATUS_REQUEST] = 1;
-
-  Pebble.sendAppMessage(payload,
-    function() {
-      console.log('Requested current entitlement from watch');
-    },
-    function(e) {
-      console.log('Entitlement request failed: ' + JSON.stringify(e));
-    });
-
-  // If the watch cannot answer, fail closed to the Free UI rather than ever
-  // exposing Pro controls from stale phone-side state.
-  statusOpenTimer = setTimeout(function() {
-    if (pendingStatusOpen) {
-      console.log('Entitlement response timed out; opening Free settings');
-      openSettingsWithStatus(0);
-    }
-  }, 1500);
-}
-
-Pebble.addEventListener('showConfiguration', function() {
-  requestEntitlementAndOpenSettings();
-});
-
-Pebble.addEventListener('webviewclosed', function(e) {
-  if (!e || !e.response || !currentClay) return;
-
-  var dict = currentClay.getSettings(e.response);
-
-  // Record the original trial start on the phone before sending it to the
-  // watch. This lets a reinstall restore the original one-time trial marker
-  // instead of granting a new trial.
-  if (dict[messageKeys.TRIAL_START] === 1) {
-    var existing = parseInt(localStorage.getItem(TRIAL_STORAGE_KEY) || '0', 10);
-    if (!existing) {
-      existing = Math.floor(Date.now() / 1000);
-      localStorage.setItem(TRIAL_STORAGE_KEY, String(existing));
-    }
-    dict[messageKeys.TRIAL_SYNC_EPOCH] = existing;
-  }
-
-  Pebble.sendAppMessage(dict,
-    function() { console.log('Sent config data to Big Time'); },
-    function(err) { console.log('Failed to send config data: ' + JSON.stringify(err)); });
-});
-
-// Messages from the watch: entitlement response, configuration acknowledgement,
-// or weather request.
+// Messages from the watch: configuration acknowledgement or weather request.
 Pebble.addEventListener('appmessage', function(e) {
-  if (!e.payload) return;
-
-  if (typeof e.payload.LICENSE_STATUS !== 'undefined') {
-    var status = parseInt(e.payload.LICENSE_STATUS, 10);
-    console.log('Big Time entitlement status: ' + status);
-    latestEntitlementStatus = status;
-    if (pendingStatusOpen) openSettingsWithStatus(status);
-    return;
-  }
-
-  if (typeof e.payload.CONFIG_ACK !== 'undefined') {
+  if (e.payload && typeof e.payload.CONFIG_ACK !== 'undefined') {
     console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);
     return;
   }
 
-  // The watch requests weather by sending key TEMPERATURE with a dummy value.
-  // Do not treat KiezelPay's own AppMessages as weather requests.
-  if (typeof e.payload.TEMPERATURE !== 'undefined') {
-    console.log('Watch requested weather update');
-    navigator.geolocation.getCurrentPosition(
-      function(pos) {
-        fetchWeather(pos.coords.latitude, pos.coords.longitude);
-      },
-      function(err) {
-        console.log('Geolocation error: ' + err.message);
-      },
-      { timeout: 15000, maximumAge: 60000 }
-    );
-  }
+  console.log('Watch requested weather update');
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      fetchWeather(pos.coords.latitude, pos.coords.longitude);
+    },
+    function(err) {
+      console.log('Geolocation error: ' + err.message);
+    },
+    { timeout: 15000, maximumAge: 60000 }
+  );
 });
 
+// Fetch on launch
 Pebble.addEventListener('ready', function() {
+  Pebble.sendAppMessage({'LICENSE_CHECK': 1}, function(){}, function(){});
   console.log('PebbleKit JS ready');
-  sendTrialSyncIfNeeded();
 
   navigator.geolocation.getCurrentPosition(
     function(pos) {
@@ -433,4 +377,16 @@ Pebble.addEventListener('ready', function() {
     },
     { timeout: 15000, maximumAge: 300000 }
   );
+});
+
+// Runtime Pro status is authoritative from the watch/C side.
+// The product-specific KiezelPay library will call watchface_kiezelpay_set_licensed()
+// in C; the watch mirrors that state to JS with PRO_LICENSE.
+Pebble.addEventListener('appmessage', function(e) {
+  if (!e || !e.payload || typeof e.payload.PRO_LICENSE === 'undefined') return;
+  var unlocked = Number(e.payload.PRO_LICENSE) === 1;
+  try {
+    localStorage.setItem('amazfit_bip_port_pro', unlocked ? '1' : '0');
+  } catch (err) {}
+  console.log('Pro license status from watch: ' + (unlocked ? 'unlocked' : 'free'));
 });
