@@ -2214,40 +2214,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if (clock_color_changed) {
     s_settings.clock_color = GColorFromHEX(new_clock_hex);
-
-    // If the user explicitly chooses black/white for the clock and it would
-    // disappear into the current black/white background, keep the requested
-    // clock color and flip the background instead.
-    if (s_settings.clock_color.argb == GColorBlack.argb &&
-        s_settings.background_color.argb == GColorBlack.argb) {
-      s_settings.background_color = GColorWhite;
-      background_changed = true;
-      new_background_hex = 0xFFFFFF;
-    } else if (s_settings.clock_color.argb == GColorWhite.argb &&
-               s_settings.background_color.argb == GColorWhite.argb) {
-      s_settings.background_color = GColorBlack;
-      background_changed = true;
-      new_background_hex = 0x000000;
-    }
   }
 
   if (background_changed) {
     s_settings.background_color = GColorFromHEX(new_background_hex);
-
-    // Likewise, if the user explicitly changes the background to match a
-    // black/white clock, preserve the selected background and flip the clock.
-    // Custom clock colors remain exactly as selected.
-    if (s_settings.background_color.argb == GColorBlack.argb &&
-        s_settings.clock_color.argb == GColorBlack.argb) {
-      s_settings.clock_color = GColorWhite;
-      clock_color_changed = true;
-      new_clock_hex = 0xFFFFFF;
-    } else if (s_settings.background_color.argb == GColorWhite.argb &&
-               s_settings.clock_color.argb == GColorWhite.argb) {
-      s_settings.clock_color = GColorBlack;
-      clock_color_changed = true;
-      new_clock_hex = 0x000000;
-    }
   }
 
   if (accent_changed || clock_color_changed || background_changed || layout_changed || temperature_setting_changed) {

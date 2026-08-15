@@ -223,6 +223,21 @@ function openSettingsPage() {
     var liveConfig = require('./config');
     clay = new Clay(liveConfig, customClay, { autoHandleEvents: false });
 
+    if (sessionProUnlocked) {
+      try {
+        if (localStorage.getItem('big_time_pro_step_goal_initialized') !== '1') {
+          clay.setSettings('STEP_GOAL', 5000);
+          localStorage.setItem('big_time_pro_step_goal_initialized', '1');
+        }
+      } catch (e) {
+        clay.setSettings('STEP_GOAL', 5000);
+      }
+    } else {
+      try {
+        localStorage.removeItem('big_time_pro_step_goal_initialized');
+      } catch (e) {}
+    }
+
     console.log('Opening Clay configuration page; pro=' + sessionProUnlocked);
     Pebble.openURL(clay.generateUrl());
   } catch (e) {
@@ -258,6 +273,7 @@ Pebble.addEventListener('showConfiguration', function() {
   }, 900);
 });
 
+
 Pebble.addEventListener('webviewclosed', function(e) {
   if (!e || !e.response) {
     console.log('Configuration closed without saving');
@@ -266,6 +282,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
   try {
     var settings = clay.getSettings(e.response);
+
     Pebble.sendAppMessage(
       settings,
       function() { console.log('Sent config data to Pebble'); },
@@ -443,6 +460,7 @@ Pebble.addEventListener('appmessage', function(e) {
 
   sessionProUnlocked = Number(e.payload.PRO_LICENSE) === 1;
   sessionLicenseKnown = true;
+
   console.log('Pro license status from watch: ' +
               (sessionProUnlocked ? 'unlocked' : 'free'));
 
