@@ -298,6 +298,8 @@ typedef struct {
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
+static WatchfaceSettings s_saved_settings;
+static bool s_saved_settings_valid = false;
 
 // Runtime Pro entitlement. KiezelPay's product-specific Pebble library should
 // call license_set_pro(true/false) from its license callback.
@@ -666,7 +668,26 @@ static int32_t tuple_to_int32(const Tuple *tuple, int32_t fallback) {
 }
 
 static void settings_save(void) {
-  persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
+  if (s_pro_unlocked) {
+    // While Pro/trial is active, the effective settings are the user's real
+    // preferences. Keep the preserved copy synchronized.
+    s_saved_settings = s_settings;
+    s_saved_settings_valid = true;
+    persist_write_data(SETTINGS_PERSIST_KEY, &s_saved_settings, sizeof(s_saved_settings));
+    return;
+  }
+
+  // While Free, s_settings contains the enforced Free presentation. Never save
+  // those defaults over the user's premium preferences. Only the two controls
+  // available in Free are allowed to update the preserved preference record.
+  if (!s_saved_settings_valid) {
+    s_saved_settings = s_settings;
+    s_saved_settings_valid = true;
+  }
+
+  s_saved_settings.time_format = s_settings.time_format;
+  s_saved_settings.center_12h = s_settings.center_12h;
+  persist_write_data(SETTINGS_PERSIST_KEY, &s_saved_settings, sizeof(s_saved_settings));
 }
 
 // ── Segment bitmasks ──────────────────────────────────────────────────────────
@@ -1531,14 +1552,14 @@ static bool peek_is_visible(void) {
 static void interaction_timeout_handler(void *context) {
   s_interaction_timer = NULL;
 
-  if (s_interaction_expires_at > 0 && time(NULL) >= s_interaction_expires_at) {
-    s_interaction_active = false;
-    s_interaction_expires_at = 0;
-  }
+  // This timer was created specifically for the current Peek session. Once it
+  // fires, Peek is over. Do not re-check a coarse one-second wall-clock value
+  // here; an AppTimer that fires a few milliseconds early must never leave the
+  // UI stuck visible with no timer remaining.
+  s_interaction_active = false;
+  s_interaction_expires_at = 0;
 
-  APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Peek timeout: active=%d",
-          s_interaction_active ? 1 : 0);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Peek timeout -> hidden");
 
   apply_bar_visibility();
   update_stepbar_layout();
@@ -1998,7 +2019,18 @@ static void license_refresh_ui(void) {
     enforce_free_defaults();
   }
 
+  // Entitlement changes may change the effective presentation, but persistence
+  // must retain the user's complete preference record.
   settings_save();
+
+  APP_LOG(APP_LOG_LEVEL_INFO,
+          "Effective UI: pro=%d header=%d footer=%d steps=%d raise=%d",
+          s_pro_unlocked ? 1 : 0,
+          (int)s_settings.header_mode,
+          (int)s_settings.footer_mode,
+          (int)s_settings.stepbar_mode,
+          (int)s_settings.raise_wake_mode);
+
   update_footer_content();
   update_header_content();
   update_stepbar_layout();
@@ -2022,7 +2054,22 @@ static void license_set_pro(bool unlocked) {
     return;
   }
 
+  if (!unlocked && s_pro_unlocked) {
+    // Capture the complete Pro/trial configuration BEFORE switching to the
+    // enforced Free presentation.
+    s_saved_settings = s_settings;
+    s_saved_settings_valid = true;
+  }
+
   s_pro_unlocked = unlocked;
+
+  if (unlocked && s_saved_settings_valid) {
+    // Restore the user's actual preferences after trial/license validation.
+    // This is the critical part that prevents a watchface process restart from
+    // turning BAR_BACKLIGHT into BAR_ALWAYS and Raise to Wake into Off.
+    s_settings = s_saved_settings;
+  }
+
   APP_LOG(APP_LOG_LEVEL_INFO, "Pro license -> %s", unlocked ? "UNLOCKED" : "FREE");
   license_refresh_ui();
 }
@@ -2646,9 +2693,13 @@ static void window_unload(Window *window) {
 static void init(void) {
   settings_load();
 
-  // Start locked. The product-specific KiezelPay library may unlock Pro after
-  // it validates this installation. Free users retain Time Format and Center
-  // 12 Hour Clock; all premium settings are forced to defaults.
+  // Preserve the persisted user preference record before entitlement is known.
+  // The effective watchface may temporarily render Free defaults while
+  // KiezelPay/trial state is restored, but those defaults must NEVER overwrite
+  // the user's saved Pro configuration.
+  s_saved_settings = s_settings;
+  s_saved_settings_valid = true;
+
   s_pro_unlocked = false;
   enforce_free_defaults();
 
