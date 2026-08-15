@@ -2193,11 +2193,34 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
 #endif
 
-      case KEY_TRY_PRO_FREE:
-        if (tuple_to_int32(t, 0) != 0 && !s_kiezelpay_licensed) {
-          pro_trial_start();
+      case KEY_TRY_PRO_FREE: {
+        int32_t trial_value = tuple_to_int32(t, 0);
+        if (trial_value != 0 && !s_kiezelpay_licensed) {
+          if (trial_value > 1) {
+            // Phone-side PebbleKit JS localStorage survives watchapp
+            // uninstall/reinstall, so it can restore the ORIGINAL expiry
+            // timestamp instead of granting a fresh trial after reinstall.
+            time_t now = time(NULL);
+            if ((time_t)trial_value > now) {
+              persist_write_int(PRO_TRIAL_PERSIST_KEY, trial_value);
+              s_trial_active = true;
+              APP_LOG(APP_LOG_LEVEL_INFO,
+                      "Restored Pro trial expiry from phone: %ld",
+                      (long)trial_value);
+              license_set_pro(true);
+            } else {
+              pro_trial_mark_expired();
+              license_set_pro(false);
+              APP_LOG(APP_LOG_LEVEL_INFO,
+                      "Rejected expired Pro trial restore: %ld",
+                      (long)trial_value);
+            }
+          } else {
+            pro_trial_start();
+          }
         }
         break;
+      }
 
       case KEY_UNLOCK_PRO:
         if (tuple_to_int32(t, 0) != 0 && !s_kiezelpay_licensed) {

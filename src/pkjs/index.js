@@ -201,6 +201,64 @@ function customClay(minified) {
 var sessionProUnlocked = false;
 var sessionEntitlement = 0; // 0 Free, 1 Trial, 2 Purchased Pro
 var sessionTrialRemaining = 0;
+
+var TRIAL_DURATION_SECONDS = 48 * 60 * 60;
+var TRIAL_EXPIRY_STORAGE_KEY = 'big_time_pro_trial_expires';
+var TRIAL_USED_STORAGE_KEY = 'big_time_pro_trial_used';
+
+function getStoredTrialExpiry() {
+  try {
+    var value = parseInt(localStorage.getItem(TRIAL_EXPIRY_STORAGE_KEY), 10);
+    return isNaN(value) ? 0 : value;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function trialWasUsedOnPhone() {
+  try {
+    return localStorage.getItem(TRIAL_USED_STORAGE_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function persistNewTrialOnPhone() {
+  var now = Math.floor(Date.now() / 1000);
+  var existingExpiry = getStoredTrialExpiry();
+
+  // Never create a second trial once one has already existed on this phone.
+  if (trialWasUsedOnPhone()) {
+    return existingExpiry;
+  }
+
+  var expiry = now + TRIAL_DURATION_SECONDS;
+  try {
+    localStorage.setItem(TRIAL_EXPIRY_STORAGE_KEY, String(expiry));
+    localStorage.setItem(TRIAL_USED_STORAGE_KEY, '1');
+  } catch (e) {}
+
+  return expiry;
+}
+
+function restorePersistedTrialToWatch() {
+  if (!trialWasUsedOnPhone()) return;
+
+  var expiry = getStoredTrialExpiry();
+  var now = Math.floor(Date.now() / 1000);
+
+  if (expiry > now) {
+    Pebble.sendAppMessage(
+      {'TRY_PRO_FREE': expiry},
+      function() {
+        console.log('Restored existing Pro trial to watch; expiry=' + expiry);
+      },
+      function(e) {
+        console.log('Failed to restore Pro trial to watch: ' + JSON.stringify(e));
+      }
+    );
+  }
+}
 var sessionLicenseKnown = false;
 var pendingOpenSettings = false;
 
@@ -290,6 +348,25 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
   try {
     var settings = clay.getSettings(e.response);
+
+    if (settings && Number(settings.TRY_PRO_FREE) !== 0) {
+      var now = Math.floor(Date.now() / 1000);
+      var existingExpiry = getStoredTrialExpiry();
+
+      if (trialWasUsedOnPhone()) {
+        if (existingExpiry > now) {
+          // Trial already exists: restore the original end time, never restart it.
+          settings.TRY_PRO_FREE = existingExpiry;
+        } else {
+          // Trial was already used and has expired. Do not send a new start.
+          delete settings.TRY_PRO_FREE;
+          console.log('Pro trial already used; refusing to restart');
+        }
+      } else {
+        settings.TRY_PRO_FREE = persistNewTrialOnPhone();
+        console.log('Stored new Pro trial expiry=' + settings.TRY_PRO_FREE);
+      }
+    }
 
     Pebble.sendAppMessage(
       settings,
@@ -450,6 +527,11 @@ Pebble.addEventListener('appmessage', function(e) {
 // Fetch on launch
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready');
+
+  // PebbleKit JS localStorage survives watchapp uninstall/reinstall. If an
+  // existing trial is still active, restore its ORIGINAL expiry to the watch.
+  // If it already expired, do nothing so reinstalling cannot grant another one.
+  restorePersistedTrialToWatch();
 
   navigator.geolocation.getCurrentPosition(
     function(pos) {
