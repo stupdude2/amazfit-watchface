@@ -126,7 +126,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Appearance — Pro" },
+      { "type": "heading", "defaultValue": "Appearance" },
       { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0x0000AA", "label": "Accent Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
@@ -136,7 +136,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Raise to Wake — Pro" },
+      { "type": "heading", "defaultValue": "Raise to Wake" },
       {
         "type": "select",
         "messageKey": "RAISE_WAKE",
@@ -155,7 +155,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Weather — Pro" },
+      { "type": "heading", "defaultValue": "Weather" },
       {
         "type": "select",
         "messageKey": "TEMP_UNIT",
@@ -173,7 +173,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Top Bar — Pro" },
+      { "type": "heading", "defaultValue": "Top Bar" },
       { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
       { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions },
       { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
@@ -192,7 +192,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Bottom Bar — Pro" },
+      { "type": "heading", "defaultValue": "Bottom Bar" },
       { "type": "select", "messageKey": "LEFT_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
       { "type": "select", "messageKey": "CENTER_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Center", "options": centerOptions },
       { "type": "select", "messageKey": "RIGHT_SLOT", "defaultValue": "1", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
@@ -211,7 +211,7 @@ if (edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Step Progress Bar — Pro" },
+      { "type": "heading", "defaultValue": "Step Progress Bar" },
       {
         "type": "slider", "messageKey": "STEP_GOAL", "defaultValue": 5000,
         "label": "Daily Step Goal", "min": 1000, "max": 30000, "step": 500
