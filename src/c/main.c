@@ -774,7 +774,6 @@ static bool s_have_high_low = false;
 static bool s_backlight_subscribed = false;
 
 // Conditional bars/step bar follow Pebble's actual system backlight state.
-static bool s_backlight_subscribed = false;
 static bool s_touch_subscribed = false;
 
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
