@@ -780,6 +780,7 @@ static bool s_interaction_active = false;
 static AppTimer *s_interaction_timer = NULL;
 static time_t s_interaction_expires_at = 0;
 static bool s_touch_subscribed = false;
+static bool s_window_has_appeared = false;
 #define INTERACTION_WINDOW_MS 4000
 #define INTERACTION_WINDOW_SECONDS 4
 
@@ -2480,6 +2481,28 @@ static void health_handler(HealthEventType event, void *context) {
 #endif
 
 // ── Window load ───────────────────────────────────────────────────────────────
+static void window_appear(Window *window) {
+  if (!s_window_has_appeared) {
+    // Ignore the initial appearance caused by window_stack_push().
+    s_window_has_appeared = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Initial window appearance");
+    return;
+  }
+
+  // Unlike AppFocusService, WindowHandler.appear is tied to this actual
+  // watchface window becoming visible again. Treat every return from a menu,
+  // app, or overlaid window as a bounded user-view interaction.
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Window appeared again -> begin peek");
+  begin_interaction_window();
+}
+
+static void window_disappear(Window *window) {
+  // Nothing to clear here. Any existing Peek continues to age while the
+  // watchface is off-screen; window_appear starts a fresh bounded Peek when it
+  // becomes visible again.
+  logical_interaction_is_active();
+}
+
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
 
@@ -2699,7 +2722,10 @@ static void init(void) {
   s_window = window_create();
   window_set_background_color(s_window, s_settings.background_color);
   window_set_window_handlers(s_window, (WindowHandlers){
-    .load = window_load, .unload = window_unload,
+    .load = window_load,
+    .appear = window_appear,
+    .disappear = window_disappear,
+    .unload = window_unload,
   });
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
