@@ -87,16 +87,16 @@ Pro bottom-bar visibility now supports Always Visible, Double Wrist Tap, Single 
 Pro builds now include a Background Color picker. Text and native footer icons that sit directly on the background automatically switch between light and dark foreground colors using Pebble's `gcolor_legible_over()`. Weather icons are tinted at runtime from the existing white RGBA assets, preserving their transparency while automatically matching the light/dark foreground selected for the current background. Accent-box text continues to contrast against the accent color, while Clock Color remains independently user-selectable.
 
 
-## v2.3.1 clock auto-contrast refinement
+## v2.4.0 clock auto-contrast refinement
 
 When the clock color is pure white or pure black, changing the background color now automatically switches the clock between white and black using Pebble's legibility helper. Any non-neutral custom clock color remains unchanged.
 
 
-## v2.3.1
+## v2.4.0
 Top and bottom bars now share customizable content choices. Day of Week, Date, and Month are available in bottom slots, while Weather, Steps, Battery, Heart Rate, Bluetooth, Day of Week, Date, and Month can be assigned to any top slot.
 
 
-## v2.3.1
+## v2.4.0
 - Added Restore Default Settings button with confirmation dialog in Clay.
 - Added Always Hidden modes for both Top Bar and Bottom Bar.
 - Renamed the step progress bar's Hidden option to Always Hidden for consistency.
@@ -107,56 +107,56 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 
 - Constrained restore confirmation buttons to equal 92px widths for reliable mobile layout.
 
-## v2.3.1
+## v2.4.0
 - Added selectable 12-hour / 24-hour clock format.
 - Preserved the original 12-hour digit geometry unchanged.
 - Added dedicated 24-hour geometry: 110px height, 12px strokes, 36px first-hour cell, 42px remaining digit cells, with the original 6px digit/colon spacing.
 - Existing settings migrate forward with 12-hour mode as the default.
 
-## v2.3.1
+## v2.4.0
 - 24-hour digit 1 now uses the same full-width seven-segment cell geometry as the other numerals.
 - 12-hour digit geometry is unchanged.
 
-## v2.3.1
+## v2.4.0
 - Increased 24-hour digit stroke thickness from 12px to 13px.
 - Narrowed the three regular 24-hour digit cells from 42px to 41px, increasing the outer margins while preserving the existing 6px digit/colon gaps and 110px clock height.
 
-## v2.3.1
+## v2.4.0
 - Increased 24-hour stroke thickness from 13px to 14px.
 - Narrowed regular 24-hour digit cells from 41px to 40px, increasing the outer margins to about 5.5px per side.
 - Applied the original 12-hour first-digit 1px inset to the leading 24-hour digit cell while retaining its wider geometry.
 
-## v2.3.1
+## v2.4.0
 - 24-hour digit 1 keeps a full-width allocated cell but now uses the same deliberate left-biased glyph placement as the 12-hour clock.
 - Regular 1s use the existing 8px ONE_X_OFFSET.
 - The leading hour 1 uses the existing 1px H1_ONE_X offset.
 - All 24-hour spacing, 14px stroke thickness, and outer margins remain unchanged.
 
-## v2.3.1
+## v2.4.0
 - 24-hour leading digit 1 now uses the same 8px ONE_X_OFFSET as every other 1.
 - 12-hour leading-digit geometry remains unchanged.
 
-## v2.3.1
+## v2.4.0
 - Moved Time Format to the first setting under Appearance.
 
-## v2.3.1
+## v2.4.0
 - Added Center 12 Hour Clock.
 - When enabled, 1:00-9:59 centers the visible H:MM group.
 - 10:00-12:59 keeps the original four-digit spacing.
 
-## v2.3.1
+## v2.4.0
 - Disabled Center 12 Hour Clock in settings whenever 24 Hour Time Format is selected; it re-enables when returning to 12 Hour.
 - All four 24-hour digit cells now use the same 39px width.
 - Removed the special first-digit geometry/inset in 24-hour mode.
 - Kept the 24-hour clock at the previous 189px total width with 14px strokes and existing digit/colon spacing.
 
-## v2.3.1
+## v2.4.0
 - Bottom-bar Day of Week, Date, and Month now match the header calendar style.
 - Calendar items use the large custom header font with no small label.
 - Calendar values are centered horizontally and vertically in left, center, or right footer slots.
 - Other footer item layouts are unchanged.
 
-## v2.3.1
+## v2.4.0
 - Added left/right-only bar choices for Calories, Distance, Sunrise, Sunset, and High / Low Temp.
 - Calories use Pebble Health active kilocalories for the current day.
 - Distance uses Pebble Health walked distance; miles are shown with Fahrenheit and kilometers with Celsius.
@@ -164,48 +164,48 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - High/Low uses the current temperature plus today's available 3-hour OpenWeather forecast points.
 - Top and bottom center choices remain unchanged.
 
-## v2.3.1
+## v2.4.0
 - Removed Day of Week and Month from top-center and bottom-center choices.
 - Center Weather now displays TEMP as the label with a centered temperature value and no weather icon.
 - Moved the top-center battery icon upward and matched its value layout to the bottom-center battery.
 
-## v2.3.1
+## v2.4.0
 - Step progress bar now switches to the Accent Color when the daily step goal is reached.
 
-## v2.3.1
+## v2.4.0
 - Added optional Raise to Wake modes: Off, Normal, and Sensitive.
 - Uses 10 Hz accelerometer samples batched five at a time (two app callbacks per second).
 - Detects a lowered/edge-on wrist followed by a stable face-toward-user orientation within a short gesture window.
 - Ignores vibration-contaminated samples, rejects high-impact samples, and uses a cooldown to reduce false wakes.
 - Triggers Pebble's system-managed short backlight with light_enable_interaction().
 
-## v2.3.1
+## v2.4.0
 - Reworked Raise to Wake around an upright, wearer-facing read pose instead of a face-up pose.
 - The detector no longer requires the wrist to begin from a hanging/down position.
 - Any meaningful recent wrist motion can arm the detector; entering and briefly stabilizing in the read pose triggers the backlight.
 - Uses Y-dominant / low-Z orientation thresholds, motion memory, stable-pose confirmation, and cooldown filtering.
 - Raise logs now include x/y/z values for tuning on real hardware.
 
-## v2.3.1
+## v2.4.0
 - Raise to Wake now preserves the Y-axis sign instead of using |Y|.
 - Wearer-facing orientation requires negative Y, based on PT2 hardware logs.
 - Mirror-image positive-Y orientation (watch flipped away) is rejected.
 
-## v2.3.1
+## v2.4.0
 - Normal Raise to Wake now requires slightly more wrist movement (motion threshold 180 -> 210).
 - Normal motion-memory window shortened from 1100 ms to 950 ms to reduce incidental triggers.
 - Accelerometer remains at 10 Hz, but batching increased from 5 to 10 samples.
 - App-side accelerometer callbacks drop from about 2 per second to about 1 per second, reducing CPU wakeups while retaining the same sensor sampling fidelity.
 - Sensitive mode thresholds remain unchanged.
 
-## v2.3.1
+## v2.4.0
 - Decoupled conditional UI visibility from the physical backlight LED.
 - Successful Raise to Wake starts a 4-second logical interaction window even if ambient light suppresses the LED.
 - PT2 screen Touchdown also starts the logical interaction window and requests the normal system backlight interaction.
 - Top Bar, Bottom Bar, and backlight-only Step Bar now show whenever either the real backlight is on OR the logical interaction window is active.
 - Added raise logs showing both logical interaction and physical light state for outdoor testing.
 
-## v2.3.1 — Runtime Free / Pro licensing foundation
+## v2.4.0 — Runtime Free / Pro licensing foundation
 - Converted the project from separate Standard/Pro compile-time editions to one runtime-gated build.
 - Free users: 5000-step target, Time Format (12/24 hour), and Center 12 Hour Clock only.
 - Center 12 Hour Clock defaults ON for free users.
@@ -213,23 +213,23 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Pro restrictions are enforced in C so manually-crafted AppMessages cannot bypass the settings UI.
 - Reserved PRO_LICENSE=24 and LICENSE_CHECK=25 for the KiezelPay license bridge.
 
-## v2.3.1
+## v2.4.0
 - Forced Clay's full COLOR palette for Accent, Clock, and Background controls.
 - Prevents PT2/Emery configuration from falling back to the black/white palette.
 
-## v2.3.1
+## v2.4.0
 - Added missing Pebble package dependencies required by the KiezelPay integration:
-  - kiezelpay-core ^2.3.1
+  - kiezelpay-core ^2.4.0
   - pebble-events ^1.0.2
 - Keeps the forced full COLOR Clay palette from v2.0.1.
 
-## v2.3.1
+## v2.4.0
 - Disabled Clay's automatic configuration event handling.
 - Added explicit showConfiguration handler using clay.generateUrl() + Pebble.openURL().
 - Added explicit webviewclosed handler using clay.getSettings() + Pebble.sendAppMessage().
 - Intended to prevent settings-button failures when Clay is used alongside the KiezelPay package stack.
 
-## v2.3.1 — Real KiezelPay entitlement integration
+## v2.4.0 — Real KiezelPay entitlement integration
 - Integrated the official generated KiezelPay file for product 915728151.
 - Enabled KiezelPay timed-trial support so the server-configured 48-hour trial can unlock Pro.
 - KIEZELPAY_TRIAL_STARTED and KIEZELPAY_LICENSED now unlock Big Time Pro.
@@ -239,7 +239,7 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Weather JS now ignores KiezelPay AppMessages instead of treating every package message as a weather request.
 - Test mode and verbose KiezelPay logging remain enabled for purchase/trial testing.
 
-## v2.3.1 — KiezelPay auto-purchase/state fix
+## v2.4.0 — KiezelPay auto-purchase/state fix
 - Disabled KiezelPay's automatic time-trial flow again.
 - Opening Settings no longer starts a trial or purchase-code sequence.
 - Removed persistent phone-side Pro caching as a source of truth.
@@ -248,7 +248,7 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - A real KiezelPay LICENSED event is the only KiezelPay event that unlocks Pro.
 - The optional 48-hour Pro trial will be implemented as an explicit user-started Big Time trial, not as KiezelPay's auto-start trial.
 
-## v2.3.1 — Explicit trial and purchase controls
+## v2.4.0 — Explicit trial and purchase controls
 - Added a visible 48-hour Pro trial notice to Free settings.
 - Added Try Pro Free toggle; trial begins only after enabling it and tapping Save.
 - Added Unlock Pro with KiezelPay toggle; purchase code begins only after enabling it and tapping Save.
@@ -258,24 +258,24 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - KiezelPay remains the authority for purchased/restored Pro licenses.
 - New AppMessage keys: TRY_PRO_FREE=26 and UNLOCK_PRO=27.
 
-## v2.3.1
+## v2.4.0
 - Fixed build error in TRY_PRO_FREE and UNLOCK_PRO handlers by passing the required fallback argument to tuple_to_int32().
 
-## v2.3.1
+## v2.4.0
 - Refined black/white clock-background conflict handling.
 - Selecting Black Clock while Background is Black now preserves the black clock and flips Background to White.
 - Selecting White Clock while Background is White now preserves the white clock and flips Background to Black.
 - Changing Background to match an existing black/white clock still flips the clock for contrast.
 - Custom non-black/white clock colors remain unchanged.
 
-## v2.3.1
+## v2.4.0
 - Settings Save now mirrors the watch's black/white clock/background conflict logic before values are sent.
 - If Black Clock + Black Background is saved, Background is stored/sent as White.
 - If White Clock + White Background is saved, Background is stored/sent as Black.
 - This keeps Clay's remembered settings aligned with what the watch actually displays.
 - On a fresh Free -> Pro unlock, the Pro step goal initializes to 5000 instead of reviving stale cached values from older sessions.
 
-## v2.3.1
+## v2.4.0
 - Black/white clock/background conflict correction now happens live inside the Clay settings page.
 - Selecting Black Clock while Background is Black visibly changes Background to White in settings.
 - Selecting White Clock while Background is White visibly changes Background to Black in settings.
@@ -284,13 +284,13 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Pro settings now seed the Step Goal control from the watch's actual current value.
 - A newly unlocked Pro watch coming from Free therefore shows 5000 rather than stale cached values such as 14000.
 
-## v2.3.1
+## v2.4.0
 - Removed all automatic Clock Color / Background Color swapping.
 - Clock and background colors now remain exactly as selected, even if they match.
 - Removed CURRENT_STEP_GOAL; AppMessage keys remain 0-27.
 - Pro Step Goal initializes to 5000 on a new Free -> Pro unlock using the existing STEP_GOAL key (10).
 
-## v2.3.1
+## v2.4.0
 - Settings title is now always Big Time.
 - Added entitlement text directly below the title:
   - Free
@@ -299,22 +299,22 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Reused the existing PRO_LICENSE key (24) as a 3-state entitlement value; no new AppMessage key is required.
 - PRO_LICENSE values are now 0=Free, 1=Free Trial, 2=Purchased/Restored Pro.
 
-## v2.3.1
+## v2.4.0
 - Free Trial status now includes the actual remaining trial time in hours and minutes.
 - Reuses the existing LICENSE_CHECK key (25) in the watch-to-phone status response; no new AppMessage key is required.
 
-## v2.3.1 — Trial reinstall protection
+## v2.4.0 — Trial reinstall protection
 - Mirrors the one-time 48-hour Pro trial to PebbleKit JS localStorage.
 - PebbleKit JS localStorage survives watchapp uninstall/reinstall, so reinstalling no longer creates a fresh trial on the same phone.
 - TRY_PRO_FREE (26) is reused to restore the original Unix expiration timestamp to the watch; no new AppMessage key is required.
 - If the original trial is still active after reinstall, the watch resumes with the original remaining time.
 - If the trial has expired, a reinstall cannot start another trial.
 
-## v2.3.1
+## v2.4.0
 - Removed the “— Pro” suffix from settings section headings.
 - Trial/Pro entitlement remains communicated by the status text beneath the Big Time title.
 
-## v2.3.1 — Conditional bar state-machine fix
+## v2.4.0 — Conditional bar state-machine fix
 - Reworked logical backlight interaction state around an absolute expiration timestamp.
 - Top bar, bottom bar, and backlight-only step bar can no longer remain visible solely because a stale interaction boolean survived a delayed/canceled timer.
 - Every visibility check, backlight transition, focus return, and input-service refresh validates the interaction deadline.
@@ -322,11 +322,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Added debug logs for interaction start, timeout, physical backlight transitions, and focus returns.
 - Preserves the sunlight behavior: a raise/touch can still show conditional data even when ambient-light logic suppresses the physical LED.
 
-## v2.3.1
+## v2.4.0
 - Fixed the v2.0.16 build error by declaring interaction_should_be_visible() before update_stepbar_layout() uses it.
 - Conditional-bar state-machine changes from v2.0.16 are otherwise unchanged.
 
-## v2.3.1 — Deterministic Peek State
+## v2.4.0 — Deterministic Peek State
 - Replaced mixed physical-backlight/logical-interaction visibility with one bounded Peek state.
 - Physical backlight state is never cached or used as a persistent source of truth.
 - Wrist raise, Touchdown, and Backlight ON start a four-second Peek session.
@@ -335,7 +335,7 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Focus return may sample light_is_on() once to recover the case where the watchface returns while the LED is already lit; that sample only starts a bounded Peek and is never stored.
 - Touch no longer redundantly calls light_enable_interaction(); Raise to Wake still requests the system backlight while Peek begins independently.
 
-## v2.3.1 — Entitlement-safe settings + hardened Peek
+## v2.4.0 — Entitlement-safe settings + hardened Peek
 - Identified the main cause of apparent permanent Full Mode: startup temporarily enforced Free defaults (bars Always Visible, Raise to Wake Off) before trial/license restoration, allowing those defaults to overwrite the user's Pro configuration.
 - Added a preserved full-preference record separate from the effective Free presentation.
 - Free mode can no longer save its forced bar/raise/color defaults over saved Pro preferences.
@@ -345,20 +345,20 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Peek AppTimer expiration now unconditionally hides conditional UI; the absolute deadline remains only as backup protection.
 - Added Effective UI diagnostic log showing entitlement, header/footer/step modes, and Raise to Wake mode whenever entitlement refreshes.
 
-## v2.3.1 — Peek on watchface return
+## v2.4.0 — Peek on watchface return
 - Returning to Big Time from a menu, notification, or another app now starts a fresh four-second Peek session.
 - No longer depends on light_is_on() when focus returns.
 - This preserves conditional top/bottom/step visibility even when ambient-light logic suppresses the physical backlight.
 - Peek remains bounded by the existing deterministic timer, so this does not reintroduce permanent full mode.
 
-## v2.3.1 — Reliable Peek on return
+## v2.4.0 — Reliable Peek on return
 - Added WindowHandler.appear/disappear lifecycle callbacks.
 - WindowHandler.appear is now the primary detector for Big Time becoming visible again after menus/apps/windows.
 - Every appearance after the initial launch starts a fresh bounded four-second Peek.
 - Initial window appearance is ignored so Big Time does not automatically show hidden data on first launch.
 - Existing AppFocusService handling remains as supplemental coverage for modal notifications/system overlays.
 
-## v2.3.1 — System Backlight Visibility
+## v2.4.0 — System Backlight Visibility
 - Removed the independent Peek timer/state entirely.
 - Top bar, bottom bar, and backlight-only step bar now follow Pebble's actual system backlight state for exactly the duration the backlight is on.
 - No cached backlight boolean is stored; every refresh calls light_is_on() directly.
@@ -367,6 +367,14 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Wrist Raise and touchscreen Touchdown request the normal system backlight with light_enable_interaction(); conditional UI itself has no separate timeout.
 - Tradeoff: when ambient-light logic suppresses the physical backlight, backlight-only UI remains hidden because Pebble exposes no separate public 'backlight intended but suppressed' state.
 
-## v2.3.1
+## v2.4.0
 - Fixed build failure caused by duplicate s_backlight_subscribed declaration.
 - System-backlight visibility behavior from v2.3.0 is otherwise unchanged.
+
+## v2.4.0 — Five-second sunlight fallback
+- Normal conditional UI follows Pebble's real system backlight for the full native backlight duration.
+- Added one isolated five-second fallback only when an explicit interaction occurs while light_is_on() remains false.
+- Wrist Raise, screen Touchdown, focus return, and watchface window appearance request the normal backlight and use the fallback only if the LED stays off.
+- Backlight ON immediately cancels the fallback, so normal operation has no synthetic timeout.
+- Repeated fallback interactions refresh one timer; timers never stack.
+- No physical backlight state is cached, preventing stale ON state from causing permanent full mode.

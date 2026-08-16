@@ -773,8 +773,13 @@ static int  s_low_c_x10 = 0;
 static bool s_have_high_low = false;
 static bool s_backlight_subscribed = false;
 
-// Conditional bars/step bar follow Pebble's actual system backlight state.
+// Conditional bars/step bar normally follow Pebble's actual system backlight.
+// If an explicit interaction occurs while the OS keeps the LED off (for example
+// in bright sunlight), a single five-second fallback reveals the hidden UI.
 static bool s_touch_subscribed = false;
+static bool s_sunlight_fallback_active = false;
+static AppTimer *s_sunlight_fallback_timer = NULL;
+#define SUNLIGHT_FALLBACK_MS 5000
 
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
 // Pebble Z is perpendicular to the display. A normal glance holds the display
@@ -1519,9 +1524,9 @@ static void update_footer_content(void) {
 static void apply_bar_visibility(void);
 
 static bool conditional_ui_is_visible(void) {
-  // Never cache this value. A stale cached ON state was one of the causes of
-  // permanent full-mode behavior in earlier versions.
-  return light_is_on();
+  // Never cache physical backlight state. The only synthetic state is the
+  // bounded sunlight fallback.
+  return light_is_on() || s_sunlight_fallback_active;
 }
 
 static void apply_bar_visibility(void) {
@@ -1542,23 +1547,67 @@ static void apply_bar_visibility(void) {
   }
 }
 
-static void touch_handler(const TouchEvent *event, void *context) {
-  if (!event || event->type != TouchEvent_Touchdown) return;
-
-  // Ask Pebble for its normal system-managed light interaction. Visibility
-  // itself still follows light_is_on(), so there is no separate UI timeout.
-  light_enable_interaction();
-
-  // The BacklightService event normally follows immediately. Mark dirty now as
-  // well so devices/firmware that update synchronously are reflected at once.
+static void sunlight_fallback_timeout(void *context) {
+  s_sunlight_fallback_timer = NULL;
+  s_sunlight_fallback_active = false;
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Sunlight fallback expired");
   apply_bar_visibility();
   update_stepbar_layout();
 }
 
+static void cancel_sunlight_fallback(void) {
+  if (s_sunlight_fallback_timer) {
+    app_timer_cancel(s_sunlight_fallback_timer);
+    s_sunlight_fallback_timer = NULL;
+  }
+  s_sunlight_fallback_active = false;
+}
+
+static void start_sunlight_fallback(void) {
+  if (s_sunlight_fallback_timer) {
+    app_timer_cancel(s_sunlight_fallback_timer);
+    s_sunlight_fallback_timer = NULL;
+  }
+
+  s_sunlight_fallback_active = true;
+  s_sunlight_fallback_timer =
+      app_timer_register(SUNLIGHT_FALLBACK_MS, sunlight_fallback_timeout, NULL);
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Sunlight fallback started");
+  apply_bar_visibility();
+  update_stepbar_layout();
+}
+
+static void request_light_with_fallback(void) {
+  light_enable_interaction();
+
+  // If the LED comes on asynchronously, BacklightService ON cancels this
+  // immediately. If bright ambient light suppresses it, fallback stays active.
+  if (!light_is_on()) {
+    start_sunlight_fallback();
+  } else {
+    cancel_sunlight_fallback();
+    apply_bar_visibility();
+    update_stepbar_layout();
+  }
+}
+
+static void touch_handler(const TouchEvent *event, void *context) {
+  if (!event || event->type != TouchEvent_Touchdown) return;
+  request_light_with_fallback();
+}
+
 static void backlight_handler(bool on) {
-  // Do not trust/store 'on' as state. It is only a notification telling us that
-  // the system backlight changed; query light_is_on() during the redraw.
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Backlight event: %s", on ? "ON" : "OFF");
+  // The real backlight supersedes the sunlight fallback.
+  if (on) {
+    cancel_sunlight_fallback();
+  }
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Backlight event: %s fallback=%d",
+          on ? "ON" : "OFF",
+          s_sunlight_fallback_active ? 1 : 0);
+
   apply_bar_visibility();
   update_stepbar_layout();
 }
@@ -1566,13 +1615,17 @@ static void backlight_handler(bool on) {
 static void focus_handler(bool in_focus) {
   if (!in_focus) return;
 
-  // Returning from a menu/notification may not generate a new Backlight ON edge
-  // if the light was already active. Refresh from the live system state.
   APP_LOG(APP_LOG_LEVEL_DEBUG,
           "Focus returned: light=%d",
           light_is_on() ? 1 : 0);
-  apply_bar_visibility();
-  update_stepbar_layout();
+
+  if (light_is_on()) {
+    cancel_sunlight_fallback();
+    apply_bar_visibility();
+    update_stepbar_layout();
+  } else {
+    request_light_with_fallback();
+  }
 }
 
 static void update_bar_input_services(void) {
@@ -1697,9 +1750,7 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
       if (recent_motion && cooldown_done) {
         // Request Pebble's normal backlight interaction. Conditional UI follows
         // the actual system backlight state and has no independent timeout.
-        if (!light_is_on()) {
-          light_enable_interaction();
-        }
+        request_light_with_fallback();
 
         s_raise_last_wake_at = now_ms;
         APP_LOG(APP_LOG_LEVEL_INFO,
@@ -2403,17 +2454,22 @@ static void health_handler(HealthEventType event, void *context) {
 
 // ── Window load ───────────────────────────────────────────────────────────────
 static void window_appear(Window *window) {
-  // A menu/app return may happen while the backlight is still on. Refresh from
-  // the live system state instead of starting an independent timer.
   APP_LOG(APP_LOG_LEVEL_DEBUG,
           "Window appear: light=%d",
           light_is_on() ? 1 : 0);
-  apply_bar_visibility();
-  update_stepbar_layout();
+
+  if (light_is_on()) {
+    cancel_sunlight_fallback();
+    apply_bar_visibility();
+    update_stepbar_layout();
+  } else {
+    request_light_with_fallback();
+  }
 }
 
 static void window_disappear(Window *window) {
-  // No local visibility state to maintain.
+  // No physical backlight state is cached. An active sunlight fallback remains
+  // bounded and can expire while this window is off-screen.
 }
 
 static void window_load(Window *window) {
@@ -2685,6 +2741,11 @@ static void deinit(void) {
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
   if (s_touch_subscribed) touch_service_unsubscribe();
+  if (s_sunlight_fallback_timer) {
+    app_timer_cancel(s_sunlight_fallback_timer);
+    s_sunlight_fallback_timer = NULL;
+  }
+  s_sunlight_fallback_active = false;
   if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
 #if defined(PBL_HEALTH)
