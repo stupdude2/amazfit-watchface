@@ -1637,24 +1637,17 @@ static void backlight_handler(bool on) {
 
 static void focus_handler(bool in_focus) {
   if (!in_focus) {
+    // Let any existing Peek continue aging while another system UI is visible.
     logical_interaction_is_active();
     return;
   }
 
-  bool still_active = logical_interaction_is_active();
-
-  if (!still_active && light_is_on()) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Focus return with light already on -> begin peek");
-    begin_interaction_window();
-    return;
-  }
-
-  APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Focus returned: peek=%d",
-          still_active ? 1 : 0);
-
-  apply_bar_visibility();
-  update_stepbar_layout();
+  // Returning to the watchface is itself strong evidence that the user is
+  // actively looking at it. Start a fresh bounded Peek regardless of whether
+  // the OS physically illuminated the LED. This handles menus, notifications,
+  // and bright-ambient-light cases consistently without caching backlight state.
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Focus returned -> begin peek");
+  begin_interaction_window();
 }
 
 static void update_bar_input_services(void) {
