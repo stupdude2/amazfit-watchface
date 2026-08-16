@@ -37,7 +37,7 @@
 static bool stepbar_is_backlight_only(void);
 static bool stepbar_is_above(void);
 static bool stepbar_is_left_to_right(void);
-static bool peek_is_visible(void);
+static bool conditional_ui_is_visible(void);
 
 #define STEP_GOAL        5000
 #define BAR_MARGIN        8
@@ -773,16 +773,9 @@ static int  s_low_c_x10 = 0;
 static bool s_have_high_low = false;
 static bool s_backlight_subscribed = false;
 
-// Conditional bars/step bar should follow "the user is interacting with the
-// watch", not only whether the LED physically illuminated. In bright ambient
-// light the OS may suppress the LED even though a raise/touch was recognized.
-static bool s_interaction_active = false;
-static AppTimer *s_interaction_timer = NULL;
-static time_t s_interaction_expires_at = 0;
+// Conditional bars/step bar follow Pebble's actual system backlight state.
+static bool s_backlight_subscribed = false;
 static bool s_touch_subscribed = false;
-static bool s_window_has_appeared = false;
-#define INTERACTION_WINDOW_MS 4000
-#define INTERACTION_WINDOW_SECONDS 4
 
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
 // Pebble Z is perpendicular to the display. A normal glance holds the display
@@ -1165,7 +1158,7 @@ static void update_stepbar_layout(void) {
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
   const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
   const bool backlight_only = stepbar_is_backlight_only();
-  const bool interaction_visible = peek_is_visible();
+  const bool interaction_visible = conditional_ui_is_visible();
   const bool bar_visible = !permanently_hidden && (!backlight_only || interaction_visible);
 
   if (permanently_hidden) {
@@ -1526,129 +1519,61 @@ static void update_footer_content(void) {
 
 static void apply_bar_visibility(void);
 
-static bool logical_interaction_is_active(void) {
-  if (!s_interaction_active) return false;
-
-  time_t now = time(NULL);
-  if (s_interaction_expires_at > 0 && now >= s_interaction_expires_at) {
-    s_interaction_active = false;
-    s_interaction_expires_at = 0;
-
-    if (s_interaction_timer) {
-      app_timer_cancel(s_interaction_timer);
-      s_interaction_timer = NULL;
-    }
-
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Interaction window expired by deadline check");
-    return false;
-  }
-
-  return true;
-}
-
-static bool peek_is_visible(void) {
-  return logical_interaction_is_active();
-}
-
-static void interaction_timeout_handler(void *context) {
-  s_interaction_timer = NULL;
-
-  // This timer was created specifically for the current Peek session. Once it
-  // fires, Peek is over. Do not re-check a coarse one-second wall-clock value
-  // here; an AppTimer that fires a few milliseconds early must never leave the
-  // UI stuck visible with no timer remaining.
-  s_interaction_active = false;
-  s_interaction_expires_at = 0;
-
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Peek timeout -> hidden");
-
-  apply_bar_visibility();
-  update_stepbar_layout();
-}
-
-static void begin_interaction_window(void) {
-  s_interaction_active = true;
-  s_interaction_expires_at = time(NULL) + INTERACTION_WINDOW_SECONDS;
-
-  // Always cancel and create a fresh one-shot timer. This avoids depending on
-  // app_timer_reschedule() state if focus/services changed during the old timer.
-  if (s_interaction_timer) {
-    app_timer_cancel(s_interaction_timer);
-    s_interaction_timer = NULL;
-  }
-
-  s_interaction_timer = app_timer_register(
-      INTERACTION_WINDOW_MS, interaction_timeout_handler, NULL);
-
-  APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Peek begin: expires=%ld requested_light_state=%d",
-          (long)s_interaction_expires_at,
-          light_is_on() ? 1 : 0);
-
-  apply_bar_visibility();
-  update_stepbar_layout();
-}
-
-static void touch_handler(const TouchEvent *event, void *context) {
-  if (!event || event->type != TouchEvent_Touchdown) return;
-
-  begin_interaction_window();
+static bool conditional_ui_is_visible(void) {
+  // Never cache this value. A stale cached ON state was one of the causes of
+  // permanent full-mode behavior in earlier versions.
+  return light_is_on();
 }
 
 static void apply_bar_visibility(void) {
-  const bool interaction_visible = peek_is_visible();
+  const bool backlight_visible = conditional_ui_is_visible();
 
   if (s_header_layer) {
     const bool header_visible =
         (s_settings.header_mode == BAR_ALWAYS) ||
-        (s_settings.header_mode == BAR_BACKLIGHT && interaction_visible);
+        (s_settings.header_mode == BAR_BACKLIGHT && backlight_visible);
     layer_set_hidden(s_header_layer, !header_visible);
   }
 
   if (s_footer_layer) {
     const bool footer_visible =
         (s_settings.footer_mode == BAR_ALWAYS) ||
-        (s_settings.footer_mode == BAR_BACKLIGHT && interaction_visible);
+        (s_settings.footer_mode == BAR_BACKLIGHT && backlight_visible);
     layer_set_hidden(s_footer_layer, !footer_visible);
   }
 }
 
-static void end_interaction_window(void) {
-  s_interaction_active = false;
-  s_interaction_expires_at = 0;
+static void touch_handler(const TouchEvent *event, void *context) {
+  if (!event || event->type != TouchEvent_Touchdown) return;
 
-  if (s_interaction_timer) {
-    app_timer_cancel(s_interaction_timer);
-    s_interaction_timer = NULL;
-  }
+  // Ask Pebble for its normal system-managed light interaction. Visibility
+  // itself still follows light_is_on(), so there is no separate UI timeout.
+  light_enable_interaction();
 
+  // The BacklightService event normally follows immediately. Mark dirty now as
+  // well so devices/firmware that update synchronously are reflected at once.
   apply_bar_visibility();
   update_stepbar_layout();
 }
 
 static void backlight_handler(bool on) {
-  if (on) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Backlight ON -> begin peek");
-    begin_interaction_window();
-  } else {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Backlight OFF -> end peek");
-    end_interaction_window();
-  }
+  // Do not trust/store 'on' as state. It is only a notification telling us that
+  // the system backlight changed; query light_is_on() during the redraw.
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Backlight event: %s", on ? "ON" : "OFF");
+  apply_bar_visibility();
+  update_stepbar_layout();
 }
 
 static void focus_handler(bool in_focus) {
-  if (!in_focus) {
-    // Let any existing Peek continue aging while another system UI is visible.
-    logical_interaction_is_active();
-    return;
-  }
+  if (!in_focus) return;
 
-  // Returning to the watchface is itself strong evidence that the user is
-  // actively looking at it. Start a fresh bounded Peek regardless of whether
-  // the OS physically illuminated the LED. This handles menus, notifications,
-  // and bright-ambient-light cases consistently without caching backlight state.
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Focus returned -> begin peek");
-  begin_interaction_window();
+  // Returning from a menu/notification may not generate a new Backlight ON edge
+  // if the light was already active. Refresh from the live system state.
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Focus returned: light=%d",
+          light_is_on() ? 1 : 0);
+  apply_bar_visibility();
+  update_stepbar_layout();
 }
 
 static void update_bar_input_services(void) {
@@ -1675,8 +1600,7 @@ static void update_bar_input_services(void) {
     s_touch_subscribed = false;
   }
 
-  // Never synthesize persistent visibility from a physical light state.
-  logical_interaction_is_active();
+  // Synchronize from the live system backlight state.
   apply_bar_visibility();
   update_stepbar_layout();
 }
@@ -1772,17 +1696,15 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
           s_raise_last_wake_at == 0 || now_ms - s_raise_last_wake_at >= cooldown_ms;
 
       if (recent_motion && cooldown_done) {
-        // Mark the UI as actively viewed even if ambient-light logic suppresses
-        // the LED. This is what allows backlight-only bars to work outdoors.
-        begin_interaction_window();
-
+        // Request Pebble's normal backlight interaction. Conditional UI follows
+        // the actual system backlight state and has no independent timeout.
         if (!light_is_on()) {
           light_enable_interaction();
         }
 
         s_raise_last_wake_at = now_ms;
         APP_LOG(APP_LOG_LEVEL_INFO,
-                "Raise wake: mode=%d x=%d y=%d z=%d logical=1 light=%d",
+                "Raise wake: mode=%d x=%d y=%d z=%d light=%d",
                 (int)s_settings.raise_wake_mode,
                 (int)sample->x, (int)sample->y, (int)sample->z,
                 light_is_on() ? 1 : 0);
@@ -2482,25 +2404,17 @@ static void health_handler(HealthEventType event, void *context) {
 
 // ── Window load ───────────────────────────────────────────────────────────────
 static void window_appear(Window *window) {
-  if (!s_window_has_appeared) {
-    // Ignore the initial appearance caused by window_stack_push().
-    s_window_has_appeared = true;
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Initial window appearance");
-    return;
-  }
-
-  // Unlike AppFocusService, WindowHandler.appear is tied to this actual
-  // watchface window becoming visible again. Treat every return from a menu,
-  // app, or overlaid window as a bounded user-view interaction.
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Window appeared again -> begin peek");
-  begin_interaction_window();
+  // A menu/app return may happen while the backlight is still on. Refresh from
+  // the live system state instead of starting an independent timer.
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Window appear: light=%d",
+          light_is_on() ? 1 : 0);
+  apply_bar_visibility();
+  update_stepbar_layout();
 }
 
 static void window_disappear(Window *window) {
-  // Nothing to clear here. Any existing Peek continues to age while the
-  // watchface is off-screen; window_appear starts a fresh bounded Peek when it
-  // becomes visible again.
-  logical_interaction_is_active();
+  // No local visibility state to maintain.
 }
 
 static void window_load(Window *window) {
@@ -2772,12 +2686,6 @@ static void deinit(void) {
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
   if (s_touch_subscribed) touch_service_unsubscribe();
-  if (s_interaction_timer) {
-    app_timer_cancel(s_interaction_timer);
-    s_interaction_timer = NULL;
-  }
-  s_interaction_active = false;
-  s_interaction_expires_at = 0;
   if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
 #if defined(PBL_HEALTH)
