@@ -323,6 +323,7 @@ static uint8_t s_license_status_retry_count = 0;
 static void license_send_status_to_phone(void);
 static void license_set_pro(bool unlocked);
 static void pro_trial_mark_expired(void);
+static void schedule_license_status_retry(void);
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
