@@ -317,6 +317,8 @@ static bool s_kiezelpay_licensed = false;
 static EventHandle s_appmsg_received_handle;
 static EventHandle s_appmsg_dropped_handle;
 static bool s_appmsg_handlers_registered = false;
+static AppTimer *s_license_status_retry_timer = NULL;
+static uint8_t s_license_status_retry_count = 0;
 
 static void license_send_status_to_phone(void);
 static void license_set_pro(bool unlocked);
@@ -1561,6 +1563,10 @@ static void cancel_sunlight_fallback(void) {
     app_timer_cancel(s_sunlight_fallback_timer);
     s_sunlight_fallback_timer = NULL;
   }
+  if (s_license_status_retry_timer) {
+    app_timer_cancel(s_license_status_retry_timer);
+    s_license_status_retry_timer = NULL;
+  }
   s_sunlight_fallback_active = false;
 }
 
@@ -1924,9 +1930,14 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
   switch (e) {
     case KIEZELPAY_LICENSED:
       APP_LOG(APP_LOG_LEVEL_INFO,
-              "KiezelPay: licensed -> Pro enabled; restoring saved Pro preferences");
+              "KiezelPay: LICENSED -> Purchased Pro");
       s_kiezelpay_licensed = true;
       license_set_pro(true);
+
+      // KiezelPay may still be finishing its own AppMessage exchange here.
+      // Retry-capable status sync ensures the phone/Clay side learns about the
+      // purchase even if the first outbox attempt is temporarily busy.
+      schedule_license_status_retry();
       break;
 
     case KIEZELPAY_CODE_AVAILABLE:
@@ -1959,9 +1970,42 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
   return false;
 }
 
+static void license_status_retry_handler(void *context) {
+  s_license_status_retry_timer = NULL;
+  license_send_status_to_phone();
+}
+
+static void schedule_license_status_retry(void) {
+  if (s_license_status_retry_count >= 6) {
+    APP_LOG(APP_LOG_LEVEL_WARNING,
+            "License status sync gave up after %d retries",
+            (int)s_license_status_retry_count);
+    s_license_status_retry_count = 0;
+    return;
+  }
+
+  s_license_status_retry_count++;
+
+  if (s_license_status_retry_timer) {
+    app_timer_cancel(s_license_status_retry_timer);
+    s_license_status_retry_timer = NULL;
+  }
+
+  s_license_status_retry_timer =
+      app_timer_register(250, license_status_retry_handler, NULL);
+}
+
 static void license_send_status_to_phone(void) {
   DictionaryIterator *iter = NULL;
-  if (app_message_outbox_begin(&iter) != APP_MSG_OK || !iter) return;
+  AppMessageResult begin_result = app_message_outbox_begin(&iter);
+
+  if (begin_result != APP_MSG_OK || !iter) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG,
+            "License status outbox busy/result=%d; retrying",
+            (int)begin_result);
+    schedule_license_status_retry();
+    return;
+  }
 
   // Reuse the existing PRO_LICENSE key as an entitlement state:
   //   0 = Free
@@ -1976,8 +2020,6 @@ static void license_send_status_to_phone(void) {
 
   dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
 
-  // Reuse LICENSE_CHECK in the watch -> phone response to report remaining
-  // trial seconds. Phone -> watch still uses the same key as the status request.
   int32_t trial_remaining = 0;
   if (entitlement == 1 && persist_exists(PRO_TRIAL_PERSIST_KEY)) {
     int32_t expires_at = persist_read_int(PRO_TRIAL_PERSIST_KEY);
@@ -1986,12 +2028,25 @@ static void license_send_status_to_phone(void) {
       trial_remaining = expires_at - now;
     }
   } else if (entitlement == 0 && pro_trial_has_been_used()) {
-    // -1 means the one-time trial has already been consumed.
     trial_remaining = -1;
   }
   dict_write_int32(iter, KEY_LICENSE_CHECK, trial_remaining);
 
-  app_message_outbox_send();
+  AppMessageResult send_result = app_message_outbox_send();
+  if (send_result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG,
+            "License status send result=%d; retrying",
+            (int)send_result);
+    schedule_license_status_retry();
+    return;
+  }
+
+  APP_LOG(APP_LOG_LEVEL_INFO,
+          "License status sent: entitlement=%d trial_remaining=%ld",
+          (int)entitlement,
+          (long)trial_remaining);
+
+  s_license_status_retry_count = 0;
 }
 
 static void license_refresh_ui(void) {

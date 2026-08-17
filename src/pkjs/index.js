@@ -316,6 +316,10 @@ function openSettingsPage() {
 Pebble.addEventListener('showConfiguration', function() {
   pendingOpenSettings = true;
 
+  // A previous response must never satisfy a new Settings-open request.
+  // Require a fresh watch entitlement before building the Clay page.
+  sessionLicenseKnown = false;
+
   // Ask the watch for authoritative entitlement every time settings opens.
   Pebble.sendAppMessage(
     {'LICENSE_CHECK': 1},
@@ -336,10 +340,18 @@ Pebble.addEventListener('showConfiguration', function() {
   setTimeout(function() {
     if (pendingOpenSettings) {
       pendingOpenSettings = false;
-      if (!sessionLicenseKnown) sessionProUnlocked = false;
+
+      if (!sessionLicenseKnown) {
+        // No fresh response: fail closed rather than reusing stale Free/Trial/
+        // Pro state from an earlier settings session.
+        sessionEntitlement = 0;
+        sessionProUnlocked = false;
+        sessionTrialRemaining = 0;
+      }
+
       openSettingsPage();
     }
-  }, 900);
+  }, 1500);
 });
 
 
@@ -558,6 +570,8 @@ Pebble.addEventListener('appmessage', function(e) {
   }
   sessionProUnlocked = sessionEntitlement > 0;
   sessionLicenseKnown = true;
+
+  console.log('Fresh watch entitlement received: ' + sessionEntitlement);
 
   if (typeof e.payload.LICENSE_CHECK !== 'undefined') {
     var remaining = Number(e.payload.LICENSE_CHECK);
