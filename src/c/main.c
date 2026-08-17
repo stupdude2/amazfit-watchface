@@ -1909,14 +1909,22 @@ static void pro_trial_refresh(void) {
   } else {
     APP_LOG(APP_LOG_LEVEL_INFO, "Big Time Pro trial expired");
     pro_trial_mark_expired();
-    if (!s_pro_unlocked) license_set_pro(false);
+
+    // If the user has not purchased Pro, transition out of trial immediately.
+    // license_set_pro(false) captures the complete trial configuration into
+    // s_saved_settings BEFORE Free defaults are applied, so a later purchase
+    // restores exactly what the user configured during the trial.
+    if (!s_kiezelpay_licensed) {
+      license_set_pro(false);
+    }
   }
 }
 
 static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
   switch (e) {
     case KIEZELPAY_LICENSED:
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: licensed -> Pro enabled");
+      APP_LOG(APP_LOG_LEVEL_INFO,
+              "KiezelPay: licensed -> Pro enabled; restoring saved Pro preferences");
       s_kiezelpay_licensed = true;
       license_set_pro(true);
       break;
