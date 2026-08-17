@@ -246,20 +246,22 @@ function restorePersistedTrialToWatch() {
 
   var expiry = getStoredTrialExpiry();
   var now = Math.floor(Date.now() / 1000);
+  var value = expiry > now ? expiry : -1;
 
-  if (expiry > now) {
-    Pebble.sendAppMessage(
-      {'TRY_PRO_FREE': expiry},
-      function() {
-        console.log('Restored existing Pro trial to watch; expiry=' + expiry);
-      },
-      function(e) {
-        console.log('Failed to restore Pro trial to watch: ' + JSON.stringify(e));
-      }
-    );
-  }
+  Pebble.sendAppMessage(
+    {'TRY_PRO_FREE': value},
+    function() {
+      console.log(value > 1
+        ? 'Restored existing Pro trial to watch; expiry=' + value
+        : 'Restored used/expired Pro trial marker to watch');
+    },
+    function(e) {
+      console.log('Failed to restore Pro trial state to watch: ' + JSON.stringify(e));
+    }
+  );
 }
 var sessionLicenseKnown = false;
+var sessionTrialUsed = trialWasUsedOnPhone();
 var pendingOpenSettings = false;
 
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
@@ -276,6 +278,7 @@ function openSettingsPage() {
     editionModule.isTrial = sessionEntitlement === 1;
     editionModule.isPurchased = sessionEntitlement === 2;
     editionModule.trialRemaining = sessionTrialRemaining;
+    editionModule.trialUsed = sessionTrialUsed;
     editionModule.isPro = sessionEntitlement > 0;
     sessionProUnlocked = editionModule.isPro;
 
@@ -364,6 +367,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         }
       } else {
         settings.TRY_PRO_FREE = persistNewTrialOnPhone();
+        sessionTrialUsed = true;
         console.log('Stored new Pro trial expiry=' + settings.TRY_PRO_FREE);
       }
     }
@@ -558,6 +562,10 @@ Pebble.addEventListener('appmessage', function(e) {
   if (typeof e.payload.LICENSE_CHECK !== 'undefined') {
     var remaining = Number(e.payload.LICENSE_CHECK);
     sessionTrialRemaining = (!isNaN(remaining) && remaining > 0) ? remaining : 0;
+    if (!isNaN(remaining) && remaining < 0) {
+      sessionTrialUsed = true;
+      try { localStorage.setItem(TRIAL_USED_STORAGE_KEY, '1'); } catch (e) {}
+    }
   } else if (sessionEntitlement !== 1) {
     sessionTrialRemaining = 0;
   }

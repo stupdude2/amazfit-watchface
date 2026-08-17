@@ -320,6 +320,7 @@ static bool s_appmsg_handlers_registered = false;
 
 static void license_send_status_to_phone(void);
 static void license_set_pro(bool unlocked);
+static void pro_trial_mark_expired(void);
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
@@ -1856,8 +1857,10 @@ static bool pro_trial_is_active(void) {
     return true;
   }
 
-  persist_delete(PRO_TRIAL_PERSIST_KEY);
-  s_trial_active = false;
+  // Preserve a permanent used-trial marker. Deleting this value would make
+  // pro_trial_start() believe the user had never taken a trial and allow a
+  // second 48-hour period.
+  pro_trial_mark_expired();
   return false;
 }
 
@@ -1974,6 +1977,9 @@ static void license_send_status_to_phone(void) {
     if (expires_at > now) {
       trial_remaining = expires_at - now;
     }
+  } else if (entitlement == 0 && pro_trial_has_been_used()) {
+    // -1 means the one-time trial has already been consumed.
+    trial_remaining = -1;
   }
   dict_write_int32(iter, KEY_LICENSE_CHECK, trial_remaining);
 
@@ -2267,13 +2273,17 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TRY_PRO_FREE: {
         int32_t trial_value = tuple_to_int32(t, 0);
-        if (trial_value != 0 && !s_kiezelpay_licensed) {
-          if (trial_value > 1) {
-            // Phone-side PebbleKit JS localStorage survives watchapp
-            // uninstall/reinstall, so it can restore the ORIGINAL expiry
-            // timestamp instead of granting a fresh trial after reinstall.
+        if (!s_kiezelpay_licensed) {
+          if (trial_value < 0) {
+            // Phone-side localStorage confirms this installation history has
+            // already consumed its one-time trial (important after reinstall).
+            pro_trial_mark_expired();
+            license_set_pro(false);
+            APP_LOG(APP_LOG_LEVEL_INFO, "Phone confirmed Pro trial already used");
+          } else if (trial_value > 1) {
+            // Restore only the ORIGINAL absolute expiry timestamp.
             time_t now = time(NULL);
-            if ((time_t)trial_value > now) {
+            if ((time_t)trial_value > now && !pro_trial_has_been_used()) {
               persist_write_int(PRO_TRIAL_PERSIST_KEY, trial_value);
               s_trial_active = true;
               APP_LOG(APP_LOG_LEVEL_INFO,
@@ -2284,10 +2294,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
               pro_trial_mark_expired();
               license_set_pro(false);
               APP_LOG(APP_LOG_LEVEL_INFO,
-                      "Rejected expired Pro trial restore: %ld",
+                      "Rejected used/expired Pro trial restore: %ld",
                       (long)trial_value);
             }
-          } else {
+          } else if (trial_value == 1) {
             pro_trial_start();
           }
         }

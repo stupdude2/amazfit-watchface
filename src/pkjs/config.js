@@ -98,15 +98,19 @@ if (!edition.isPro) {
       { "type": "heading", "defaultValue": "Upgrade to Pro" },
       {
         "type": "text",
-        "defaultValue": "48-hour Pro trial available. The trial does not start automatically."
-      },
+        "defaultValue": edition.trialUsed
+          ? "Your 48-hour Pro trial has ended."
+          : "48-hour Pro trial available. The trial does not start automatically."
+      }
+    ].concat(edition.trialUsed ? [] : [
       {
         "type": "toggle",
         "messageKey": "TRY_PRO_FREE",
         "defaultValue": false,
         "label": "Try Pro Free",
-        "description": "Enable and tap Save Settings to start your 48-hour Pro trial."
-      },
+        "description": "Enable and tap Save Settings to start your one-time 48-hour Pro trial."
+      }
+    ]).concat([
       {
         "type": "toggle",
         "messageKey": "UNLOCK_PRO",
@@ -118,7 +122,7 @@ if (!edition.isPro) {
         "type": "text",
         "defaultValue": "Pro unlocks colors, layouts, custom step goals, weather options, Raise to Wake, and all advanced customization."
       }
-    ]
+    ])
   });
 }
 
