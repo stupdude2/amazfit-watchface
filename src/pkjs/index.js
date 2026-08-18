@@ -351,7 +351,7 @@ Pebble.addEventListener('showConfiguration', function() {
 
       openSettingsPage();
     }
-  }, 1500);
+  }, 4000);
 });
 
 

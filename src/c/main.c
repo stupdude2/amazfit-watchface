@@ -114,6 +114,13 @@ static bool conditional_ui_is_visible(void);
 #define KEY_TRY_PRO_FREE   26
 #define KEY_UNLOCK_PRO     27
 
+// Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
+// KiezelPay's own handler is registered before Big Time's pebble-events
+// handler, so by the time Big Time sees this tuple, kiezelpay-core has already
+// processed the same dictionary.
+#define KPAY_KEY_STATUS_RESULT      10009
+#define KPAY_STATUS_LICENSED        2
+
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
 #define SETTINGS_VERSION     13
@@ -313,6 +320,10 @@ static bool s_pro_unlocked = false;
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
+static bool s_kiezelpay_status_known = false;
+static bool s_license_query_waiting = false;
+static AppTimer *s_license_query_wait_timer = NULL;
+static uint8_t s_license_query_wait_count = 0;
 
 static EventHandle s_appmsg_received_handle;
 static EventHandle s_appmsg_dropped_handle;
@@ -324,6 +335,7 @@ static void license_send_status_to_phone(void);
 static void license_set_pro(bool unlocked);
 static void pro_trial_mark_expired(void);
 static void schedule_license_status_retry(void);
+static void send_license_status_when_ready(void);
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
@@ -1568,6 +1580,10 @@ static void cancel_sunlight_fallback(void) {
     app_timer_cancel(s_license_status_retry_timer);
     s_license_status_retry_timer = NULL;
   }
+  if (s_license_query_wait_timer) {
+    app_timer_cancel(s_license_query_wait_timer);
+    s_license_query_wait_timer = NULL;
+  }
   s_sunlight_fallback_active = false;
 }
 
@@ -1932,17 +1948,19 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
     case KIEZELPAY_LICENSED:
       APP_LOG(APP_LOG_LEVEL_INFO,
               "KiezelPay: LICENSED -> Purchased Pro");
+      s_kiezelpay_status_known = true;
       s_kiezelpay_licensed = true;
       license_set_pro(true);
-
-      // KiezelPay may still be finishing its own AppMessage exchange here.
-      // Retry-capable status sync ensures the phone/Clay side learns about the
-      // purchase even if the first outbox attempt is temporarily busy.
       schedule_license_status_retry();
       break;
 
     case KIEZELPAY_CODE_AVAILABLE:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available");
+      s_kiezelpay_status_known = true;
+      s_kiezelpay_licensed = false;
+      if (!s_trial_active) {
+        license_set_pro(false);
+      }
       break;
 
     case KIEZELPAY_PURCHASE_STARTED:
@@ -1969,6 +1987,48 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
 
   // Let KiezelPay show its standard trial/purchase/license messages.
   return false;
+}
+
+static void license_query_wait_handler(void *context) {
+  s_license_query_wait_timer = NULL;
+
+  if (!s_license_query_waiting) return;
+
+  if (s_kiezelpay_status_known || s_kiezelpay_licensed ||
+      s_trial_active || s_license_query_wait_count >= 12) {
+    s_license_query_waiting = false;
+    s_license_query_wait_count = 0;
+    license_send_status_to_phone();
+    return;
+  }
+
+  s_license_query_wait_count++;
+  s_license_query_wait_timer =
+      app_timer_register(250, license_query_wait_handler, NULL);
+}
+
+static void send_license_status_when_ready(void) {
+  // Purchased-license status may arrive asynchronously from KiezelPay's server.
+  // Do not immediately tell Clay "Free" while that check is still unresolved.
+  if (s_kiezelpay_status_known || s_kiezelpay_licensed || s_trial_active) {
+    s_license_query_waiting = false;
+    s_license_query_wait_count = 0;
+    license_send_status_to_phone();
+    return;
+  }
+
+  if (s_license_query_wait_timer) {
+    app_timer_cancel(s_license_query_wait_timer);
+    s_license_query_wait_timer = NULL;
+  }
+
+  s_license_query_waiting = true;
+  s_license_query_wait_count = 0;
+  s_license_query_wait_timer =
+      app_timer_register(250, license_query_wait_handler, NULL);
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Waiting for KiezelPay status before answering license check");
 }
 
 static void license_status_retry_handler(void *context) {
@@ -2134,6 +2194,41 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
     APP_LOG(APP_LOG_LEVEL_INFO, "RX key=%lu type=%d len=%u",
             (unsigned long)t->key, (int)t->type, (unsigned)t->length);
+
+    // KiezelPay's pebble-events handler is registered before this handler and
+    // processes/validates the same incoming status dictionary first. Mirror its
+    // resolved status into Big Time's runtime entitlement so the settings UI
+    // cannot disagree with KiezelPay's own license state.
+    if (t->key == KPAY_KEY_STATUS_RESULT) {
+      int32_t kpay_status = tuple_to_int32(t, -1);
+
+      APP_LOG(APP_LOG_LEVEL_INFO,
+              "KiezelPay status result observed: %ld",
+              (long)kpay_status);
+
+      s_kiezelpay_status_known = true;
+
+      if (kpay_status == KPAY_STATUS_LICENSED) {
+        s_kiezelpay_licensed = true;
+        license_set_pro(true);
+      } else {
+        s_kiezelpay_licensed = false;
+        if (!s_trial_active) {
+          license_set_pro(false);
+        }
+      }
+
+      if (s_license_query_wait_timer) {
+        app_timer_cancel(s_license_query_wait_timer);
+        s_license_query_wait_timer = NULL;
+      }
+      s_license_query_waiting = false;
+      s_license_query_wait_count = 0;
+
+      // Send the newly resolved entitlement to the phone/Clay immediately.
+      schedule_license_status_retry();
+      continue;
+    }
 
     // Security boundary: Pro controls are enforced on-watch, not just hidden in
     // the settings page. A crafted AppMessage cannot unlock premium settings.
@@ -2377,7 +2472,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LICENSE_CHECK:
         pro_trial_refresh();
-        license_send_status_to_phone();
+        send_license_status_when_ready();
         break;
 
       // Phone cannot grant a license. KEY_PRO_LICENSE is watch -> phone only.
@@ -2789,8 +2884,12 @@ static void init(void) {
   events_app_message_open();
 
   // Restore an explicitly-started Big Time trial across watchface restarts.
+  // If there is no active trial, wait for KiezelPay's asynchronous status
+  // result instead of immediately advertising Free.
   pro_trial_refresh();
-  license_send_status_to_phone();
+  if (s_trial_active) {
+    license_send_status_to_phone();
+  }
   battery_state_service_subscribe(battery_handler);
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler
