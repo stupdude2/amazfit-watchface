@@ -238,19 +238,21 @@ if (edition.isPro) {
     ]
   });
 
-  config.push({
-    "type": "section",
-    "items": [
-      { "type": "heading", "defaultValue": "KiezelPay" },
-      {
-        "type": "toggle",
-        "messageKey": "UNLOCK_PRO",
-        "defaultValue": false,
-        "label": "Purchase / Restore Pro",
-        "description": "Enable and tap Save Settings to display a KiezelPay purchase code or restore an existing purchase."
-      }
-    ]
-  });
+  if (edition.isTrial) {
+    config.push({
+      "type": "section",
+      "items": [
+        { "type": "heading", "defaultValue": "KiezelPay" },
+        {
+          "type": "toggle",
+          "messageKey": "UNLOCK_PRO",
+          "defaultValue": false,
+          "label": "Purchase / Restore Pro",
+          "description": "Enable and tap Save Settings to purchase Pro now or restore an existing purchase."
+        }
+      ]
+    });
+  }
 
   config.push({
     "type": "section",

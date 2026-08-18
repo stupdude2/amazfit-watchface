@@ -200,6 +200,25 @@ function customClay(minified) {
 
 var sessionProUnlocked = false;
 var sessionEntitlement = 0; // 0 Free, 1 Trial, 2 Purchased Pro
+var PURCHASED_UI_CACHE_KEY = 'big_time_purchased_ui';
+
+function cachedPurchasedUi() {
+  try {
+    return localStorage.getItem(PURCHASED_UI_CACHE_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function setCachedPurchasedUi(enabled) {
+  try {
+    if (enabled) {
+      localStorage.setItem(PURCHASED_UI_CACHE_KEY, '1');
+    } else {
+      localStorage.removeItem(PURCHASED_UI_CACHE_KEY);
+    }
+  } catch (e) {}
+}
 var sessionTrialRemaining = 0;
 
 var TRIAL_DURATION_SECONDS = 48 * 60 * 60;
@@ -314,21 +333,41 @@ function openSettingsPage() {
 }
 
 Pebble.addEventListener('showConfiguration', function() {
-  pendingOpenSettings = true;
+  // Purchased Pro is stable enough to open immediately. This cached value only
+  // controls which Clay controls are shown; C-side licensing remains the
+  // authority and still rejects locked Pro AppMessage keys.
+  if (sessionEntitlement === 2 || cachedPurchasedUi()) {
+    sessionEntitlement = 2;
+    sessionProUnlocked = true;
+    sessionLicenseKnown = true;
+    pendingOpenSettings = false;
 
-  // A previous response must never satisfy a new Settings-open request.
-  // Require a fresh watch entitlement before building the Clay page.
+    console.log('Opening cached Purchased Pro settings immediately');
+    openSettingsPage();
+
+    // Refresh entitlement quietly in the background so a future genuine
+    // unlicensed result can clear the cache without blocking this settings tap.
+    Pebble.sendAppMessage(
+      {'LICENSE_CHECK': 1},
+      function() {},
+      function(err) {
+        console.log('Background license refresh failed: ' + JSON.stringify(err));
+      }
+    );
+    return;
+  }
+
+  pendingOpenSettings = true;
   sessionLicenseKnown = false;
 
-  // Ask the watch for authoritative entitlement every time settings opens.
   Pebble.sendAppMessage(
     {'LICENSE_CHECK': 1},
     function() {},
     function() {
-      // If the watch cannot be reached, fail closed to Free settings.
       sessionLicenseKnown = true;
       sessionEntitlement = 0;
       sessionProUnlocked = false;
+
       if (pendingOpenSettings) {
         pendingOpenSettings = false;
         openSettingsPage();
@@ -336,14 +375,13 @@ Pebble.addEventListener('showConfiguration', function() {
     }
   );
 
-  // Failsafe: never leave the Settings button hanging.
+  // Free/trial/unknown users still wait for the authoritative watch response.
+  // Keep a failsafe so Settings can never become permanently unresponsive.
   setTimeout(function() {
     if (pendingOpenSettings) {
       pendingOpenSettings = false;
 
       if (!sessionLicenseKnown) {
-        // No fresh response: fail closed rather than reusing stale Free/Trial/
-        // Pro state from an earlier settings session.
         sessionEntitlement = 0;
         sessionProUnlocked = false;
         sessionTrialRemaining = 0;
@@ -570,6 +608,13 @@ Pebble.addEventListener('appmessage', function(e) {
   }
   sessionProUnlocked = sessionEntitlement > 0;
   sessionLicenseKnown = true;
+
+  if (sessionEntitlement === 2) {
+    setCachedPurchasedUi(true);
+  } else if (sessionEntitlement === 0) {
+    // Only an authoritative Free response clears the purchased UI cache.
+    setCachedPurchasedUi(false);
+  }
 
   console.log('Fresh watch entitlement received: ' + sessionEntitlement);
 
