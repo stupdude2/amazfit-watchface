@@ -1,4 +1,4 @@
-# Amazfit Bip Port — Pebble Time 2 Watchface
+# Big Time — Pebble Time 2 Watchface
 
 A faithful port of the Amazfit Bip digital watchface to the Pebble Time 2 (Basalt platform, 144×168 px color display).
 
@@ -431,3 +431,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Disabled verbose KiezelPay logging.
 - No other watchface behavior changed from v2.4.6.
 - Intended for final real-purchase, persistence, restore, and reinstall testing before Pebble Store deployment.
+
+## v2.5.1 — Big Time product naming
+- Updated Pebble app/watchface display metadata to Big Time.
+- Replaced remaining legacy product-name references in project text/code.
+- Production KiezelPay flags remain unchanged from v2.5.0.

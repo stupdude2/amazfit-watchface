@@ -1,60 +1,41 @@
-# Big Time — KiezelPay + opt-in Pro trial
+# KiezelPay integration handoff
 
-Product ID: **915728151**
+This build contains the runtime Free/Pro enforcement layer, but deliberately
+does NOT embed the merchant/account API key.
 
-This project now contains the generated KiezelPay Pebble integration and a separate
-watch-side 48-hour Pro trial. The trial is deliberately **not** started on install.
+## Why
+KiezelPay's Pebble licensing integration uses product-specific generated code
+and performs critical entitlement/security checks in C. The merchant API key
+is intended for account/sales API access and should not be shipped inside a
+public PBW/JavaScript bundle.
 
-## User flow
+## What is already implemented
+- Runtime entitlement state: `s_pro_unlocked`
+- Secure C-side gating of every premium customization message
+- Free controls:
+  - Time Format (12 Hour / 24 Hour)
+  - Center 12 Hour Clock
+- Free defaults:
+  - 5000 step target
+  - Center 12 Hour Clock enabled
+- Watch->phone entitlement key: `PRO_LICENSE = 24`
+- Phone->watch status request key: `LICENSE_CHECK = 25`
+- KiezelPay callback hook:
+  `watchface_kiezelpay_set_licensed(bool licensed)`
 
-1. Big Time installs in Free mode.
-2. Settings shows **Try Pro Free — 48 Hours**.
-3. The user turns it on and taps **Save Settings**. Only then is the trial start
-   timestamp written to watch persistent storage.
-4. All Pro features are enabled for 48 hours.
-5. At expiry Big Time returns to Free defaults, but saves the user's Pro
-   customization separately.
-6. **Unlock Pro with KiezelPay** starts the purchase-code flow.
-7. A valid KiezelPay license permanently unlocks Pro and restores the saved Pro setup.
+## Final integration
+Create/configure the Big Time product in KiezelPay and download its
+preconfigured Pebble/watchface integration package from the KiezelPay developer
+dashboard. Add its library/source files to this project and route its licensed
+callback to:
 
-## Security / authority
+    watchface_kiezelpay_set_licensed(true);
 
-- Paid entitlement is validated by KiezelPay in C.
-- Trial start/used/time state is persisted on the watch, not only in phone JS.
-- Premium AppMessage settings remain gated in C.
-- The phone only mirrors entitlement/trial state for the Settings UI.
-- The merchant API key is not embedded in the PBW.
+and its unlicensed/expired callback to:
 
-## IMPORTANT — test vs. Store release
+    watchface_kiezelpay_set_licensed(false);
 
-The delivered 2.0.2 integration build is intentionally configured for purchase testing:
+Trial behavior can be mapped to either Free or Pro depending on the product's
+trial strategy.
 
-- `src/c/kiezelpay.c`: `KIEZELPAY_TEST_MODE 1`
-- `src/c/kiezelpay.c`: `KIEZELPAY_LOG_VERBOSE 1`
-- `src/pkjs/index.js`: `KIEZELPAY_LOGGING = true`
-
-Before publishing to the Pebble Store, change them to:
-
-- `KIEZELPAY_TEST_MODE 0`
-- `KIEZELPAY_LOG_VERBOSE 0`
-- `KIEZELPAY_LOGGING = false`
-
-Keep `KIEZELPAY_DISABLE_TIME_TRIAL 1` in both test and production. Big Time owns
-the opt-in 48-hour trial; KiezelPay's automatic timed-trial behavior must remain disabled.
-
-
-## v2.0.8 entitlement/UI correction
-
-- The watch is the authority for whether Pro controls are shown. Settings requests `LICENSE_CHECK` every time it opens and waits for the watch response before Clay builds the page.
-- Phone `localStorage` is cache/history only and cannot grant Pro. This prevents a prior Pro value from surviving a watchface uninstall/reinstall and incorrectly rendering Pro controls.
-- KiezelPay remains authoritative for permanent paid licensing and periodic server revalidation remains enabled.
-- The 48-hour opt-in trial remains developer-managed (`KIEZELPAY_DISABLE_TIME_TRIAL 1`) so it never starts automatically.
-- Because Pebble persistent storage is removed with the watchface, PebbleKit JS also remembers that the developer-managed trial was used and re-seeds that marker after reinstall. This marker can only remove trial eligibility; it never grants Pro.
-
-
-## v2.0.8 entitlement stability
-
-- A confirmed `KIEZELPAY_LICENSED` event is cached in Pebble persistent storage so normal watchface restarts/switches do not briefly fall back to Free while KiezelPay validates in the background.
-- Uninstall/reinstall still clears this watch-side cache. KiezelPay remains the authority for restoring an existing purchase.
-- Settings creates a fresh Clay instance on every open to prevent partially-rendered Pro pages after entitlement changes.
-- Purchase requests use the fast direct `kiezelpay_start_purchase()` path first. If no KiezelPay event arrives within 2.5 seconds, Big Time resets the stale purchase session and retries once.
+Do not commit the merchant API key to GitHub.

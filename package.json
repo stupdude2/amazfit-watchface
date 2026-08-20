@@ -8,13 +8,13 @@
   "keywords": [
     "pebble-app"
   ],
-  "name": "amazfit-bip-port",
+  "name": "big-time",
   "pebble": {
     "capabilities": [
       "health",
       "configurable"
     ],
-    "displayName": "Amazfit Bip Port",
+    "displayName": "Big Time",
     "enableMultiJS": true,
     "messageKeys": {
       "TEMPERATURE": 0,
@@ -114,5 +114,5 @@
       "watchface": true
     }
   },
-  "version": "2.5.0"
+  "version": "2.5.1"
 }

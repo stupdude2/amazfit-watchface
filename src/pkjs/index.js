@@ -1,4 +1,4 @@
-// ── Amazfit Bip Port — PebbleKit JS companion ────────────────────────────────
+// ── Big Time — PebbleKit JS companion ────────────────────────────────
 // Fetches weather from OpenWeatherMap and sends temperature + icon code
 // to the watch via AppMessage.
 //
