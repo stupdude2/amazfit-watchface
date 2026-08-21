@@ -12,7 +12,8 @@
   "pebble": {
     "capabilities": [
       "health",
-      "configurable"
+      "configurable",
+      "location"
     ],
     "displayName": "Big Time",
     "enableMultiJS": true,
@@ -114,5 +115,5 @@
       "watchface": true
     }
   },
-  "version": "2.5.1"
+  "version": "2.5.2"
 }

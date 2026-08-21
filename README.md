@@ -436,3 +436,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Updated Pebble app/watchface display metadata to Big Time.
 - Replaced remaining legacy product-name references in project text/code.
 - Production KiezelPay flags remain unchanged from v2.5.0.
+
+## v2.5.2 — Keyless weather
+- Removed the embedded OpenWeatherMap API key and all OpenWeatherMap requests.
+- Weather now follows Pebble's current C-watchface pattern: PebbleKit JS obtains the phone location, requests Open-Meteo, and sends the result to the watch through AppMessage.
+- Open-Meteo requires no API key or embedded secret.
+- Current temperature, weather icon category, today's high/low, sunrise, and sunset continue using the existing Big Time AppMessage keys.
+- Sunrise/sunset are requested with timezone=auto and parsed as local time.

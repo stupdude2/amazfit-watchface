@@ -1,8 +1,6 @@
 // ── Big Time — PebbleKit JS companion ────────────────────────────────
-// Fetches weather from OpenWeatherMap and sends temperature + icon code
-// to the watch via AppMessage.
-//
-// SETUP: Replace YOUR_API_KEY below with a free key from openweathermap.org
+// Fetches weather from Open-Meteo through PebbleKit JS and sends weather
+// data to the watch via AppMessage. No API key is required.
 
 // ── Configuration ────────────────────────────────────────────────────────────
 // Clay automatically opens the settings page and sends configured messageKey
@@ -12,7 +10,7 @@ var clayConfig = require('./config');
 
 // Official KiezelPay phone-side companion. Keep verbose logging enabled while
 // test purchases/trials are being validated; disable before store release.
-var KIEZELPAY_LOGGING = true;
+var KIEZELPAY_LOGGING = false;
 var KiezelPay = require('kiezelpay-core');
 var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
 
@@ -436,8 +434,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
 var messageKeys = require('message_keys');
 
-var API_KEY = '18797f22ec59e0b78f4174fef4fb0f2b';
-var UNITS   = 'metric';     // Always fetch Celsius; watch converts to the user's unit
+// ── Weather via Open-Meteo ───────────────────────────────────────────────────
+// Pebble's current C-watchface guidance is to use PebbleKit JS on the phone for
+// geolocation/network access, then send weather to the watch with AppMessage.
+// Open-Meteo requires no API key, so there is no secret embedded in this app.
 
 // Icon codes sent to watch (must match KEY_WEATHER_ICON cases in main.c)
 var ICON_CLEAR   = 0;
@@ -446,108 +446,116 @@ var ICON_RAIN    = 2;
 var ICON_SNOW    = 3;
 var ICON_THUNDER = 4;
 
-function iconFromOWM(id) {
-  if (id >= 200 && id < 300) return ICON_THUNDER;
-  if (id >= 300 && id < 600) return ICON_RAIN;
-  if (id >= 600 && id < 700) return ICON_SNOW;
-  if (id >= 800 && id < 802) return ICON_CLEAR;
+function iconFromOpenMeteo(code) {
+  code = Number(code);
+
+  // WMO weather interpretation codes used by Open-Meteo.
+  if (code === 0 || code === 1) return ICON_CLEAR;
+  if (code === 2 || code === 3 ||
+      code === 45 || code === 48) return ICON_CLOUDY;
+
+  if ((code >= 51 && code <= 67) ||
+      (code >= 80 && code <= 82)) return ICON_RAIN;
+
+  if ((code >= 71 && code <= 77) ||
+      (code >= 85 && code <= 86)) return ICON_SNOW;
+
+  if (code >= 95 && code <= 99) return ICON_THUNDER;
+
   return ICON_CLOUDY;
 }
 
-function localMinuteOfDay(unixSeconds, timezoneSeconds) {
-  var seconds = (unixSeconds + timezoneSeconds) % 86400;
-  if (seconds < 0) seconds += 86400;
-  return Math.floor(seconds / 60);
+function minuteOfDayFromLocalIso(localIso) {
+  // Open-Meteo returns daily sunrise/sunset in the requested local timezone,
+  // e.g. "2026-08-20T06:11". We only need minutes after local midnight.
+  if (!localIso || typeof localIso !== 'string') return -1;
+
+  var match = /T(\d{2}):(\d{2})/.exec(localIso);
+  if (!match) return -1;
+
+  var hour = Number(match[1]);
+  var minute = Number(match[2]);
+  if (isNaN(hour) || isNaN(minute)) return -1;
+
+  return hour * 60 + minute;
 }
 
 function sendWeatherPayload(payload) {
   Pebble.sendAppMessage(
     payload,
-    function() { console.log('Weather data sent'); },
+    function() { console.log('Open-Meteo weather sent'); },
     function(e) { console.log('Weather send failed: ' + JSON.stringify(e)); }
   );
 }
 
 function fetchWeather(lat, lon) {
-  var currentUrl = 'https://api.openweathermap.org/data/2.5/weather'
-    + '?lat=' + lat
-    + '&lon=' + lon
-    + '&units=' + UNITS
-    + '&appid=' + API_KEY;
+  var url = 'https://api.open-meteo.com/v1/forecast'
+    + '?latitude=' + encodeURIComponent(lat)
+    + '&longitude=' + encodeURIComponent(lon)
+    + '&current=temperature_2m,weather_code'
+    + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset'
+    + '&temperature_unit=celsius'
+    + '&timezone=auto'
+    + '&forecast_days=1';
 
   var xhr = new XMLHttpRequest();
+
   xhr.onload = function() {
     if (xhr.status !== 200) {
-      console.log('Weather HTTP error: ' + xhr.status);
+      console.log('Open-Meteo HTTP error: ' + xhr.status);
       return;
     }
 
     try {
       var data = JSON.parse(xhr.responseText);
-      var temp = Math.round(data.main.temp * 10);
-      var icon = iconFromOWM(data.weather[0].id);
-      var timezone = data.timezone || 0;
+
+      if (!data.current ||
+          typeof data.current.temperature_2m !== 'number' ||
+          typeof data.current.weather_code === 'undefined') {
+        console.log('Open-Meteo response missing current weather');
+        return;
+      }
 
       var payload = {
-        'TEMPERATURE': temp,
-        'WEATHER_ICON': icon,
-        'SUNRISE': localMinuteOfDay(data.sys.sunrise, timezone),
-        'SUNSET': localMinuteOfDay(data.sys.sunset, timezone)
+        'TEMPERATURE': Math.round(data.current.temperature_2m * 10),
+        'WEATHER_ICON': iconFromOpenMeteo(data.current.weather_code)
       };
 
-      var forecastUrl = 'https://api.openweathermap.org/data/2.5/forecast'
-        + '?lat=' + lat
-        + '&lon=' + lon
-        + '&units=' + UNITS
-        + '&appid=' + API_KEY;
-
-      var forecastXhr = new XMLHttpRequest();
-      forecastXhr.onload = function() {
-        if (forecastXhr.status === 200) {
-          try {
-            var forecast = JSON.parse(forecastXhr.responseText);
-            var forecastTimezone =
-              forecast.city && typeof forecast.city.timezone === 'number'
-                ? forecast.city.timezone : timezone;
-            var nowUtc = Math.floor(Date.now() / 1000);
-            var localDay = Math.floor((nowUtc + forecastTimezone) / 86400);
-            var high = data.main.temp;
-            var low = data.main.temp;
-
-            for (var i = 0; i < forecast.list.length; i++) {
-              var item = forecast.list[i];
-              var itemDay = Math.floor((item.dt + forecastTimezone) / 86400);
-              if (itemDay !== localDay) continue;
-
-              if (item.main.temp_max > high) high = item.main.temp_max;
-              if (item.main.temp_min < low) low = item.main.temp_min;
-            }
-
-            payload.HIGH_TEMP = Math.round(high * 10);
-            payload.LOW_TEMP = Math.round(low * 10);
-          } catch (e) {
-            console.log('Forecast parse error: ' + e);
-          }
-        } else {
-          console.log('Forecast HTTP error: ' + forecastXhr.status);
+      if (data.daily) {
+        if (data.daily.temperature_2m_max &&
+            typeof data.daily.temperature_2m_max[0] === 'number') {
+          payload.HIGH_TEMP =
+              Math.round(data.daily.temperature_2m_max[0] * 10);
         }
 
-        sendWeatherPayload(payload);
-      };
+        if (data.daily.temperature_2m_min &&
+            typeof data.daily.temperature_2m_min[0] === 'number') {
+          payload.LOW_TEMP =
+              Math.round(data.daily.temperature_2m_min[0] * 10);
+        }
 
-      forecastXhr.onerror = function() {
-        console.log('Forecast network error');
-        sendWeatherPayload(payload);
-      };
+        if (data.daily.sunrise && data.daily.sunrise[0]) {
+          var sunriseMinute = minuteOfDayFromLocalIso(data.daily.sunrise[0]);
+          if (sunriseMinute >= 0) payload.SUNRISE = sunriseMinute;
+        }
 
-      forecastXhr.open('GET', forecastUrl);
-      forecastXhr.send();
+        if (data.daily.sunset && data.daily.sunset[0]) {
+          var sunsetMinute = minuteOfDayFromLocalIso(data.daily.sunset[0]);
+          if (sunsetMinute >= 0) payload.SUNSET = sunsetMinute;
+        }
+      }
+
+      sendWeatherPayload(payload);
     } catch (e) {
-      console.log('Weather parse error: ' + e);
+      console.log('Open-Meteo parse error: ' + e);
     }
   };
 
-  xhr.open('GET', currentUrl);
+  xhr.onerror = function() {
+    console.log('Open-Meteo network error');
+  };
+
+  xhr.open('GET', url);
   xhr.send();
 }
 
@@ -560,8 +568,8 @@ Pebble.addEventListener('appmessage', function(e) {
     return;
   }
 
-  // KiezelPay also uses AppMessage. Only key 0 / WEATHER_REQUEST belongs to
-  // Big Time's weather bridge; ignore all other package traffic here.
+  // KiezelPay also uses AppMessage. Only WEATHER_REQUEST belongs to Big Time's
+  // weather bridge; ignore all other package traffic here.
   if (typeof e.payload.WEATHER_REQUEST === 'undefined') {
     return;
   }
@@ -578,7 +586,7 @@ Pebble.addEventListener('appmessage', function(e) {
   );
 });
 
-// Fetch on launch
+// Fetch on launch.
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready');
 
