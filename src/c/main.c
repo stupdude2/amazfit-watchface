@@ -317,6 +317,7 @@ static bool s_pro_unlocked = false;
 // Big Time's trial is deliberately user-started rather than KiezelPay's
 // automatic timed trial. This preserves a permanently usable Free edition.
 #define PRO_TRIAL_PERSIST_KEY  1002
+#define PURCHASED_PRO_PERSIST_KEY 1003
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -336,6 +337,8 @@ static void license_set_pro(bool unlocked);
 static void pro_trial_mark_expired(void);
 static void schedule_license_status_retry(void);
 static void send_license_status_when_ready(void);
+static void purchased_pro_set_persisted(bool purchased);
+static bool purchased_pro_is_persisted(void);
 
 static void settings_set_defaults(void) {
   s_settings.version = SETTINGS_VERSION;
@@ -1866,6 +1869,23 @@ static void update_background_contrast(void) {
 }
 
 
+static bool purchased_pro_is_persisted(void) {
+  return persist_exists(PURCHASED_PRO_PERSIST_KEY) &&
+         persist_read_bool(PURCHASED_PRO_PERSIST_KEY);
+}
+
+static void purchased_pro_set_persisted(bool purchased) {
+  if (purchased) {
+    persist_write_bool(PURCHASED_PRO_PERSIST_KEY, true);
+    APP_LOG(APP_LOG_LEVEL_INFO, "Purchased Pro marker persisted");
+  } else {
+    if (persist_exists(PURCHASED_PRO_PERSIST_KEY)) {
+      persist_delete(PURCHASED_PRO_PERSIST_KEY);
+    }
+    APP_LOG(APP_LOG_LEVEL_INFO, "Purchased Pro marker cleared");
+  }
+}
+
 static bool pro_trial_is_active(void) {
   if (!persist_exists(PRO_TRIAL_PERSIST_KEY)) {
     s_trial_active = false;
@@ -1937,7 +1957,7 @@ static void pro_trial_refresh(void) {
     // license_set_pro(false) captures the complete trial configuration into
     // s_saved_settings BEFORE Free defaults are applied, so a later purchase
     // restores exactly what the user configured during the trial.
-    if (!s_kiezelpay_licensed) {
+    if (!s_kiezelpay_licensed && !purchased_pro_is_persisted()) {
       license_set_pro(false);
     }
   }
@@ -1950,14 +1970,17 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
               "KiezelPay: LICENSED -> Purchased Pro");
       s_kiezelpay_status_known = true;
       s_kiezelpay_licensed = true;
+      purchased_pro_set_persisted(true);
       license_set_pro(true);
       schedule_license_status_retry();
       break;
 
     case KIEZELPAY_CODE_AVAILABLE:
-      APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase code available");
+      APP_LOG(APP_LOG_LEVEL_INFO,
+              "KiezelPay: purchase code available -> explicitly unlicensed");
       s_kiezelpay_status_known = true;
       s_kiezelpay_licensed = false;
+      purchased_pro_set_persisted(false);
       if (!s_trial_active) {
         license_set_pro(false);
       }
@@ -2073,7 +2096,7 @@ static void license_send_status_to_phone(void) {
   //   1 = Free Trial
   //   2 = Purchased / restored Pro
   uint8_t entitlement = 0;
-  if (s_kiezelpay_licensed) {
+  if (s_kiezelpay_licensed || purchased_pro_is_persisted()) {
     entitlement = 2;
   } else if (s_trial_active && s_pro_unlocked) {
     entitlement = 1;
@@ -2210,12 +2233,23 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       if (kpay_status == KPAY_STATUS_LICENSED) {
         s_kiezelpay_licensed = true;
+        purchased_pro_set_persisted(true);
         license_set_pro(true);
-      } else {
+      } else if (kpay_status == 0) {
+        // Only an explicit validated "unlicensed" result may revoke a
+        // previously purchased entitlement. Unknown/transient statuses never
+        // demote a paying customer.
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "KiezelPay explicitly reports unlicensed");
         s_kiezelpay_licensed = false;
+        purchased_pro_set_persisted(false);
         if (!s_trial_active) {
           license_set_pro(false);
         }
+      } else {
+        APP_LOG(APP_LOG_LEVEL_DEBUG,
+                "KiezelPay non-final status=%ld; preserving purchase marker",
+                (long)kpay_status);
       }
 
       if (s_license_query_wait_timer) {
@@ -2464,9 +2498,18 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
 
       case KEY_UNLOCK_PRO:
-        if (tuple_to_int32(t, 0) != 0 && !s_kiezelpay_licensed) {
-          APP_LOG(APP_LOG_LEVEL_INFO, "Starting KiezelPay purchase on user request");
+        if (tuple_to_int32(t, 0) != 0 &&
+            !s_kiezelpay_licensed &&
+            !purchased_pro_is_persisted()) {
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Starting KiezelPay purchase on user request");
           kiezelpay_start_purchase();
+        } else if (tuple_to_int32(t, 0) != 0 &&
+                   purchased_pro_is_persisted()) {
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Purchase/restore requested but Purchased Pro is already persisted");
+          s_kiezelpay_licensed = true;
+          license_set_pro(true);
         }
         break;
 
@@ -2854,8 +2897,21 @@ static void init(void) {
   s_saved_settings = s_settings;
   s_saved_settings_valid = true;
 
-  s_pro_unlocked = false;
-  enforce_free_defaults();
+  // A validated KiezelPay purchase is sticky across watchface process restarts.
+  // Restore it immediately so paying users never flash/revert to Free merely
+  // because Bluetooth/network/KiezelPay status refresh is delayed.
+  if (purchased_pro_is_persisted()) {
+    s_kiezelpay_licensed = true;
+    s_kiezelpay_status_known = true;
+    s_pro_unlocked = true;
+    s_settings = s_saved_settings;
+    APP_LOG(APP_LOG_LEVEL_INFO,
+            "Restored Purchased Pro from persistent marker");
+  } else {
+    s_kiezelpay_licensed = false;
+    s_pro_unlocked = false;
+    enforce_free_defaults();
+  }
 
   s_window = window_create();
   window_set_background_color(s_window, s_settings.background_color);

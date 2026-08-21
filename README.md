@@ -443,3 +443,12 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Open-Meteo requires no API key or embedded secret.
 - Current temperature, weather icon category, today's high/low, sunrise, and sunset continue using the existing Big Time AppMessage keys.
 - Sunrise/sunset are requested with timezone=auto and parsed as local time.
+
+## v2.5.3 — Purchased Pro persistence hotfix
+- A positively validated KiezelPay purchase now creates a dedicated persistent Purchased Pro marker on the watch.
+- Purchased Pro is restored immediately at watchface startup before network/Bluetooth/KiezelPay refreshes complete.
+- KIEZELPAY_LICENSED and validated KIEZELPAY_STATUS_RESULT=2 both persist Purchased Pro.
+- Network errors, Bluetooth errors, delayed checks, restarts, and non-final KiezelPay statuses do not revoke purchased Pro.
+- Only an explicit validated unlicensed result (status 0 / purchase-code-required state) clears the Purchased Pro marker.
+- Trial expiration can no longer demote a persisted purchased user.
+- Existing Pro preferences are restored immediately with the purchased entitlement.
