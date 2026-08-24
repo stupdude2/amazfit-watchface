@@ -1070,7 +1070,8 @@ static void format_solar_time(int minute_of_day, char *buffer, size_t buffer_siz
   } else {
     int hour12 = hour % 12;
     if (hour12 == 0) hour12 = 12;
-    snprintf(buffer, buffer_size, "%d:%02d", hour12, minute);
+    const char *ampm = hour < 12 ? "AM" : "PM";
+    snprintf(buffer, buffer_size, "%d:%02d%s", hour12, minute, ampm);
   }
 }
 
@@ -1525,6 +1526,7 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
   // Distance is intentionally medium at all times because its unit makes the
   // rendered value wider than the other single-value metrics.
   if (slot == SLOT_DISTANCE) return true;
+  if (slot == SLOT_SUNRISE || slot == SLOT_SUNSET) return true;
   if (slot == SLOT_HIGH_LOW) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
@@ -1635,13 +1637,18 @@ static void update_header_content(void) {
             left_calendar ? HEADER_H - 5 :
               (left_label_hidden ? HEADER_H - 8 : 34)));
 
+  const int top_center_value_x =
+      DATEBOX_X + ((s_settings.top_center_slot == SLOT_WEATHER) ? 2 : 0);
+  const int top_center_value_w =
+      DATEBOX_W - ((s_settings.top_center_slot == SLOT_WEATHER) ? 2 : 0);
+
   layer_set_frame(
       text_layer_get_layer(s_top_center_val),
-      GRect(DATEBOX_X,
+      GRect(top_center_value_x,
             center_calendar ? 4 :
               (center_label_hidden ? 7 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15)),
-            DATEBOX_W,
+            top_center_value_w,
             center_calendar ? HEADER_H - 5 :
               (center_label_hidden ? HEADER_H - 8 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34))));
@@ -1753,11 +1760,16 @@ static void update_footer_content(void) {
             left_calendar ? FOOTER_H - 1 :
               (left_label_hidden ? FOOTER_H - 4 : 38)));
 
+  const int center_value_x =
+      HRBOX_X + ((s_settings.center_slot == CENTER_WEATHER) ? 2 : 0);
+  const int center_value_w =
+      BOX_W - ((s_settings.center_slot == CENTER_WEATHER) ? 2 : 0);
+
   layer_set_frame(
       text_layer_get_layer(s_center_val),
-      GRect(HRBOX_X,
+      GRect(center_value_x,
             center_calendar ? 1 : (center_label_hidden ? 4 : 14),
-            BOX_W,
+            center_value_w,
             center_calendar ? FOOTER_H - 1 :
               (center_label_hidden ? FOOTER_H - 4 : 38)));
 
@@ -1778,7 +1790,7 @@ static void update_footer_content(void) {
   const int left_weather_icon_x =
       4 + left_w - weather_icon_size;
   const int right_weather_icon_x =
-      right_x + right_w - weather_icon_size;
+      right_x;
 
   layer_set_frame(
       bitmap_layer_get_layer(s_weather_icon_left_layer),
@@ -2618,7 +2630,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_CENTER_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.center_slot);
-        if (value >= CENTER_HEART_RATE && value <= CENTER_MONTH) {
+        if (value >= CENTER_HEART_RATE && value <= CENTER_MONTH &&
+            value != CENTER_STEPS) {
           s_settings.center_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
           layout_changed = true;
@@ -2643,7 +2656,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_CENTER_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_center_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_MONTH) { s_settings.top_center_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_MONTH &&
+            value != SLOT_STEPS) {
+          s_settings.top_center_slot = (uint8_t)value;
+          layout_changed = true;
+        }
         break;
       }
       case KEY_TOP_RIGHT_SLOT: {
@@ -3186,6 +3203,14 @@ static void window_unload(Window *window) {
 
 static void init(void) {
   settings_load();
+
+  // Steps is no longer supported in either center position.
+  if (s_settings.top_center_slot == SLOT_STEPS) {
+    s_settings.top_center_slot = SLOT_WEATHER;
+  }
+  if (s_settings.center_slot == CENTER_STEPS) {
+    s_settings.center_slot = CENTER_HEART_RATE;
+  }
 
   // Preserve the persisted user preference record before entitlement is known.
   // The effective watchface may temporarily render Free defaults while

@@ -495,3 +495,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - High / Low temperature always uses Medium when labels are hidden.
 - Distance always uses Medium when labels are hidden.
 - Shorter data values continue using the large Day / Date / Month font.
+
+## v2.6.7 — Center and solar refinements
+- Removed Steps from both Top Center and Bottom Center selectors.
+- Existing center-Steps layouts fall back to Weather (top) or Heart Rate (bottom).
+- Right-side Weather icon moved to the left edge of the right slot while temperature remains right-aligned.
+- Center Weather temperature nudged 2 pixels right for better optical centering.
+- Sunrise and Sunset include AM/PM in 12-hour mode and use Medium when labels are hidden.
+- Distance currently follows the selected temperature system: Fahrenheit = MI and Celsius = KM; there is no separate native watch distance-unit lookup in this version.
