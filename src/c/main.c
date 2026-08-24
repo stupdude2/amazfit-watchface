@@ -1595,7 +1595,7 @@ static void update_header_content(void) {
 
   text_layer_set_text_alignment(
       s_top_left_val,
-      left_large ? GTextAlignmentCenter : GTextAlignmentLeft);
+      left_calendar ? GTextAlignmentCenter : GTextAlignmentLeft);
 
   text_layer_set_text_alignment(s_top_center_label, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_top_center_val, GTextAlignmentCenter);
@@ -1607,7 +1607,7 @@ static void update_header_content(void) {
 
   text_layer_set_text_alignment(
       s_top_right_val,
-      right_large ? GTextAlignmentCenter : GTextAlignmentRight);
+      right_calendar ? GTextAlignmentCenter : GTextAlignmentRight);
 
   if (s_header_layer) layer_mark_dirty(s_header_layer);
 }
@@ -1675,13 +1675,53 @@ static void update_footer_content(void) {
       GRect(right_x, right_large ? 1 : 14,
             right_w, right_large ? FOOTER_H - 1 : 38));
 
+  // Weather icon uses the outer/right edge of its side slot. When data labels
+  // are hidden, center the 25px icon against the full-height enlarged value.
+  const int weather_icon_size = 25;
+  const int weather_icon_gap = 3;
+  const int weather_icon_y =
+      (!s_settings.show_labels) ? ((FOOTER_H - weather_icon_size) / 2) : 18;
+
+  const int left_weather_icon_x =
+      4 + left_w - weather_icon_size;
+  const int right_weather_icon_x =
+      right_x + right_w - weather_icon_size;
+
+  layer_set_frame(
+      bitmap_layer_get_layer(s_weather_icon_left_layer),
+      GRect(left_weather_icon_x, weather_icon_y,
+            weather_icon_size, weather_icon_size));
+  layer_set_frame(
+      bitmap_layer_get_layer(s_weather_icon_right_layer),
+      GRect(right_weather_icon_x, weather_icon_y,
+            weather_icon_size, weather_icon_size));
+
+  // Keep the temperature value clear of the icon. It still follows the
+  // requested side alignment: left data starts at the left edge; right data
+  // ends immediately before the right-aligned weather icon.
+  if (s_settings.left_slot == SLOT_WEATHER) {
+    layer_set_frame(
+        text_layer_get_layer(s_left_val),
+        GRect(4, left_large ? 1 : 14,
+              left_w - weather_icon_size - weather_icon_gap,
+              left_large ? FOOTER_H - 1 : 38));
+  }
+
+  if (s_settings.right_slot == SLOT_WEATHER) {
+    layer_set_frame(
+        text_layer_get_layer(s_right_val),
+        GRect(right_x, right_large ? 1 : 14,
+              right_w - weather_icon_size - weather_icon_gap,
+              right_large ? FOOTER_H - 1 : 38));
+  }
+
   text_layer_set_text_alignment(
       s_left_label,
       (s_settings.left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
           ? GTextAlignmentCenter : GTextAlignmentLeft);
   text_layer_set_text_alignment(
       s_left_val,
-      left_large ? GTextAlignmentCenter : GTextAlignmentLeft);
+      left_calendar ? GTextAlignmentCenter : GTextAlignmentLeft);
 
   text_layer_set_text_alignment(s_center_label, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_center_val, GTextAlignmentCenter);
@@ -1692,7 +1732,7 @@ static void update_footer_content(void) {
           ? GTextAlignmentCenter : GTextAlignmentRight);
   text_layer_set_text_alignment(
       s_right_val,
-      right_large ? GTextAlignmentCenter : GTextAlignmentRight);
+      right_calendar ? GTextAlignmentCenter : GTextAlignmentRight);
 
   // Existing weather icon behavior remains unchanged.
   layer_set_hidden(

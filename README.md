@@ -464,3 +464,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Fixed build error in optional-label weather icon visibility handling.
 - Converted BitmapLayer pointers to Layer pointers with bitmap_layer_get_layer() before calling layer_set_hidden().
 - Optional data-label behavior and v13-to-v14 settings migration are unchanged from v2.6.1.
+
+## v2.6.3 — Side alignment refinements
+- Label-hidden metric values in left-side slots are now left-aligned.
+- Label-hidden metric values in right-side slots are now right-aligned.
+- Day / Date / Month retain their established centered treatment.
+- Side weather icons are positioned at the right edge of their slot.
+- With labels hidden, the weather icon is vertically centered with the enlarged temperature value.
+- Weather temperature text uses the remaining space beside the icon to avoid overlap.
