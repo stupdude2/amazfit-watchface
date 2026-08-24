@@ -479,3 +479,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Weather icon vertical placement is unchanged.
 - Restored weather temperature TextLayers to the full slot width so the degree symbol is no longer truncated into an ellipsis.
 - Weather icon remains right-aligned and may overlap the far edge of the temperature text slightly.
+
+## v2.6.5 — Adaptive data sizing + free temperature units
+- Label-hidden Steps automatically uses the smaller value font at 10,000 steps and above.
+- Label-hidden Weather temperature automatically uses the smaller value font at 100° and above (and for longer negative temperatures).
+- Label-hidden High / Low temperature always uses the smaller value font so values such as 88°/72° fit reliably.
+- Normal shorter values continue using the large Day / Date / Month font.
+- Fahrenheit / Celsius selection is now available in the Free edition.
+- Free-mode persistence now preserves Temperature Unit alongside Time Format and Center 12 Hour Clock.

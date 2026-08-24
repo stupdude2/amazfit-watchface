@@ -88,6 +88,24 @@ var config = [
         "description": "Centers H:MM when the hour is 1-9. Available in the free version."
       }
     ]
+  },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Weather" },
+      {
+        "type": "select",
+        "messageKey": "TEMP_UNIT",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Temperature Unit",
+        "description": "Available in the free version.",
+        "options": [
+          { "label": "Fahrenheit (°F)", "value": "0" },
+          { "label": "Celsius (°C)", "value": "1" }
+        ]
+      }
+    ]
   }
 ];
 
@@ -120,7 +138,7 @@ if (!edition.isPro) {
       },
       {
         "type": "text",
-        "defaultValue": "Pro unlocks colors, layouts, custom step goals, weather options, Raise to Wake, and all advanced customization."
+        "defaultValue": "Pro unlocks colors, layouts, custom step goals, advanced data placement, Raise to Wake, and all advanced customization."
       }
     ])
   });
@@ -158,24 +176,6 @@ if (edition.isPro) {
           { "label": "Off", "value": "0" },
           { "label": "Normal", "value": "1" },
           { "label": "Sensitive", "value": "2" }
-        ]
-      }
-    ]
-  });
-
-  config.push({
-    "type": "section",
-    "items": [
-      { "type": "heading", "defaultValue": "Weather" },
-      {
-        "type": "select",
-        "messageKey": "TEMP_UNIT",
-        "defaultValue": "0",
-        "serializeValueAs": "integer",
-        "label": "Temperature Unit",
-        "options": [
-          { "label": "Fahrenheit (°F)", "value": "0" },
-          { "label": "Celsius (°C)", "value": "1" }
         ]
       }
     ]

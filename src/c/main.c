@@ -390,6 +390,7 @@ static void enforce_free_defaults(void) {
   // Preserve the two free customization choices.
   uint8_t keep_time_format = s_settings.time_format;
   uint8_t keep_center_12h = s_settings.center_12h;
+  uint8_t keep_temp_unit = s_settings.temp_unit;
 
   // Everything else returns to the standard watchface presentation.
   s_settings.accent_color = GColorCobaltBlue;
@@ -408,7 +409,8 @@ static void enforce_free_defaults(void) {
 
   s_settings.stepbar_mode = STEPBAR_MIRRORED;
   s_settings.step_goal = 5000;
-  s_settings.temp_unit = TEMP_FAHRENHEIT;
+  s_settings.temp_unit =
+      keep_temp_unit <= TEMP_CELSIUS ? keep_temp_unit : TEMP_FAHRENHEIT;
   s_settings.raise_wake_mode = RAISE_WAKE_OFF;
   s_settings.show_labels = 1;
 
@@ -418,7 +420,9 @@ static void enforce_free_defaults(void) {
 }
 
 static bool key_is_free_customization(uint32_t key) {
-  return key == KEY_TIME_FORMAT || key == KEY_CENTER_12H;
+  return key == KEY_TIME_FORMAT ||
+         key == KEY_CENTER_12H ||
+         key == KEY_TEMP_UNIT;
 }
 
 static bool key_is_pro_customization(uint32_t key) {
@@ -431,7 +435,6 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_STEPBAR_MODE:
     case KEY_HEADER_MODE:
     case KEY_STEP_GOAL:
-    case KEY_TEMP_UNIT:
     case KEY_CLOCK_COLOR:
     case KEY_BACKGROUND_COLOR:
     case KEY_TOP_LEFT_SLOT:
@@ -772,6 +775,7 @@ static void settings_save(void) {
 
   s_saved_settings.time_format = s_settings.time_format;
   s_saved_settings.center_12h = s_settings.center_12h;
+  s_saved_settings.temp_unit = s_settings.temp_unit;
   persist_write_data(SETTINGS_PERSIST_KEY, &s_saved_settings, sizeof(s_saved_settings));
 }
 
@@ -1499,6 +1503,36 @@ static bool center_slot_has_optional_label(uint8_t slot) {
          slot == CENTER_STEPS;
 }
 
+static bool weather_value_needs_smaller_font(void) {
+  // s_weather_buf includes the degree symbol. Three-digit temperatures (100°+)
+  // and similarly long negative temperatures are safer in the standard value
+  // font than the large calendar font.
+  if (!s_have_temperature) return false;
+
+  int display_x10 = s_temperature_c_x10;
+  if (s_settings.temp_unit == TEMP_FAHRENHEIT) {
+    display_x10 = (s_temperature_c_x10 * 9) / 5 + 320;
+  }
+
+  int display_temp =
+      display_x10 >= 0 ? (display_x10 + 5) / 10 : (display_x10 - 5) / 10;
+
+  return display_temp >= 100 || display_temp <= -10;
+}
+
+static bool side_slot_needs_smaller_hidden_font(uint8_t slot) {
+  if (slot == SLOT_HIGH_LOW) return true;
+  if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
+  if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
+  return false;
+}
+
+static bool center_slot_needs_smaller_hidden_font(uint8_t slot) {
+  if (slot == CENTER_STEPS && s_step_count >= 10000) return true;
+  if (slot == CENTER_WEATHER && weather_value_needs_smaller_font()) return true;
+  return false;
+}
+
 static bool slot_is_calendar(uint8_t slot) {
   return slot == SLOT_DAY || slot == SLOT_DATE || slot == SLOT_MONTH;
 }
@@ -1560,10 +1594,27 @@ static void update_header_content(void) {
       s_top_right_val,
       top_slot_value(s_settings.top_right_slot));
 
-  // Hidden-label data uses the same large font as DAY / DATE / MONTH.
-  text_layer_set_font(s_top_left_val, left_large ? s_font_header : s_font_value);
-  text_layer_set_font(s_top_center_val, center_large ? s_font_header : s_font_value);
-  text_layer_set_font(s_top_right_val, right_large ? s_font_header : s_font_value);
+  // Hidden-label data normally uses the same large font as DAY / DATE / MONTH.
+  // Long values fall back to the standard value font before Pebble can ellipsize.
+  const bool left_small_for_fit =
+      left_label_hidden &&
+      side_slot_needs_smaller_hidden_font(s_settings.top_left_slot);
+  const bool center_small_for_fit =
+      center_label_hidden &&
+      side_slot_needs_smaller_hidden_font(s_settings.top_center_slot);
+  const bool right_small_for_fit =
+      right_label_hidden &&
+      side_slot_needs_smaller_hidden_font(s_settings.top_right_slot);
+
+  text_layer_set_font(
+      s_top_left_val,
+      (left_large && !left_small_for_fit) ? s_font_header : s_font_value);
+  text_layer_set_font(
+      s_top_center_val,
+      (center_large && !center_small_for_fit) ? s_font_header : s_font_value);
+  text_layer_set_font(
+      s_top_right_val,
+      (right_large && !right_small_for_fit) ? s_font_header : s_font_value);
 
   int left_w = DATEBOX_X - BOX_GAP - 4;
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
@@ -1660,9 +1711,25 @@ static void update_footer_content(void) {
           ? "" : side_slot_label(s_settings.right_slot));
   text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
 
-  text_layer_set_font(s_left_val, left_large ? s_font_header : s_font_value);
-  text_layer_set_font(s_center_val, center_large ? s_font_header : s_font_value);
-  text_layer_set_font(s_right_val, right_large ? s_font_header : s_font_value);
+  const bool left_small_for_fit =
+      left_label_hidden &&
+      side_slot_needs_smaller_hidden_font(s_settings.left_slot);
+  const bool center_small_for_fit =
+      center_label_hidden &&
+      center_slot_needs_smaller_hidden_font(s_settings.center_slot);
+  const bool right_small_for_fit =
+      right_label_hidden &&
+      side_slot_needs_smaller_hidden_font(s_settings.right_slot);
+
+  text_layer_set_font(
+      s_left_val,
+      (left_large && !left_small_for_fit) ? s_font_header : s_font_value);
+  text_layer_set_font(
+      s_center_val,
+      (center_large && !center_small_for_fit) ? s_font_header : s_font_value);
+  text_layer_set_font(
+      s_right_val,
+      (right_large && !right_small_for_fit) ? s_font_header : s_font_value);
 
   int left_w = HRBOX_X - BOX_GAP - 4;
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
