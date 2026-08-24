@@ -133,7 +133,8 @@ if (edition.isPro) {
       { "type": "heading", "defaultValue": "Appearance" },
       { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0x0000AA", "label": "Accent Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color", "layout": "COLOR" },
-      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
+      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" },
+      { "type": "toggle", "messageKey": "SHOW_LABELS", "defaultValue": true, "label": "Show Data Labels", "description": "Turn off to hide labels such as WEATHER, HR, STEPS, CAL, DIST, RISE, SET and H/L. Values become larger and centered." }
     ]
   });
 

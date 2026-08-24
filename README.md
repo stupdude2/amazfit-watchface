@@ -452,3 +452,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Only an explicit validated unlicensed result (status 0 / purchase-code-required state) clears the Purchased Pro marker.
 - Trial expiration can no longer demote a persisted purchased user.
 - Existing Pro preferences are restored immediately with the purchased entitlement.
+
+## v2.6.0 — Optional data labels
+- Added a Pro setting to hide descriptive labels in the top and bottom bars.
+- Weather/Temp, HR, Steps, Calories, Distance, Sunrise, Sunset, and High/Low values become larger and centered when labels are hidden.
+- Enlarged values use the same font as Day / Date / Month.
+- Existing installs keep labels enabled by default.

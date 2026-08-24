@@ -45,7 +45,8 @@
       "PRO_LICENSE": 24,
       "LICENSE_CHECK": 25,
       "TRY_PRO_FREE": 26,
-      "UNLOCK_PRO": 27
+      "UNLOCK_PRO": 27,
+      "SHOW_LABELS": 28
     },
     "projectType": "native",
     "resources": {
@@ -115,5 +116,5 @@
       "watchface": true
     }
   },
-  "version": "2.5.3"
+  "version": "2.6.0"
 }
