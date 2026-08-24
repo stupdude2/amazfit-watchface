@@ -459,3 +459,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Hidden-label values are vertically and horizontally centered in their slot.
 - Existing users migrate with labels enabled.
 - Corrected the v2.6.0 settings migration so historical WatchfaceSettings typedefs are declared only once.
+
+## v2.6.2
+- Fixed build error in optional-label weather icon visibility handling.
+- Converted BitmapLayer pointers to Layer pointers with bitmap_layer_get_layer() before calling layer_set_hidden().
+- Optional data-label behavior and v13-to-v14 settings migration are unchanged from v2.6.1.

@@ -1696,10 +1696,10 @@ static void update_footer_content(void) {
 
   // Existing weather icon behavior remains unchanged.
   layer_set_hidden(
-      s_weather_icon_left_layer,
+      bitmap_layer_get_layer(s_weather_icon_left_layer),
       s_settings.left_slot != SLOT_WEATHER);
   layer_set_hidden(
-      s_weather_icon_right_layer,
+      bitmap_layer_get_layer(s_weather_icon_right_layer),
       s_settings.right_slot != SLOT_WEATHER);
 
   if (s_footer_layer) layer_mark_dirty(s_footer_layer);
