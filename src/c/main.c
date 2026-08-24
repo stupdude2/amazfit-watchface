@@ -314,103 +314,6 @@ typedef struct {
   uint8_t footer_mode;
   uint8_t header_mode;
   uint8_t stepbar_mode;
-} WatchfaceSettingsV7;
-
-typedef struct {
-  uint8_t version;
-  GColor accent_color;
-  uint8_t left_slot;
-  uint8_t center_slot;
-  uint8_t right_slot;
-  uint8_t footer_mode;
-  uint8_t header_mode;
-  uint8_t stepbar_mode;
-  uint16_t step_goal;
-  uint8_t temp_unit;
-  GColor clock_color;
-} WatchfaceSettingsV8;
-
-typedef struct {
-  uint8_t version;
-  GColor accent_color;
-  uint8_t left_slot;
-  uint8_t center_slot;
-  uint8_t right_slot;
-  uint8_t footer_mode;
-  uint8_t header_mode;
-  uint8_t stepbar_mode;
-  uint16_t step_goal;
-  uint8_t temp_unit;
-  GColor clock_color;
-  GColor background_color;
-} WatchfaceSettingsV9;
-
-typedef struct {
-  uint8_t version;
-  GColor accent_color;
-  uint8_t left_slot;
-  uint8_t center_slot;
-  uint8_t right_slot;
-  uint8_t footer_mode;
-  uint8_t header_mode;
-  uint8_t stepbar_mode;
-  uint16_t step_goal;
-  uint8_t temp_unit;
-  GColor clock_color;
-  GColor background_color;
-  uint8_t top_left_slot;
-  uint8_t top_center_slot;
-  uint8_t top_right_slot;
-} WatchfaceSettingsV10;
-
-typedef struct {
-  uint8_t version;
-  GColor accent_color;
-  uint8_t left_slot;
-  uint8_t center_slot;
-  uint8_t right_slot;
-  uint8_t footer_mode;
-  uint8_t header_mode;
-  uint8_t stepbar_mode;
-  uint16_t step_goal;
-  uint8_t temp_unit;
-  GColor clock_color;
-  GColor background_color;
-  uint8_t top_left_slot;
-  uint8_t top_center_slot;
-  uint8_t top_right_slot;
-  uint8_t time_format;
-} WatchfaceSettingsV11;
-
-typedef struct {
-  uint8_t version;
-  GColor accent_color;
-  uint8_t left_slot;
-  uint8_t center_slot;
-  uint8_t right_slot;
-  uint8_t footer_mode;
-  uint8_t header_mode;
-  uint8_t stepbar_mode;
-  uint16_t step_goal;
-  uint8_t temp_unit;
-  GColor clock_color;
-  GColor background_color;
-  uint8_t top_left_slot;
-  uint8_t top_center_slot;
-  uint8_t top_right_slot;
-  uint8_t time_format;
-  uint8_t center_12h;
-} WatchfaceSettingsV12;
-
-typedef struct {
-  uint8_t version;
-  GColor accent_color;
-  uint8_t left_slot;
-  uint8_t center_slot;
-  uint8_t right_slot;
-  uint8_t footer_mode;
-  uint8_t header_mode;
-  uint8_t stepbar_mode;
   uint16_t step_goal;
   uint8_t temp_unit;
   GColor clock_color;
@@ -576,11 +479,41 @@ static void settings_load(void) {
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV13)) {
     WatchfaceSettingsV13 old;
-    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old)) {
-      memcpy(&s_settings, &old, sizeof(old));
-      s_settings.version = SETTINGS_VERSION;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 13 &&
+        old.left_slot <= SLOT_HIGH_LOW &&
+        old.center_slot <= CENTER_MONTH &&
+        old.right_slot <= SLOT_HIGH_LOW &&
+        old.top_left_slot <= SLOT_HIGH_LOW &&
+        old.top_center_slot <= SLOT_MONTH &&
+        old.top_right_slot <= SLOT_HIGH_LOW &&
+        old.footer_mode <= BAR_HIDDEN &&
+        old.header_mode <= BAR_HIDDEN &&
+        old.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
+        old.step_goal >= 1000 && old.step_goal <= 30000 &&
+        old.temp_unit <= TEMP_CELSIUS &&
+        old.time_format <= TIME_FORMAT_24H &&
+        old.center_12h <= 1 &&
+        old.raise_wake_mode <= RAISE_WAKE_SENSITIVE) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      s_settings.background_color = old.background_color;
+      s_settings.top_left_slot = old.top_left_slot;
+      s_settings.top_center_slot = old.top_center_slot;
+      s_settings.top_right_slot = old.top_right_slot;
+      s_settings.time_format = old.time_format;
+      s_settings.center_12h = old.center_12h;
+      s_settings.raise_wake_mode = old.raise_wake_mode;
       s_settings.show_labels = 1;
-      settings_save();
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV12)) {
@@ -1550,14 +1483,22 @@ static const char *center_slot_value(void) {
 }
 
 static bool side_slot_has_optional_label(uint8_t slot) {
-  return slot == SLOT_WEATHER || slot == SLOT_STEPS ||
-         slot == SLOT_HEART_RATE || slot == SLOT_CALORIES ||
-         slot == SLOT_DISTANCE || slot == SLOT_SUNRISE ||
-         slot == SLOT_SUNSET || slot == SLOT_HIGH_LOW;
+  return slot == SLOT_WEATHER ||
+         slot == SLOT_STEPS ||
+         slot == SLOT_HEART_RATE ||
+         slot == SLOT_CALORIES ||
+         slot == SLOT_DISTANCE ||
+         slot == SLOT_SUNRISE ||
+         slot == SLOT_SUNSET ||
+         slot == SLOT_HIGH_LOW;
 }
+
 static bool center_slot_has_optional_label(uint8_t slot) {
-  return slot == CENTER_HEART_RATE || slot == CENTER_WEATHER || slot == CENTER_STEPS;
+  return slot == CENTER_HEART_RATE ||
+         slot == CENTER_WEATHER ||
+         slot == CENTER_STEPS;
 }
+
 static bool slot_is_calendar(uint8_t slot) {
   return slot == SLOT_DAY || slot == SLOT_DATE || slot == SLOT_MONTH;
 }
@@ -1574,53 +1515,100 @@ static const char *top_slot_value(uint8_t slot) {
 
 static void update_header_content(void) {
   if (!s_top_left_label || !s_top_center_label || !s_top_right_label) return;
-  const bool left_large = slot_is_calendar(s_settings.top_left_slot) || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.top_left_slot));
-  const bool center_large = slot_is_calendar(s_settings.top_center_slot) || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.top_center_slot));
-  const bool right_large = slot_is_calendar(s_settings.top_right_slot) || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.top_right_slot));
-  text_layer_set_text(s_top_left_label, (!s_settings.show_labels && side_slot_has_optional_label(s_settings.top_left_slot)) ? "" : top_slot_label(s_settings.top_left_slot));
-  text_layer_set_text(s_top_left_val, top_slot_value(s_settings.top_left_slot));
+
+  const bool left_calendar = slot_is_calendar(s_settings.top_left_slot);
+  const bool center_calendar = slot_is_calendar(s_settings.top_center_slot);
+  const bool right_calendar = slot_is_calendar(s_settings.top_right_slot);
+
+  const bool left_label_hidden =
+      !s_settings.show_labels &&
+      side_slot_has_optional_label(s_settings.top_left_slot);
+  const bool center_label_hidden =
+      !s_settings.show_labels &&
+      side_slot_has_optional_label(s_settings.top_center_slot);
+  const bool right_label_hidden =
+      !s_settings.show_labels &&
+      side_slot_has_optional_label(s_settings.top_right_slot);
+
+  const bool left_large = left_calendar || left_label_hidden;
+  const bool center_large = center_calendar || center_label_hidden;
+  const bool right_large = right_calendar || right_label_hidden;
+
+  text_layer_set_text(
+      s_top_left_label,
+      left_label_hidden ? "" : top_slot_label(s_settings.top_left_slot));
+  text_layer_set_text(
+      s_top_left_val,
+      top_slot_value(s_settings.top_left_slot));
+
+  const char *center_label =
+      s_settings.top_center_slot == SLOT_WEATHER
+          ? "TEMP"
+          : top_slot_label(s_settings.top_center_slot);
+
   text_layer_set_text(
       s_top_center_label,
-      (!s_settings.show_labels && side_slot_has_optional_label(s_settings.top_center_slot)) ? "" :
-      (s_settings.top_center_slot == SLOT_WEATHER ? "TEMP" : top_slot_label(s_settings.top_center_slot)));
-  text_layer_set_text(s_top_center_val, top_slot_value(s_settings.top_center_slot));
-  text_layer_set_text(s_top_right_label, (!s_settings.show_labels && side_slot_has_optional_label(s_settings.top_right_slot)) ? "" : top_slot_label(s_settings.top_right_slot));
-  text_layer_set_text(s_top_right_val, top_slot_value(s_settings.top_right_slot));
+      center_label_hidden ? "" : center_label);
+  text_layer_set_text(
+      s_top_center_val,
+      top_slot_value(s_settings.top_center_slot));
 
-  // Calendar items retain the original large header typography. Other data
-  // uses the footer value font so labels, icons, and values fit comfortably.
+  text_layer_set_text(
+      s_top_right_label,
+      right_label_hidden ? "" : top_slot_label(s_settings.top_right_slot));
+  text_layer_set_text(
+      s_top_right_val,
+      top_slot_value(s_settings.top_right_slot));
+
+  // Hidden-label data uses the same large font as DAY / DATE / MONTH.
   text_layer_set_font(s_top_left_val, left_large ? s_font_header : s_font_value);
   text_layer_set_font(s_top_center_val, center_large ? s_font_header : s_font_value);
   text_layer_set_font(s_top_right_val, right_large ? s_font_header : s_font_value);
 
-  // Calendar values have no label, so give them the full header height.
-  // This restores the original vertical centering instead of leaving them in
-  // the lower "value" half of the generic label/value layout.
-  layer_set_frame(text_layer_get_layer(s_top_left_val),
-      GRect(4, left_large ? 4 : 15, layer_get_bounds(s_header_layer).size.w > 0 ? DATEBOX_X - BOX_GAP - 4 : 0,
-            left_large ? HEADER_H - 5 : 34));
-  layer_set_frame(text_layer_get_layer(s_top_center_val),
+  int left_w = DATEBOX_X - BOX_GAP - 4;
+  int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
+  int top_right_w = SCREEN_W - top_right_x - 4;
+
+  layer_set_frame(
+      text_layer_get_layer(s_top_left_val),
+      GRect(4, left_large ? 4 : 15,
+            left_w, left_large ? HEADER_H - 5 : 34));
+
+  layer_set_frame(
+      text_layer_get_layer(s_top_center_val),
       GRect(DATEBOX_X,
             center_large ? 4 :
               (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15),
             DATEBOX_W,
             center_large ? HEADER_H - 5 :
               (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34)));
-  int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
-  layer_set_frame(text_layer_get_layer(s_top_right_val),
-      GRect(top_right_x, right_large ? 4 : 15, SCREEN_W - top_right_x - 4,
-            right_large ? HEADER_H - 5 : 34));
 
-  text_layer_set_text_alignment(s_top_left_label,
-      (s_settings.top_left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected) ? GTextAlignmentCenter : GTextAlignmentLeft);
-  text_layer_set_text_alignment(s_top_left_val,
+  layer_set_frame(
+      text_layer_get_layer(s_top_right_val),
+      GRect(top_right_x, right_large ? 4 : 15,
+            top_right_w, right_large ? HEADER_H - 5 : 34));
+
+  text_layer_set_text_alignment(
+      s_top_left_label,
+      (s_settings.top_left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
+          ? GTextAlignmentCenter : GTextAlignmentLeft);
+
+  text_layer_set_text_alignment(
+      s_top_left_val,
       left_large ? GTextAlignmentCenter : GTextAlignmentLeft);
+
   text_layer_set_text_alignment(s_top_center_label, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_top_center_val, GTextAlignmentCenter);
-  text_layer_set_text_alignment(s_top_right_label,
-      (s_settings.top_right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected) ? GTextAlignmentCenter : GTextAlignmentRight);
-  text_layer_set_text_alignment(s_top_right_val,
+
+  text_layer_set_text_alignment(
+      s_top_right_label,
+      (s_settings.top_right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
+          ? GTextAlignmentCenter : GTextAlignmentRight);
+
+  text_layer_set_text_alignment(
+      s_top_right_val,
       right_large ? GTextAlignmentCenter : GTextAlignmentRight);
+
   if (s_header_layer) layer_mark_dirty(s_header_layer);
 }
 
@@ -1631,46 +1619,69 @@ static void update_footer_content(void) {
   const bool left_calendar = slot_is_calendar(s_settings.left_slot);
   const bool center_calendar = slot_is_calendar(s_settings.center_slot);
   const bool right_calendar = slot_is_calendar(s_settings.right_slot);
-  const bool left_large = left_calendar || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.left_slot));
-  const bool center_large = center_calendar || (!s_settings.show_labels && center_slot_has_optional_label(s_settings.center_slot));
-  const bool right_large = right_calendar || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.right_slot));
 
-  // Match the header treatment for calendar items: large value only, no
-  // redundant DAY / DATE / MONTH label.
-  text_layer_set_text(s_left_label, (left_calendar || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.left_slot))) ? "" : side_slot_label(s_settings.left_slot));
+  const bool left_label_hidden =
+      !s_settings.show_labels &&
+      side_slot_has_optional_label(s_settings.left_slot);
+  const bool center_label_hidden =
+      !s_settings.show_labels &&
+      center_slot_has_optional_label(s_settings.center_slot);
+  const bool right_label_hidden =
+      !s_settings.show_labels &&
+      side_slot_has_optional_label(s_settings.right_slot);
+
+  const bool left_large = left_calendar || left_label_hidden;
+  const bool center_large = center_calendar || center_label_hidden;
+  const bool right_large = right_calendar || right_label_hidden;
+
+  text_layer_set_text(
+      s_left_label,
+      (left_calendar || left_label_hidden)
+          ? "" : side_slot_label(s_settings.left_slot));
   text_layer_set_text(s_left_val, side_slot_value(s_settings.left_slot));
-  text_layer_set_text(s_center_label, (center_calendar || (!s_settings.show_labels && center_slot_has_optional_label(s_settings.center_slot))) ? "" : center_slot_label());
+
+  text_layer_set_text(
+      s_center_label,
+      (center_calendar || center_label_hidden)
+          ? "" : center_slot_label());
   text_layer_set_text(s_center_val, center_slot_value());
-  text_layer_set_text(s_right_label, (right_calendar || (!s_settings.show_labels && side_slot_has_optional_label(s_settings.right_slot))) ? "" : side_slot_label(s_settings.right_slot));
+
+  text_layer_set_text(
+      s_right_label,
+      (right_calendar || right_label_hidden)
+          ? "" : side_slot_label(s_settings.right_slot));
   text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
 
-  // Calendar items use the same large custom font as their header versions.
   text_layer_set_font(s_left_val, left_large ? s_font_header : s_font_value);
   text_layer_set_font(s_center_val, center_large ? s_font_header : s_font_value);
   text_layer_set_font(s_right_val, right_large ? s_font_header : s_font_value);
 
-  // Give calendar values the whole footer slot so they can be centered
-  // vertically as well as horizontally. Non-calendar items retain the existing
-  // label/value frames.
   int left_w = HRBOX_X - BOX_GAP - 4;
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   int right_w = SCREEN_W - right_x - 4;
 
-  layer_set_frame(text_layer_get_layer(s_left_val),
-      GRect(4, left_large ? 1 : 14, left_w, left_large ? FOOTER_H - 1 : 38));
-  layer_set_frame(text_layer_get_layer(s_center_val),
-      GRect(HRBOX_X, center_large ? 1 : 14, BOX_W, center_large ? FOOTER_H - 1 : 38));
-  layer_set_frame(text_layer_get_layer(s_right_val),
-      GRect(right_x, right_large ? 1 : 14, right_w, right_large ? FOOTER_H - 1 : 38));
+  layer_set_frame(
+      text_layer_get_layer(s_left_val),
+      GRect(4, left_large ? 1 : 14,
+            left_w, left_large ? FOOTER_H - 1 : 38));
 
-  // Calendar values are centered in every slot. Other values keep their
-  // established left/center/right alignment.
+  layer_set_frame(
+      text_layer_get_layer(s_center_val),
+      GRect(HRBOX_X, center_large ? 1 : 14,
+            BOX_W, center_large ? FOOTER_H - 1 : 38));
+
+  layer_set_frame(
+      text_layer_get_layer(s_right_val),
+      GRect(right_x, right_large ? 1 : 14,
+            right_w, right_large ? FOOTER_H - 1 : 38));
+
   text_layer_set_text_alignment(
       s_left_label,
       (s_settings.left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
           ? GTextAlignmentCenter : GTextAlignmentLeft);
   text_layer_set_text_alignment(
-      s_left_val, left_large ? GTextAlignmentCenter : GTextAlignmentLeft);
+      s_left_val,
+      left_large ? GTextAlignmentCenter : GTextAlignmentLeft);
 
   text_layer_set_text_alignment(s_center_label, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_center_val, GTextAlignmentCenter);
@@ -1680,14 +1691,20 @@ static void update_footer_content(void) {
       (s_settings.right_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
           ? GTextAlignmentCenter : GTextAlignmentRight);
   text_layer_set_text_alignment(
-      s_right_val, right_large ? GTextAlignmentCenter : GTextAlignmentRight);
+      s_right_val,
+      right_large ? GTextAlignmentCenter : GTextAlignmentRight);
 
-  bool weather_left = s_settings.left_slot == SLOT_WEATHER;
-  bool weather_right = s_settings.right_slot == SLOT_WEATHER;
-  layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_left_layer), !weather_left);
-  layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_right_layer), !weather_right);
+  // Existing weather icon behavior remains unchanged.
+  layer_set_hidden(
+      s_weather_icon_left_layer,
+      s_settings.left_slot != SLOT_WEATHER);
+  layer_set_hidden(
+      s_weather_icon_right_layer,
+      s_settings.right_slot != SLOT_WEATHER);
+
   if (s_footer_layer) layer_mark_dirty(s_footer_layer);
 }
+
 
 static void apply_bar_visibility(void);
 
@@ -2541,7 +2558,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         int32_t value = tuple_to_int32(t, s_settings.show_labels);
         if (value == 0 || value == 1) {
           s_settings.show_labels = (uint8_t)value;
-          APP_LOG(APP_LOG_LEVEL_INFO, "Data labels -> %s", value ? "shown" : "hidden");
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Data labels -> %s",
+                  value ? "shown" : "hidden");
           layout_changed = true;
         }
         break;

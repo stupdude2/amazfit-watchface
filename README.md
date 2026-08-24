@@ -453,8 +453,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Trial expiration can no longer demote a persisted purchased user.
 - Existing Pro preferences are restored immediately with the purchased entitlement.
 
-## v2.6.0 — Optional data labels
-- Added a Pro setting to hide descriptive labels in the top and bottom bars.
-- Weather/Temp, HR, Steps, Calories, Distance, Sunrise, Sunset, and High/Low values become larger and centered when labels are hidden.
-- Enlarged values use the same font as Day / Date / Month.
-- Existing installs keep labels enabled by default.
+## v2.6.1 — Optional data labels (build fix)
+- Adds the Pro-only Show Data Labels setting.
+- Hiding labels enlarges Weather/Temp, HR, Steps, Calories, Distance, Sunrise, Sunset, and High/Low values to the same font used by Day / Date / Month.
+- Hidden-label values are vertically and horizontally centered in their slot.
+- Existing users migrate with labels enabled.
+- Corrected the v2.6.0 settings migration so historical WatchfaceSettings typedefs are declared only once.
