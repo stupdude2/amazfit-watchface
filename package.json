@@ -46,7 +46,13 @@
       "LICENSE_CHECK": 25,
       "TRY_PRO_FREE": 26,
       "UNLOCK_PRO": 27,
-      "SHOW_LABELS": 28
+      "SHOW_LABELS": 28,
+      "TOP_LEFT_HIDE_LABEL": 29,
+      "TOP_CENTER_HIDE_LABEL": 30,
+      "TOP_RIGHT_HIDE_LABEL": 31,
+      "LEFT_HIDE_LABEL": 32,
+      "CENTER_HIDE_LABEL": 33,
+      "RIGHT_HIDE_LABEL": 34
     },
     "projectType": "native",
     "resources": {
@@ -116,5 +122,5 @@
       "watchface": true
     }
   },
-  "version": "2.6.7"
+  "version": "2.7.0"
 }

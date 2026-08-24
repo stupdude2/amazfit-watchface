@@ -503,3 +503,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Center Weather temperature nudged 2 pixels right for better optical centering.
 - Sunrise and Sunset include AM/PM in 12-hour mode and use Medium when labels are hidden.
 - Distance currently follows the selected temperature system: Fahrenheit = MI and Celsius = KM; there is no separate native watch distance-unit lookup in this version.
+
+## v2.7.0 — Per-slot label controls
+- Replaced the single global Show Data Labels setting with independent Hide Label controls for all six top/bottom bar slots.
+- Each Hide Label toggle appears only when its selected data item actually has a descriptive label.
+- Hiding a label affects only that one slot and keeps the existing enlarged/adaptive font behavior.
+- Existing v2.6.x users migrate automatically: the former global hidden-label choice is applied to all six slots.
+- Calendar, battery, and Bluetooth selections do not show a Hide Label toggle because they do not use the same descriptive-label treatment.

@@ -46,6 +46,50 @@ function customClay(minified) {
       timeFormat.on('change', syncCenter12hAvailability);
     }
 
+    // Show each Hide Label toggle only while its slot contains a value that
+    // actually has a descriptive label. Clay's manipulators support hide/show.
+    function sideSlotHasLabel(value) {
+      value = String(value);
+      return value === '0' || value === '1' || value === '3' ||
+             value === '8' || value === '9' || value === '10' ||
+             value === '11' || value === '12';
+    }
+
+    function centerSlotHasLabel(value, topCenter) {
+      value = String(value);
+      if (topCenter) {
+        // Top-center uses SideSlotContent values: Weather=0, HR=3.
+        return value === '0' || value === '3';
+      }
+      // Bottom-center uses CenterSlotContent values: HR=0, Weather=3.
+      return value === '0' || value === '3';
+    }
+
+    function bindConditionalLabelToggle(slotKey, toggleKey, isCenter, isTopCenter) {
+      var slot = clayPage.getItemByMessageKey(slotKey);
+      var toggle = clayPage.getItemByMessageKey(toggleKey);
+      if (!slot || !toggle) return;
+
+      function sync() {
+        var visible = isCenter
+          ? centerSlotHasLabel(slot.get(), isTopCenter)
+          : sideSlotHasLabel(slot.get());
+
+        if (visible) toggle.show();
+        else toggle.hide();
+      }
+
+      sync();
+      slot.on('change', sync);
+    }
+
+    bindConditionalLabelToggle('TOP_LEFT_SLOT', 'TOP_LEFT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle('TOP_CENTER_SLOT', 'TOP_CENTER_HIDE_LABEL', true, true);
+    bindConditionalLabelToggle('TOP_RIGHT_SLOT', 'TOP_RIGHT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle('LEFT_SLOT', 'LEFT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle('CENTER_SLOT', 'CENTER_HIDE_LABEL', true, false);
+    bindConditionalLabelToggle('RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false);
+
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
 

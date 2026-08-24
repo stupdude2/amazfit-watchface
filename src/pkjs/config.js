@@ -149,14 +149,7 @@ if (edition.isPro) {
       { "type": "heading", "defaultValue": "Appearance" },
       { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0x0000AA", "label": "Accent Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color", "layout": "COLOR" },
-      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" },
-      {
-        "type": "toggle",
-        "messageKey": "SHOW_LABELS",
-        "defaultValue": true,
-        "label": "Show Data Labels",
-        "description": "Turn off to hide labels such as WEATHER, TEMP, HR, STEPS, CAL, DIST, RISE, SET and H/L. Values become larger and centered."
-      }
+      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });
 
@@ -184,8 +177,11 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Top Bar" },
       { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
+      { "type": "toggle", "messageKey": "TOP_LEFT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions },
+      { "type": "toggle", "messageKey": "TOP_CENTER_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
+      { "type": "toggle", "messageKey": "TOP_RIGHT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       {
         "type": "select", "messageKey": "HEADER_MODE", "defaultValue": "0",
         "serializeValueAs": "integer", "label": "Top Bar Visibility",
@@ -203,8 +199,11 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Bottom Bar" },
       { "type": "select", "messageKey": "LEFT_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
+      { "type": "toggle", "messageKey": "LEFT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "CENTER_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Center", "options": centerOptions },
+      { "type": "toggle", "messageKey": "CENTER_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "RIGHT_SLOT", "defaultValue": "1", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
+      { "type": "toggle", "messageKey": "RIGHT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       {
         "type": "select", "messageKey": "FOOTER_MODE", "defaultValue": "0",
         "serializeValueAs": "integer", "label": "Bottom Bar Visibility",

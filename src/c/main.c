@@ -113,7 +113,13 @@ static bool conditional_ui_is_visible(void);
 #define KEY_LICENSE_CHECK  25
 #define KEY_TRY_PRO_FREE   26
 #define KEY_UNLOCK_PRO     27
-#define KEY_SHOW_LABELS     28
+#define KEY_SHOW_LABELS     28  // legacy global label toggle
+#define KEY_TOP_LEFT_HIDE_LABEL   29
+#define KEY_TOP_CENTER_HIDE_LABEL 30
+#define KEY_TOP_RIGHT_HIDE_LABEL  31
+#define KEY_LEFT_HIDE_LABEL       32
+#define KEY_CENTER_HIDE_LABEL     33
+#define KEY_RIGHT_HIDE_LABEL      34
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -124,7 +130,7 @@ static bool conditional_ui_is_visible(void);
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     14
+#define SETTINGS_VERSION     15
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -325,6 +331,33 @@ typedef struct {
   uint8_t center_12h;
   uint8_t raise_wake_mode;
   uint8_t show_labels;
+} WatchfaceSettingsV14;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
+  uint8_t top_left_slot;
+  uint8_t top_center_slot;
+  uint8_t top_right_slot;
+  uint8_t time_format;
+  uint8_t center_12h;
+  uint8_t raise_wake_mode;
+  uint8_t top_left_hide_label;
+  uint8_t top_center_hide_label;
+  uint8_t top_right_hide_label;
+  uint8_t left_hide_label;
+  uint8_t center_hide_label;
+  uint8_t right_hide_label;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -382,7 +415,12 @@ static void settings_set_defaults(void) {
   s_settings.time_format = TIME_FORMAT_12H;
   s_settings.center_12h = 1;
   s_settings.raise_wake_mode = RAISE_WAKE_OFF;
-  s_settings.show_labels = 1;
+  s_settings.top_left_hide_label = 0;
+  s_settings.top_center_hide_label = 0;
+  s_settings.top_right_hide_label = 0;
+  s_settings.left_hide_label = 0;
+  s_settings.center_hide_label = 0;
+  s_settings.right_hide_label = 0;
 }
 
 
@@ -412,7 +450,12 @@ static void enforce_free_defaults(void) {
   s_settings.temp_unit =
       keep_temp_unit <= TEMP_CELSIUS ? keep_temp_unit : TEMP_FAHRENHEIT;
   s_settings.raise_wake_mode = RAISE_WAKE_OFF;
-  s_settings.show_labels = 1;
+  s_settings.top_left_hide_label = 0;
+  s_settings.top_center_hide_label = 0;
+  s_settings.top_right_hide_label = 0;
+  s_settings.left_hide_label = 0;
+  s_settings.center_hide_label = 0;
+  s_settings.right_hide_label = 0;
 
   s_settings.time_format =
       keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
@@ -441,7 +484,12 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_TOP_CENTER_SLOT:
     case KEY_TOP_RIGHT_SLOT:
     case KEY_RAISE_WAKE:
-    case KEY_SHOW_LABELS:
+    case KEY_TOP_LEFT_HIDE_LABEL:
+    case KEY_TOP_CENTER_HIDE_LABEL:
+    case KEY_TOP_RIGHT_HIDE_LABEL:
+    case KEY_LEFT_HIDE_LABEL:
+    case KEY_CENTER_HIDE_LABEL:
+    case KEY_RIGHT_HIDE_LABEL:
       return true;
     default:
       return false;
@@ -465,7 +513,12 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->time_format <= TIME_FORMAT_24H &&
          settings->center_12h <= 1 &&
          settings->raise_wake_mode <= RAISE_WAKE_SENSITIVE &&
-         settings->show_labels <= 1;
+         settings->top_left_hide_label <= 1 &&
+         settings->top_center_hide_label <= 1 &&
+         settings->top_right_hide_label <= 1 &&
+         settings->left_hide_label <= 1 &&
+         settings->center_hide_label <= 1 &&
+         settings->right_hide_label <= 1;
 }
 
 static void settings_load(void) {
@@ -478,6 +531,40 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV14)) {
+    WatchfaceSettingsV14 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 14) {
+      s_settings.accent_color = old.accent_color;
+      s_settings.left_slot = old.left_slot;
+      s_settings.center_slot = old.center_slot;
+      s_settings.right_slot = old.right_slot;
+      s_settings.footer_mode = old.footer_mode;
+      s_settings.header_mode = old.header_mode;
+      s_settings.stepbar_mode = old.stepbar_mode;
+      s_settings.step_goal = old.step_goal;
+      s_settings.temp_unit = old.temp_unit;
+      s_settings.clock_color = old.clock_color;
+      s_settings.background_color = old.background_color;
+      s_settings.top_left_slot = old.top_left_slot;
+      s_settings.top_center_slot = old.top_center_slot;
+      s_settings.top_right_slot = old.top_right_slot;
+      s_settings.time_format = old.time_format;
+      s_settings.center_12h = old.center_12h;
+      s_settings.raise_wake_mode = old.raise_wake_mode;
+
+      // Preserve the old global label choice across all six slots.
+      uint8_t hide = old.show_labels ? 0 : 1;
+      s_settings.top_left_hide_label = hide;
+      s_settings.top_center_hide_label = hide;
+      s_settings.top_right_hide_label = hide;
+      s_settings.left_hide_label = hide;
+      s_settings.center_hide_label = hide;
+      s_settings.right_hide_label = hide;
+
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV13)) {
@@ -515,7 +602,12 @@ static void settings_load(void) {
       s_settings.time_format = old.time_format;
       s_settings.center_12h = old.center_12h;
       s_settings.raise_wake_mode = old.raise_wake_mode;
-      s_settings.show_labels = 1;
+      s_settings.top_left_hide_label = 0;
+      s_settings.top_center_hide_label = 0;
+      s_settings.top_right_hide_label = 0;
+      s_settings.left_hide_label = 0;
+      s_settings.center_hide_label = 0;
+      s_settings.right_hide_label = 0;
       persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
@@ -1561,13 +1653,13 @@ static void update_header_content(void) {
   const bool right_calendar = slot_is_calendar(s_settings.top_right_slot);
 
   const bool left_label_hidden =
-      !s_settings.show_labels &&
+      s_settings.top_left_hide_label &&
       side_slot_has_optional_label(s_settings.top_left_slot);
   const bool center_label_hidden =
-      !s_settings.show_labels &&
+      s_settings.top_center_hide_label &&
       side_slot_has_optional_label(s_settings.top_center_slot);
   const bool right_label_hidden =
-      !s_settings.show_labels &&
+      s_settings.top_right_hide_label &&
       side_slot_has_optional_label(s_settings.top_right_slot);
 
   const bool left_large = left_calendar || left_label_hidden;
@@ -1694,13 +1786,13 @@ static void update_footer_content(void) {
   const bool right_calendar = slot_is_calendar(s_settings.right_slot);
 
   const bool left_label_hidden =
-      !s_settings.show_labels &&
+      s_settings.left_hide_label &&
       side_slot_has_optional_label(s_settings.left_slot);
   const bool center_label_hidden =
-      !s_settings.show_labels &&
+      s_settings.center_hide_label &&
       center_slot_has_optional_label(s_settings.center_slot);
   const bool right_label_hidden =
-      !s_settings.show_labels &&
+      s_settings.right_hide_label &&
       side_slot_has_optional_label(s_settings.right_slot);
 
   const bool left_large = left_calendar || left_label_hidden;
@@ -1784,8 +1876,11 @@ static void update_footer_content(void) {
   // Weather icon uses the outer/right edge of its side slot. When data labels
   // are hidden, center the 25px icon against the full-height enlarged value.
   const int weather_icon_size = 25;
+  const bool any_side_weather_label_hidden =
+      (s_settings.left_slot == SLOT_WEATHER && left_label_hidden) ||
+      (s_settings.right_slot == SLOT_WEATHER && right_label_hidden);
   const int weather_icon_y =
-      (!s_settings.show_labels) ? ((FOOTER_H - weather_icon_size) / 2) : 18;
+      any_side_weather_label_hidden ? ((FOOTER_H - weather_icon_size) / 2) : 18;
 
   const int left_weather_icon_x =
       4 + left_w - weather_icon_size;
@@ -2689,17 +2784,41 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
-      case KEY_SHOW_LABELS: {
-        int32_t value = tuple_to_int32(t, s_settings.show_labels);
-        if (value == 0 || value == 1) {
-          s_settings.show_labels = (uint8_t)value;
-          APP_LOG(APP_LOG_LEVEL_INFO,
-                  "Data labels -> %s",
-                  value ? "shown" : "hidden");
-          layout_changed = true;
-        }
+      case KEY_TOP_LEFT_HIDE_LABEL:
+        s_settings.top_left_hide_label =
+            tuple_to_int32(t, s_settings.top_left_hide_label) ? 1 : 0;
+        layout_changed = true;
         break;
-      }
+
+      case KEY_TOP_CENTER_HIDE_LABEL:
+        s_settings.top_center_hide_label =
+            tuple_to_int32(t, s_settings.top_center_hide_label) ? 1 : 0;
+        layout_changed = true;
+        break;
+
+      case KEY_TOP_RIGHT_HIDE_LABEL:
+        s_settings.top_right_hide_label =
+            tuple_to_int32(t, s_settings.top_right_hide_label) ? 1 : 0;
+        layout_changed = true;
+        break;
+
+      case KEY_LEFT_HIDE_LABEL:
+        s_settings.left_hide_label =
+            tuple_to_int32(t, s_settings.left_hide_label) ? 1 : 0;
+        layout_changed = true;
+        break;
+
+      case KEY_CENTER_HIDE_LABEL:
+        s_settings.center_hide_label =
+            tuple_to_int32(t, s_settings.center_hide_label) ? 1 : 0;
+        layout_changed = true;
+        break;
+
+      case KEY_RIGHT_HIDE_LABEL:
+        s_settings.right_hide_label =
+            tuple_to_int32(t, s_settings.right_hide_label) ? 1 : 0;
+        layout_changed = true;
+        break;
 
       case KEY_RAISE_WAKE: {
         int32_t value = tuple_to_int32(t, s_settings.raise_wake_mode);
