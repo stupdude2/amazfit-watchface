@@ -828,6 +828,7 @@ static GBitmap     *s_weather_icon_bitmap;
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 static GFont s_font_header;
+static GFont s_font_medium;
 static GFont s_font_label;
 static GFont s_font_value;
 
@@ -1505,8 +1506,8 @@ static bool center_slot_has_optional_label(uint8_t slot) {
 
 static bool weather_value_needs_smaller_font(void) {
   // s_weather_buf includes the degree symbol. Three-digit temperatures (100°+)
-  // and similarly long negative temperatures are safer in the standard value
-  // font than the large calendar font.
+  // and similarly long negative temperatures are safer in the medium font
+  // than the large calendar font.
   if (!s_have_temperature) return false;
 
   int display_x10 = s_temperature_c_x10;
@@ -1520,14 +1521,17 @@ static bool weather_value_needs_smaller_font(void) {
   return display_temp >= 100 || display_temp <= -10;
 }
 
-static bool side_slot_needs_smaller_hidden_font(uint8_t slot) {
+static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
+  // Distance is intentionally medium at all times because its unit makes the
+  // rendered value wider than the other single-value metrics.
+  if (slot == SLOT_DISTANCE) return true;
   if (slot == SLOT_HIGH_LOW) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
   return false;
 }
 
-static bool center_slot_needs_smaller_hidden_font(uint8_t slot) {
+static bool center_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == CENTER_STEPS && s_step_count >= 10000) return true;
   if (slot == CENTER_WEATHER && weather_value_needs_smaller_font()) return true;
   return false;
@@ -1595,26 +1599,29 @@ static void update_header_content(void) {
       top_slot_value(s_settings.top_right_slot));
 
   // Hidden-label data normally uses the same large font as DAY / DATE / MONTH.
-  // Long values fall back to the standard value font before Pebble can ellipsize.
-  const bool left_small_for_fit =
+  // Long values use a 28px medium font before Pebble can ellipsize.
+  const bool left_medium_for_fit =
       left_label_hidden &&
-      side_slot_needs_smaller_hidden_font(s_settings.top_left_slot);
-  const bool center_small_for_fit =
+      side_slot_needs_medium_hidden_font(s_settings.top_left_slot);
+  const bool center_medium_for_fit =
       center_label_hidden &&
-      side_slot_needs_smaller_hidden_font(s_settings.top_center_slot);
-  const bool right_small_for_fit =
+      side_slot_needs_medium_hidden_font(s_settings.top_center_slot);
+  const bool right_medium_for_fit =
       right_label_hidden &&
-      side_slot_needs_smaller_hidden_font(s_settings.top_right_slot);
+      side_slot_needs_medium_hidden_font(s_settings.top_right_slot);
 
   text_layer_set_font(
       s_top_left_val,
-      (left_large && !left_small_for_fit) ? s_font_header : s_font_value);
+      left_medium_for_fit ? s_font_medium :
+        (left_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_top_center_val,
-      (center_large && !center_small_for_fit) ? s_font_header : s_font_value);
+      center_medium_for_fit ? s_font_medium :
+        (center_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_top_right_val,
-      (right_large && !right_small_for_fit) ? s_font_header : s_font_value);
+      right_medium_for_fit ? s_font_medium :
+        (right_large ? s_font_header : s_font_value));
 
   int left_w = DATEBOX_X - BOX_GAP - 4;
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
@@ -1711,25 +1718,28 @@ static void update_footer_content(void) {
           ? "" : side_slot_label(s_settings.right_slot));
   text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
 
-  const bool left_small_for_fit =
+  const bool left_medium_for_fit =
       left_label_hidden &&
-      side_slot_needs_smaller_hidden_font(s_settings.left_slot);
-  const bool center_small_for_fit =
+      side_slot_needs_medium_hidden_font(s_settings.left_slot);
+  const bool center_medium_for_fit =
       center_label_hidden &&
-      center_slot_needs_smaller_hidden_font(s_settings.center_slot);
-  const bool right_small_for_fit =
+      center_slot_needs_medium_hidden_font(s_settings.center_slot);
+  const bool right_medium_for_fit =
       right_label_hidden &&
-      side_slot_needs_smaller_hidden_font(s_settings.right_slot);
+      side_slot_needs_medium_hidden_font(s_settings.right_slot);
 
   text_layer_set_font(
       s_left_val,
-      (left_large && !left_small_for_fit) ? s_font_header : s_font_value);
+      left_medium_for_fit ? s_font_medium :
+        (left_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_center_val,
-      (center_large && !center_small_for_fit) ? s_font_header : s_font_value);
+      center_medium_for_fit ? s_font_medium :
+        (center_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_right_val,
-      (right_large && !right_small_for_fit) ? s_font_header : s_font_value);
+      right_medium_for_fit ? s_font_medium :
+        (right_large ? s_font_header : s_font_value));
 
   int left_w = HRBOX_X - BOX_GAP - 4;
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
@@ -2974,6 +2984,7 @@ static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
 
   s_font_header = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEADER_31));
+  s_font_medium = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   s_font_value  = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
 

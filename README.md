@@ -487,3 +487,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Normal shorter values continue using the large Day / Date / Month font.
 - Fahrenheit / Celsius selection is now available in the Free edition.
 - Free-mode persistence now preserves Temperature Unit alongside Time Format and Center 12 Hour Clock.
+
+## v2.6.6 — Medium adaptive data font
+- Added a 28px bold medium data font between the 31px large calendar font and 24px standard value font.
+- Three-digit temperatures use Medium when labels are hidden.
+- Steps at 10,000 and above use Medium when labels are hidden.
+- High / Low temperature always uses Medium when labels are hidden.
+- Distance always uses Medium when labels are hidden.
+- Shorter data values continue using the large Day / Date / Month font.
