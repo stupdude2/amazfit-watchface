@@ -510,3 +510,16 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Hiding a label affects only that one slot and keeps the existing enlarged/adaptive font behavior.
 - Existing v2.6.x users migrate automatically: the former global hidden-label choice is applied to all six slots.
 - Calendar, battery, and Bluetooth selections do not show a Hide Label toggle because they do not use the same descriptive-label treatment.
+
+## v2.7.1 — Default layout consistency
+- Fresh-install defaults explicitly show all six data labels.
+- Bottom Right defaults to Steps.
+- Restore Default Settings now resets every per-slot Hide Label toggle to off.
+- Restore Default Settings explicitly restores Bottom Right to Steps.
+- Free defaults, fresh-install defaults, Clay defaults, and manual Restore Defaults now use the same baseline.
+
+## v2.7.2 — Restore Steps side slots
+- Restored Steps to the shared side-slot list used by Top Left, Top Right, Bottom Left, and Bottom Right.
+- Removed the lingering Steps option from Top Center.
+- Steps remains unavailable in both center positions as intended.
+- Bottom Right continues to default to Steps.

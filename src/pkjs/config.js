@@ -2,6 +2,7 @@ var edition = require('./edition');
 
 var sideOptions = [
   { "label": "Weather", "value": "0" },
+  { "label": "Steps", "value": "1" },
   { "label": "Battery (icon + %)", "value": "2" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
@@ -17,7 +18,6 @@ var sideOptions = [
 
 var topCenterOptions = [
   { "label": "Weather", "value": "0" },
-  { "label": "Steps", "value": "1" },
   { "label": "Battery (icon + %)", "value": "2" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
