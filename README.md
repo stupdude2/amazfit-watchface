@@ -472,3 +472,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Side weather icons are positioned at the right edge of their slot.
 - With labels hidden, the weather icon is vertically centered with the enlarged temperature value.
 - Weather temperature text uses the remaining space beside the icon to avoid overlap.
+
+## v2.6.4 — Large-value vertical alignment
+- Moved newly enlarged label-hidden metric values down 3 pixels for better vertical centering.
+- Day / Date / Month retain their established vertical positioning.
+- Weather icon vertical placement is unchanged.
+- Restored weather temperature TextLayers to the full slot width so the degree symbol is no longer truncated into an ellipsis.
+- Weather icon remains right-aligned and may overlap the far edge of the temperature text slightly.

@@ -1571,22 +1571,30 @@ static void update_header_content(void) {
 
   layer_set_frame(
       text_layer_get_layer(s_top_left_val),
-      GRect(4, left_large ? 4 : 15,
-            left_w, left_large ? HEADER_H - 5 : 34));
+      GRect(4,
+            left_calendar ? 4 : (left_label_hidden ? 7 : 15),
+            left_w,
+            left_calendar ? HEADER_H - 5 :
+              (left_label_hidden ? HEADER_H - 8 : 34)));
 
   layer_set_frame(
       text_layer_get_layer(s_top_center_val),
       GRect(DATEBOX_X,
-            center_large ? 4 :
-              (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15),
+            center_calendar ? 4 :
+              (center_label_hidden ? 7 :
+                (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15)),
             DATEBOX_W,
-            center_large ? HEADER_H - 5 :
-              (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34)));
+            center_calendar ? HEADER_H - 5 :
+              (center_label_hidden ? HEADER_H - 8 :
+                (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34))));
 
   layer_set_frame(
       text_layer_get_layer(s_top_right_val),
-      GRect(top_right_x, right_large ? 4 : 15,
-            top_right_w, right_large ? HEADER_H - 5 : 34));
+      GRect(top_right_x,
+            right_calendar ? 4 : (right_label_hidden ? 7 : 15),
+            top_right_w,
+            right_calendar ? HEADER_H - 5 :
+              (right_label_hidden ? HEADER_H - 8 : 34)));
 
   text_layer_set_text_alignment(
       s_top_left_label,
@@ -1662,23 +1670,31 @@ static void update_footer_content(void) {
 
   layer_set_frame(
       text_layer_get_layer(s_left_val),
-      GRect(4, left_large ? 1 : 14,
-            left_w, left_large ? FOOTER_H - 1 : 38));
+      GRect(4,
+            left_calendar ? 1 : (left_label_hidden ? 4 : 14),
+            left_w,
+            left_calendar ? FOOTER_H - 1 :
+              (left_label_hidden ? FOOTER_H - 4 : 38)));
 
   layer_set_frame(
       text_layer_get_layer(s_center_val),
-      GRect(HRBOX_X, center_large ? 1 : 14,
-            BOX_W, center_large ? FOOTER_H - 1 : 38));
+      GRect(HRBOX_X,
+            center_calendar ? 1 : (center_label_hidden ? 4 : 14),
+            BOX_W,
+            center_calendar ? FOOTER_H - 1 :
+              (center_label_hidden ? FOOTER_H - 4 : 38)));
 
   layer_set_frame(
       text_layer_get_layer(s_right_val),
-      GRect(right_x, right_large ? 1 : 14,
-            right_w, right_large ? FOOTER_H - 1 : 38));
+      GRect(right_x,
+            right_calendar ? 1 : (right_label_hidden ? 4 : 14),
+            right_w,
+            right_calendar ? FOOTER_H - 1 :
+              (right_label_hidden ? FOOTER_H - 4 : 38)));
 
   // Weather icon uses the outer/right edge of its side slot. When data labels
   // are hidden, center the 25px icon against the full-height enlarged value.
   const int weather_icon_size = 25;
-  const int weather_icon_gap = 3;
   const int weather_icon_y =
       (!s_settings.show_labels) ? ((FOOTER_H - weather_icon_size) / 2) : 18;
 
@@ -1696,25 +1712,10 @@ static void update_footer_content(void) {
       GRect(right_weather_icon_x, weather_icon_y,
             weather_icon_size, weather_icon_size));
 
-  // Keep the temperature value clear of the icon. It still follows the
-  // requested side alignment: left data starts at the left edge; right data
-  // ends immediately before the right-aligned weather icon.
-  if (s_settings.left_slot == SLOT_WEATHER) {
-    layer_set_frame(
-        text_layer_get_layer(s_left_val),
-        GRect(4, left_large ? 1 : 14,
-              left_w - weather_icon_size - weather_icon_gap,
-              left_large ? FOOTER_H - 1 : 38));
-  }
-
-  if (s_settings.right_slot == SLOT_WEATHER) {
-    layer_set_frame(
-        text_layer_get_layer(s_right_val),
-        GRect(right_x, right_large ? 1 : 14,
-              right_w - weather_icon_size - weather_icon_gap,
-              right_large ? FOOTER_H - 1 : 38));
-  }
-
+  // Temperature keeps the full side-slot text width. The right-aligned
+  // weather icon may overlap the far edge slightly; this is preferable to
+  // shrinking the TextLayer enough that Pebble replaces the degree symbol
+  // with an ellipsis.
   text_layer_set_text_alignment(
       s_left_label,
       (s_settings.left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
