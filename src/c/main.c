@@ -1052,7 +1052,6 @@ static GFont s_font_header;
 static GFont s_font_medium;
 static GFont s_font_label;
 static GFont s_font_value;
-static GFont s_font_timezone_hidden;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 static char s_day_buf[8];
@@ -1872,9 +1871,8 @@ static void format_time_zone_value(uint8_t preset_index,
   } else {
     int hour12 = time_ptr->tm_hour % 12;
     if (hour12 == 0) hour12 = 12;
-    const char *ampm = time_ptr->tm_hour >= 12 ? "PM" : "AM";
-    snprintf(buffer, buffer_size, "%d:%02d %s",
-             hour12, time_ptr->tm_min, ampm);
+    snprintf(buffer, buffer_size, "%d:%02d",
+             hour12, time_ptr->tm_min);
   }
 }
 
@@ -2172,39 +2170,29 @@ static void update_header_content(void) {
 
   text_layer_set_font(
       s_top_left_val,
-      (left_label_hidden && s_settings.top_left_slot == SLOT_TIME_ZONE)
-        ? s_font_timezone_hidden :
-      (left_medium_for_fit ? s_font_medium :
-        (left_large ? s_font_header : s_font_value)));
+      left_medium_for_fit ? s_font_medium :
+        (left_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_top_center_val,
       center_medium_for_fit ? s_font_medium :
         (center_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_top_right_val,
-      (right_label_hidden && s_settings.top_right_slot == SLOT_TIME_ZONE)
-        ? s_font_timezone_hidden :
-      (right_medium_for_fit ? s_font_medium :
-        (right_large ? s_font_header : s_font_value)));
+      right_medium_for_fit ? s_font_medium :
+        (right_large ? s_font_header : s_font_value));
 
   int left_w = DATEBOX_X - BOX_GAP - 4;
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
   int top_right_w = SCREEN_W - top_right_x - 4;
 
-  // Hidden Time Zone values can be as wide as "12:59 PM". Let those
-  // text layers borrow a few pixels beyond the normal side-slot bounds.
-  const bool top_left_tz_hidden =
-      left_label_hidden && s_settings.top_left_slot == SLOT_TIME_ZONE;
-  const bool top_right_tz_hidden =
-      right_label_hidden && s_settings.top_right_slot == SLOT_TIME_ZONE;
 
   layer_set_frame(
       text_layer_get_layer(s_top_left_val),
-      GRect(top_left_tz_hidden ? -4 : 4,
+      GRect(4,
             left_calendar ? 4 :
               ((left_label_hidden ||
                 s_settings.top_left_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
-            left_w + (top_left_tz_hidden ? 16 : 0),
+            left_w,
             left_calendar ? HEADER_H - 5 :
               ((left_label_hidden ||
                  s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
@@ -2231,11 +2219,11 @@ static void update_header_content(void) {
 
   layer_set_frame(
       text_layer_get_layer(s_top_right_val),
-      GRect(top_right_tz_hidden ? top_right_x - 8 : top_right_x,
+      GRect(top_right_x,
             right_calendar ? 4 :
               ((right_label_hidden ||
                 s_settings.top_right_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
-            top_right_w + (top_right_tz_hidden ? 16 : 0),
+            top_right_w,
             right_calendar ? HEADER_H - 5 :
               ((right_label_hidden ||
                  s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
@@ -2327,37 +2315,29 @@ static void update_footer_content(void) {
 
   text_layer_set_font(
       s_left_val,
-      (left_label_hidden && s_settings.left_slot == SLOT_TIME_ZONE)
-        ? s_font_timezone_hidden :
-      (left_medium_for_fit ? s_font_medium :
-        (left_large ? s_font_header : s_font_value)));
+      left_medium_for_fit ? s_font_medium :
+        (left_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_center_val,
       center_medium_for_fit ? s_font_medium :
         (center_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_right_val,
-      (right_label_hidden && s_settings.right_slot == SLOT_TIME_ZONE)
-        ? s_font_timezone_hidden :
-      (right_medium_for_fit ? s_font_medium :
-        (right_large ? s_font_header : s_font_value)));
+      right_medium_for_fit ? s_font_medium :
+        (right_large ? s_font_header : s_font_value));
 
   int left_w = HRBOX_X - BOX_GAP - 4;
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   int right_w = SCREEN_W - right_x - 4;
 
-  const bool bottom_left_tz_hidden =
-      left_label_hidden && s_settings.left_slot == SLOT_TIME_ZONE;
-  const bool bottom_right_tz_hidden =
-      right_label_hidden && s_settings.right_slot == SLOT_TIME_ZONE;
 
   layer_set_frame(
       text_layer_get_layer(s_left_val),
-      GRect(bottom_left_tz_hidden ? -4 : 4,
+      GRect(4,
             left_calendar ? 1 :
               ((left_label_hidden ||
                 s_settings.left_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
-            left_w + (bottom_left_tz_hidden ? 16 : 0),
+            left_w,
             left_calendar ? FOOTER_H - 1 :
               ((left_label_hidden ||
                  s_settings.left_slot == SLOT_BATTERY_PERCENT)
@@ -2382,11 +2362,11 @@ static void update_footer_content(void) {
 
   layer_set_frame(
       text_layer_get_layer(s_right_val),
-      GRect(bottom_right_tz_hidden ? right_x - 8 : right_x,
+      GRect(right_x,
             right_calendar ? 1 :
               ((right_label_hidden ||
                 s_settings.right_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
-            right_w + (bottom_right_tz_hidden ? 16 : 0),
+            right_w,
             right_calendar ? FOOTER_H - 1 :
               ((right_label_hidden ||
                  s_settings.right_slot == SLOT_BATTERY_PERCENT)
@@ -3703,7 +3683,6 @@ static void window_load(Window *window) {
   s_font_medium = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   s_font_value  = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-  s_font_timezone_hidden = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
 
   // Header — full height, datebox starts at y=0
   s_header_layer = layer_create(GRect(0, 0, SCREEN_W, HEADER_H));

@@ -738,3 +738,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Replaced unsupported FONT_KEY_GOTHIC_20_BOLD with Pebble's supported FONT_KEY_GOTHIC_18_BOLD.
 - Keeps the dedicated smaller hidden Time Zone font and widened text frames from v3.0.7.
 - Fixes the Emery compile failure without changing Time Zone behavior.
+
+## v3.0.9 DEV RC — Simplified Time Zone display
+- Removed AM/PM from Time Zone values so side-slot times fit reliably.
+- 12-hour Time Zone example: 2:35.
+- 24-hour Time Zone example: 14:35.
+- Reverted the dedicated hidden Time Zone font and timezone-specific widened frames.
+- Hidden-label Time Zone values now use the normal medium hidden-value font and normal medium-value alignment.
+- Other AM/PM displays remain unchanged.
