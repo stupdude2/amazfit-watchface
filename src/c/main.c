@@ -1392,7 +1392,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
     draw_battery_icon(ctx, GRect(DATEBOX_X + 7, 7, 36, 9), s_battery_percent, center_fg);
   else if (s_settings.top_center_slot == SLOT_BATTERY_ICON)
     draw_battery_icon_fat(ctx,
-        GRect(DATEBOX_X + (DATEBOX_W - 42) / 2, 18, 42, 16),
+        GRect(DATEBOX_X + (DATEBOX_W - 36) / 2, 15, 36, 16),
         s_battery_percent, center_fg);
   else if (s_settings.top_center_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(DATEBOX_X + DATEBOX_W/2, 27), 34, 30, center_fg, true);
@@ -1624,7 +1624,7 @@ static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
     draw_battery_icon(ctx, GRect(cx - 18, 7, 36, 9),
                       s_battery_percent, color);
   } else if (slot == CENTER_BATTERY_ICON) {
-    draw_battery_icon_fat(ctx, GRect(cx - 21, 15, 42, 16),
+    draw_battery_icon_fat(ctx, GRect(cx - 18, 15, 36, 16),
                           s_battery_percent, color);
   } else if (slot == CENTER_BLUETOOTH && s_bluetooth_connected) {
     // Connected Bluetooth is icon-only and spans the label/value area.
@@ -1992,8 +1992,9 @@ static void update_header_content(void) {
       left_label_hidden &&
       side_slot_needs_medium_hidden_font(s_settings.top_left_slot);
   const bool center_medium_for_fit =
-      center_label_hidden &&
-      side_slot_needs_medium_hidden_font(s_settings.top_center_slot);
+      (center_label_hidden &&
+       side_slot_needs_medium_hidden_font(s_settings.top_center_slot)) ||
+      s_settings.top_center_slot == SLOT_BATTERY_PERCENT;
   const bool right_medium_for_fit =
       right_label_hidden &&
       side_slot_needs_medium_hidden_font(s_settings.top_right_slot);
@@ -2135,8 +2136,9 @@ static void update_footer_content(void) {
       left_label_hidden &&
       side_slot_needs_medium_hidden_font(s_settings.left_slot);
   const bool center_medium_for_fit =
-      center_label_hidden &&
-      center_slot_needs_medium_hidden_font(s_settings.center_slot);
+      (center_label_hidden &&
+       center_slot_needs_medium_hidden_font(s_settings.center_slot)) ||
+      s_settings.center_slot == CENTER_BATTERY_PERCENT;
   const bool right_medium_for_fit =
       right_label_hidden &&
       side_slot_needs_medium_hidden_font(s_settings.right_slot);

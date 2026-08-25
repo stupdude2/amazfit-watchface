@@ -669,3 +669,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Removed redundant >= 0 checks from uint8_t center-slot validation.
 - Fixes Pebble SDK -Werror=type-limits compilation failure.
 - Keeps the v2.9.14 center battery validation fix and top icon alignment unchanged.
+
+## v2.9.16 DEV — Center battery sizing and alignment
+- Raised the top-center Battery Icon from y=18 to y=15 so it matches the top-left and top-right icon-only battery alignment.
+- Narrowed center Battery Icon from 42 px to 36 px in both top-center and bottom-center to better fit the smaller center areas.
+- Battery % now always uses the medium font in top-center and bottom-center to prevent truncation.
+- Left/right Battery Icon sizing remains unchanged.
