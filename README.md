@@ -598,3 +598,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - PebbleKit JS stores the language reported by the watch before opening Settings.
 - The Language selector therefore opens on the language the watch is actually displaying instead of falling back to stale phone-side/default English.
 - No new AppMessage key is required; the existing LANGUAGE key is reused bidirectionally.
+
+## v2.9.5 — Development preview build
+- KiezelPay TEST MODE enabled for on-watch Pro purchase/entitlement testing without a production payment.
+- KiezelPay verbose logging enabled for final validation.
+- This build is for development preview only and must not be published.
+- Before release, KIEZELPAY_TEST_MODE and KIEZELPAY_LOG_VERBOSE must both be returned to 0.

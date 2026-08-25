@@ -76,7 +76,11 @@ var config = [
         "description": "Changes text displayed on the watchface.",
         "options": [
           { "label": "English", "value": "0" },
-          { "label": "Svenska", "value": "1" }
+          { "label": "Svenska", "value": "1" },
+          { "label": "Español", "value": "2" },
+          { "label": "Français", "value": "3" },
+          { "label": "Deutsch", "value": "4" },
+          { "label": "Português", "value": "5" }
         ]
       }
     ]
