@@ -616,3 +616,12 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - The visible label is TZ; Hide Label is supported and uses the Medium font when hidden.
 - Time-zone selections use separate persistent keys to avoid another WatchfaceSettings migration.
 - Development/KiezelPay test mode remains enabled for preview testing.
+
+## v3.0.1 DEV — Side-slot Settings fix
+- Reworked conditional Settings behavior for Top Left, Top Right, Bottom Left, and Bottom Right.
+- Each side selector now has exactly one Clay change listener.
+- That single listener controls both its Hide Label toggle and its conditional Time Zone dropdown.
+- Removes competing change handlers introduced by the first Time Zone implementation.
+- Time Zone now correctly counts as a label-bearing item, so Hide Label appears when Time Zone is selected.
+- Slot values and AppMessage keys remain unchanged from v3.0.0.
+- Development/KiezelPay test mode remains enabled.
