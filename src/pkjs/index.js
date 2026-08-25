@@ -338,6 +338,37 @@ var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
 // Explicitly own the configuration-page lifecycle instead of relying on
 // Clay's automatic Pebble event registration. This is more robust alongside
 // KiezelPay/other packages that also register PebbleKit JS listeners.
+function forceFullLanguageOptions(configItems) {
+  var languageOptions = [
+    { label: 'English', value: '0' },
+    { label: 'Svenska', value: '1' },
+    { label: 'Español', value: '2' },
+    { label: 'Français', value: '3' },
+    { label: 'Deutsch', value: '4' },
+    { label: 'Português', value: '5' }
+  ];
+
+  function visit(items) {
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!item) continue;
+
+      if (item.messageKey === 'LANGUAGE') {
+        // Always replace the entire array. This deliberately overrides an
+        // older cached config module that may still contain only EN/SV.
+        item.options = languageOptions.slice();
+      }
+
+      if (item.items && item.items.length) {
+        visit(item.items);
+      }
+    }
+  }
+
+  visit(configItems);
+}
+
 function openSettingsPage() {
   try {
     // Rebuild Clay with the current session entitlement so Pro controls are
@@ -358,6 +389,12 @@ function openSettingsPage() {
     } catch (e) {}
 
     var liveConfig = require('./config');
+
+    // Some Pebble companion environments retain the previously-loaded config
+    // object even after a watchface update. Make the Free language selector
+    // authoritative here so all supported languages are always exposed.
+    forceFullLanguageOptions(liveConfig);
+
     clay = new Clay(liveConfig, customClay, { autoHandleEvents: false });
 
     if (sessionProUnlocked) {

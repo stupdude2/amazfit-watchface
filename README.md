@@ -585,3 +585,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Fixed the remaining temperature pop-in: window_load was resetting the already-restored cached temperature display string to "--".
 - The window now preserves the formatted cached temperature prepared during init, so temperature appears with the rest of the cached weather immediately.
 - Temperature, icon, high/low, sunrise, and sunset continue to update together on the selected weather refresh interval.
+
+## v2.9.3 — Language selector cache fix
+- Fixed the Settings language dropdown sometimes showing only English and Swedish after upgrading.
+- Big Time now explicitly injects all six supported language options into the live Clay configuration every time Settings opens.
+- This overrides stale cached configuration objects on the Pebble companion.
+- All six languages remain Free: English, Swedish, Spanish, French, German, and Portuguese.
