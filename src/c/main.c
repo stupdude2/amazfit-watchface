@@ -2801,14 +2801,6 @@ static void license_send_status_to_phone(void) {
 
   dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
   dict_write_uint8(iter, KEY_LANGUAGE, s_settings.language);
-  dict_write_uint8(iter, KEY_TOP_LEFT_SLOT, s_settings.top_left_slot);
-  dict_write_uint8(iter, KEY_TOP_RIGHT_SLOT, s_settings.top_right_slot);
-  dict_write_uint8(iter, KEY_LEFT_SLOT, s_settings.left_slot);
-  dict_write_uint8(iter, KEY_RIGHT_SLOT, s_settings.right_slot);
-  dict_write_uint8(iter, KEY_TOP_LEFT_TIME_ZONE, s_top_left_time_zone);
-  dict_write_uint8(iter, KEY_TOP_RIGHT_TIME_ZONE, s_top_right_time_zone);
-  dict_write_uint8(iter, KEY_LEFT_TIME_ZONE, s_left_time_zone);
-  dict_write_uint8(iter, KEY_RIGHT_TIME_ZONE, s_right_time_zone);
 
   int32_t trial_remaining = 0;
   if (entitlement == 1 && persist_exists(PRO_TRIAL_PERSIST_KEY)) {

@@ -354,16 +354,7 @@ function restorePersistedTrialToWatch() {
 }
 var sessionLicenseKnown = false;
 var sessionTrialUsed = trialWasUsedOnPhone();
-var watchSlotSync = {
-  TOP_LEFT_SLOT: null,
-  TOP_RIGHT_SLOT: null,
-  LEFT_SLOT: null,
-  RIGHT_SLOT: null,
-  TOP_LEFT_TIME_ZONE: null,
-  TOP_RIGHT_TIME_ZONE: null,
-  LEFT_TIME_ZONE: null,
-  RIGHT_TIME_ZONE: null
-};
+
 var pendingOpenSettings = false;
 
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
@@ -448,10 +439,6 @@ function openSettingsPage() {
     // Language is a Free preference. Keep the selector available and
     // synchronized regardless of entitlement.
     clay.setSettings('LANGUAGE', String(getStoredLanguage()));
-
-    Object.keys(watchSlotSync).forEach(function(key) {
-      if (watchSlotSync[key] !== null) clay.setSettings(key, watchSlotSync[key]);
-    });
 
     // Weather refresh is phone-side only, so keep Clay synchronized with the
     // value stored by Big Time rather than sending it to the watch.
@@ -562,6 +549,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
         console.log('Stored new Pro trial expiry=' + settings.TRY_PRO_FREE);
       }
     }
+
+    console.log('Sending config keys: ' + Object.keys(settings).join(','));
 
     Pebble.sendAppMessage(
       settings,
@@ -846,15 +835,6 @@ Pebble.addEventListener('appmessage', function(e) {
     storeLanguage(e.payload.LANGUAGE);
     console.log('Synced language from watch: ' + e.payload.LANGUAGE);
   }
-
-  [
-    'TOP_LEFT_SLOT','TOP_RIGHT_SLOT','LEFT_SLOT','RIGHT_SLOT',
-    'TOP_LEFT_TIME_ZONE','TOP_RIGHT_TIME_ZONE','LEFT_TIME_ZONE','RIGHT_TIME_ZONE'
-  ].forEach(function(key) {
-    if (typeof e.payload[key] !== 'undefined') {
-      watchSlotSync[key] = String(e.payload[key]);
-    }
-  });
 
   if (typeof e.payload.CONFIG_ACK !== 'undefined') {
     console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);

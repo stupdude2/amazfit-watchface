@@ -612,3 +612,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Settings is seeded from the watch, preventing stale defaults from overwriting active side-slot selections.
 - Time Zone is available only in Top/Bottom Left/Right; Local Time and UTC-12 through UTC+14 are supported.
 - DEV/KiezelPay test mode remains enabled.
+
+## v3.0.3 DEV — Restore stable settings save path
+- Removed the experimental watch-to-Clay side-slot synchronization introduced in v3.0.2.
+- Restored the same settings save/apply lifecycle used by the stable v2.9.5 build.
+- Time Zone remains an additive side-slot option, but no longer changes the license/status AppMessage payload.
+- Added config-key logging for easier verification during DEV testing.
+- DEV/KiezelPay test mode remains enabled.
