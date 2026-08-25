@@ -207,48 +207,49 @@ typedef enum {
 } WatchLanguage;
 
 typedef struct {
+  const char *label;
   int16_t utc_offset_minutes;
   bool use_local;
 } TimeZonePreset;
 
 static const TimeZonePreset TIME_ZONE_PRESETS[] = {
-  {    0, true  },  // Local Time
-  { -720, false },  // UTC-12:00
-  { -660, false },  // UTC-11:00
-  { -600, false },  // UTC-10:00
-  { -540, false },  // UTC-09:00
-  { -480, false },  // UTC-08:00
-  { -420, false },  // UTC-07:00
-  { -360, false },  // UTC-06:00
-  { -300, false },  // UTC-05:00
-  { -240, false },  // UTC-04:00
-  { -180, false },  // UTC-03:00
-  { -120, false },  // UTC-02:00
-  {  -60, false },  // UTC-01:00
-  {    0, false },  // UTC
-  {   60, false },  // UTC+01:00
-  {  120, false },  // UTC+02:00
-  {  180, false },  // UTC+03:00
-  {  210, false },  // UTC+03:30
-  {  240, false },  // UTC+04:00
-  {  270, false },  // UTC+04:30
-  {  300, false },  // UTC+05:00
-  {  330, false },  // UTC+05:30
-  {  345, false },  // UTC+05:45
-  {  360, false },  // UTC+06:00
-  {  390, false },  // UTC+06:30
-  {  420, false },  // UTC+07:00
-  {  480, false },  // UTC+08:00
-  {  525, false },  // UTC+08:45
-  {  540, false },  // UTC+09:00
-  {  570, false },  // UTC+09:30
-  {  600, false },  // UTC+10:00
-  {  630, false },  // UTC+10:30
-  {  660, false },  // UTC+11:00
-  {  720, false },  // UTC+12:00
-  {  765, false },  // UTC+12:45
-  {  780, false },  // UTC+13:00
-  {  840, false }   // UTC+14:00
+  { "LOCAL",       0, true  },
+  { "UTC-12:00", -720, false },
+  { "UTC-11:00", -660, false },
+  { "UTC-10:00", -600, false },
+  { "UTC-09:00", -540, false },
+  { "UTC-08:00", -480, false },
+  { "UTC-07:00", -420, false },
+  { "UTC-06:00", -360, false },
+  { "UTC-05:00", -300, false },
+  { "UTC-04:00", -240, false },
+  { "UTC-03:00", -180, false },
+  { "UTC-02:00", -120, false },
+  { "UTC-01:00",  -60, false },
+  { "UTC",           0, false },
+  { "UTC+01:00",    60, false },
+  { "UTC+02:00",   120, false },
+  { "UTC+03:00",   180, false },
+  { "UTC+03:30",   210, false },
+  { "UTC+04:00",   240, false },
+  { "UTC+04:30",   270, false },
+  { "UTC+05:00",   300, false },
+  { "UTC+05:30",   330, false },
+  { "UTC+05:45",   345, false },
+  { "UTC+06:00",   360, false },
+  { "UTC+06:30",   390, false },
+  { "UTC+07:00",   420, false },
+  { "UTC+08:00",   480, false },
+  { "UTC+08:45",   525, false },
+  { "UTC+09:00",   540, false },
+  { "UTC+09:30",   570, false },
+  { "UTC+10:00",   600, false },
+  { "UTC+10:30",   630, false },
+  { "UTC+11:00",   660, false },
+  { "UTC+12:00",   720, false },
+  { "UTC+12:45",   765, false },
+  { "UTC+13:00",   780, false },
+  { "UTC+14:00",   840, false }
 };
 
 #define TIME_ZONE_PRESET_COUNT ((uint8_t)ARRAY_LENGTH(TIME_ZONE_PRESETS))
@@ -1870,8 +1871,9 @@ static void format_time_zone_value(uint8_t preset_index,
   } else {
     int hour12 = time_ptr->tm_hour % 12;
     if (hour12 == 0) hour12 = 12;
-    snprintf(buffer, buffer_size, "%d:%02d",
-             hour12, time_ptr->tm_min);
+    const char *ampm = time_ptr->tm_hour >= 12 ? "PM" : "AM";
+    snprintf(buffer, buffer_size, "%d:%02d %s",
+             hour12, time_ptr->tm_min, ampm);
   }
 }
 
@@ -1941,6 +1943,23 @@ static const char *side_slot_value(uint8_t slot) {
     default:
       return s_weather_buf;
   }
+}
+
+static const char *time_zone_label(uint8_t preset_index) {
+  if (preset_index >= TIME_ZONE_PRESET_COUNT) preset_index = 0;
+  return TIME_ZONE_PRESETS[preset_index].label;
+}
+
+static const char *top_side_slot_label(uint8_t slot, bool left_side) {
+  if (slot != SLOT_TIME_ZONE) return top_slot_label(slot);
+  return time_zone_label(
+      left_side ? s_top_left_time_zone : s_top_right_time_zone);
+}
+
+static const char *bottom_side_slot_label(uint8_t slot, bool left_side) {
+  if (slot != SLOT_TIME_ZONE) return side_slot_label(slot);
+  return time_zone_label(
+      left_side ? s_left_time_zone : s_right_time_zone);
 }
 
 static const char *top_side_slot_value(uint8_t slot, bool left_side) {
@@ -2105,7 +2124,7 @@ static void update_header_content(void) {
       (left_label_hidden ||
        s_settings.top_left_slot == SLOT_BATTERY_ICON ||
        s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
-          ? "" : top_slot_label(s_settings.top_left_slot));
+          ? "" : top_side_slot_label(s_settings.top_left_slot, true));
   text_layer_set_text(
       s_top_left_val,
       top_side_slot_value(s_settings.top_left_slot, true));
@@ -2130,7 +2149,7 @@ static void update_header_content(void) {
       (right_label_hidden ||
        s_settings.top_right_slot == SLOT_BATTERY_ICON ||
        s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
-          ? "" : top_slot_label(s_settings.top_right_slot));
+          ? "" : top_side_slot_label(s_settings.top_right_slot, false));
   text_layer_set_text(
       s_top_right_val,
       top_side_slot_value(s_settings.top_right_slot, false));
@@ -2262,7 +2281,7 @@ static void update_footer_content(void) {
       (left_calendar || left_label_hidden ||
        s_settings.left_slot == SLOT_BATTERY_ICON ||
        s_settings.left_slot == SLOT_BATTERY_PERCENT)
-          ? "" : side_slot_label(s_settings.left_slot));
+          ? "" : bottom_side_slot_label(s_settings.left_slot, true));
   text_layer_set_text(s_left_val, bottom_side_slot_value(s_settings.left_slot, true));
 
   text_layer_set_text(
@@ -2278,7 +2297,7 @@ static void update_footer_content(void) {
       (right_calendar || right_label_hidden ||
        s_settings.right_slot == SLOT_BATTERY_ICON ||
        s_settings.right_slot == SLOT_BATTERY_PERCENT)
-          ? "" : side_slot_label(s_settings.right_slot));
+          ? "" : bottom_side_slot_label(s_settings.right_slot, false));
   text_layer_set_text(s_right_val, bottom_side_slot_value(s_settings.right_slot, false));
 
   const bool left_medium_for_fit =

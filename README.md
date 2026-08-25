@@ -698,3 +698,16 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Time Zone adds four values to Clay's complete Save Settings payload; the previous 256-byte inbox could reject the enlarged dictionary before any setting reached the watch.
 - Outbox remains 256 bytes.
 - No Time Zone logic, existing slot logic, licensing, language, weather, or layout behavior was otherwise changed.
+
+## v3.0.2 DEV RC — Dynamic Time Zone labels
+- Time Zone slot labels now show the actual selected zone instead of the generic TZ label.
+- Examples: UTC+02:00, UTC-05:00, UTC+05:30, or LOCAL.
+- Each of the four side slots uses its own selected timezone label independently.
+- Hide Label behavior is unchanged.
+- No changes to AppMessage sizing, timezone persistence, licensing, or existing slot behavior.
+
+## v3.0.3 DEV RC — AM/PM for Time Zone values
+- Time Zone values now include AM/PM when Big Time is using 12-hour time.
+- Example: 2:35 PM.
+- 24-hour Time Zone values remain unchanged, e.g. 14:35.
+- Dynamic timezone labels and all prior RC fixes are unchanged.
