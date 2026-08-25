@@ -2171,16 +2171,20 @@ static void update_header_content(void) {
 
   text_layer_set_font(
       s_top_left_val,
-      left_medium_for_fit ? s_font_medium :
-        (left_large ? s_font_header : s_font_value));
+      (left_label_hidden && s_settings.top_left_slot == SLOT_TIME_ZONE)
+        ? s_font_value :
+      (left_medium_for_fit ? s_font_medium :
+        (left_large ? s_font_header : s_font_value)));
   text_layer_set_font(
       s_top_center_val,
       center_medium_for_fit ? s_font_medium :
         (center_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_top_right_val,
-      right_medium_for_fit ? s_font_medium :
-        (right_large ? s_font_header : s_font_value));
+      (right_label_hidden && s_settings.top_right_slot == SLOT_TIME_ZONE)
+        ? s_font_value :
+      (right_medium_for_fit ? s_font_medium :
+        (right_large ? s_font_header : s_font_value)));
 
   int left_w = DATEBOX_X - BOX_GAP - 4;
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
@@ -2315,16 +2319,20 @@ static void update_footer_content(void) {
 
   text_layer_set_font(
       s_left_val,
-      left_medium_for_fit ? s_font_medium :
-        (left_large ? s_font_header : s_font_value));
+      (left_label_hidden && s_settings.left_slot == SLOT_TIME_ZONE)
+        ? s_font_value :
+      (left_medium_for_fit ? s_font_medium :
+        (left_large ? s_font_header : s_font_value)));
   text_layer_set_font(
       s_center_val,
       center_medium_for_fit ? s_font_medium :
         (center_large ? s_font_header : s_font_value));
   text_layer_set_font(
       s_right_val,
-      right_medium_for_fit ? s_font_medium :
-        (right_large ? s_font_header : s_font_value));
+      (right_label_hidden && s_settings.right_slot == SLOT_TIME_ZONE)
+        ? s_font_value :
+      (right_medium_for_fit ? s_font_medium :
+        (right_large ? s_font_header : s_font_value)));
 
   int left_w = HRBOX_X - BOX_GAP - 4;
   int right_x = HRBOX_X + BOX_W + BOX_GAP;

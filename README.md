@@ -716,3 +716,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Added the missing forward declaration for top_slot_label().
 - Fixes the GCC implicit-declaration/conflicting-types build failure in top_side_slot_label().
 - No runtime behavior or existing timezone logic was changed.
+
+## v3.0.5 DEV RC — Hidden Time Zone fit
+- Hidden-label Time Zone values now use the smaller standard value font instead of the medium hidden-label font.
+- Prevents 12-hour timezone strings such as 12:59 PM from being truncated with an ellipsis.
+- Applies to Top Left, Top Right, Bottom Left, and Bottom Right only when Time Zone's label is hidden.
+- Normal labeled Time Zone display and all other hidden-label items are unchanged.
