@@ -624,3 +624,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Saving a new language updates both session state and persistent phone storage immediately.
 - Existing language choices and translations are unchanged.
 - Retains the 15-minute weather option and top hidden-label alignment fixes.
+
+## v2.9.9 DEV — Correct top hidden-label vertical centering
+- Corrected the previous hidden-label alignment adjustment, which moved top values in the wrong direction.
+- Hidden-label values in Top Left, Top Center, and Top Right are moved up 6 px from v2.9.8.
+- Their top edge now matches the y=4 geometry already used by the large calendar-style text in the same 52 px header.
+- Normal labeled layouts are unchanged.
