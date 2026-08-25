@@ -121,10 +121,6 @@ static bool conditional_ui_is_visible(void);
 #define KEY_CENTER_HIDE_LABEL     33
 #define KEY_RIGHT_HIDE_LABEL      34
 #define KEY_LANGUAGE              35
-#define KEY_TOP_LEFT_TIME_ZONE    36
-#define KEY_TOP_RIGHT_TIME_ZONE   37
-#define KEY_LEFT_TIME_ZONE        38
-#define KEY_RIGHT_TIME_ZONE       39
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -150,8 +146,7 @@ typedef enum {
   SLOT_DISTANCE = 9,
   SLOT_SUNRISE = 10,
   SLOT_SUNSET = 11,
-  SLOT_HIGH_LOW = 12,
-  SLOT_TIME_ZONE = 13
+  SLOT_HIGH_LOW = 12
 } SideSlotContent;
 
 typedef enum {
@@ -201,21 +196,6 @@ typedef enum {
   LANG_GERMAN = 4,
   LANG_PORTUGUESE = 5
 } WatchLanguage;
-typedef struct {
-  int16_t utc_offset_minutes;
-  bool use_local;
-} TimeZonePreset;
-
-static const TimeZonePreset TIME_ZONE_PRESETS[] = {
-  {0,true},
-  {-720,false},{-660,false},{-600,false},{-540,false},{-480,false},
-  {-420,false},{-360,false},{-300,false},{-240,false},{-180,false},
-  {-120,false},{-60,false},{0,false},{60,false},{120,false},{180,false},
-  {240,false},{300,false},{330,false},{360,false},{420,false},{480,false},
-  {540,false},{570,false},{600,false},{660,false},{720,false},{780,false},{840,false}
-};
-#define TIME_ZONE_PRESET_COUNT ((uint8_t)ARRAY_LENGTH(TIME_ZONE_PRESETS))
-
 
 typedef enum {
   RAISE_WAKE_OFF = 0,
@@ -433,10 +413,6 @@ static bool s_pro_unlocked = false;
 #define PRO_TRIAL_PERSIST_KEY  1002
 #define PURCHASED_PRO_PERSIST_KEY 1003
 #define WEATHER_CACHE_PERSIST_KEY 1004
-#define TZ_TOP_LEFT_PERSIST_KEY   1101
-#define TZ_TOP_RIGHT_PERSIST_KEY  1102
-#define TZ_LEFT_PERSIST_KEY       1103
-#define TZ_RIGHT_PERSIST_KEY      1104
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -559,10 +535,6 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_LEFT_HIDE_LABEL:
     case KEY_CENTER_HIDE_LABEL:
     case KEY_RIGHT_HIDE_LABEL:
-    case KEY_TOP_LEFT_TIME_ZONE:
-    case KEY_TOP_RIGHT_TIME_ZONE:
-    case KEY_LEFT_TIME_ZONE:
-    case KEY_RIGHT_TIME_ZONE:
       return true;
     default:
       return false;
@@ -572,12 +544,12 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_TIME_ZONE &&
+         settings->left_slot <= SLOT_HIGH_LOW &&
          settings->center_slot <= CENTER_MONTH &&
-         settings->right_slot <= SLOT_TIME_ZONE &&
-         settings->top_left_slot <= SLOT_TIME_ZONE &&
+         settings->right_slot <= SLOT_HIGH_LOW &&
+         settings->top_left_slot <= SLOT_HIGH_LOW &&
          settings->top_center_slot <= SLOT_MONTH &&
-         settings->top_right_slot <= SLOT_TIME_ZONE &&
+         settings->top_right_slot <= SLOT_HIGH_LOW &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1027,27 +999,6 @@ static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
 static int  s_heart_rate  = 0;
 static int  s_battery_percent = 0;
-static uint8_t s_top_left_time_zone = 0;
-static uint8_t s_top_right_time_zone = 0;
-static uint8_t s_left_time_zone = 0;
-static uint8_t s_right_time_zone = 0;
-static char s_tz_top_left_buf[12];
-static char s_tz_top_right_buf[12];
-static char s_tz_left_buf[12];
-static char s_tz_right_buf[12];
-static uint8_t load_time_zone_preset(uint32_t persist_key) {
-  if (!persist_exists(persist_key)) return 0;
-  int value = persist_read_int(persist_key);
-  return (value >= 0 && value < TIME_ZONE_PRESET_COUNT) ? (uint8_t)value : 0;
-}
-
-static void load_time_zone_presets(void) {
-  s_top_left_time_zone = load_time_zone_preset(TZ_TOP_LEFT_PERSIST_KEY);
-  s_top_right_time_zone = load_time_zone_preset(TZ_TOP_RIGHT_PERSIST_KEY);
-  s_left_time_zone = load_time_zone_preset(TZ_LEFT_PERSIST_KEY);
-  s_right_time_zone = load_time_zone_preset(TZ_RIGHT_PERSIST_KEY);
-}
-
 static bool s_bluetooth_connected = false;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
@@ -1750,26 +1701,6 @@ static const char *watch_text(WatchTextId id) {
   }
 }
 
-static void format_time_zone_value(uint8_t preset_index, char *buffer, size_t buffer_size) {
-  if (preset_index >= TIME_ZONE_PRESET_COUNT) preset_index = 0;
-  time_t now = time(NULL);
-  struct tm *tp;
-  if (TIME_ZONE_PRESETS[preset_index].use_local) {
-    tp = localtime(&now);
-  } else {
-    time_t shifted = now + ((time_t)TIME_ZONE_PRESETS[preset_index].utc_offset_minutes * 60);
-    tp = gmtime(&shifted);
-  }
-  if (!tp) { snprintf(buffer, buffer_size, "--"); return; }
-
-  if (s_settings.time_format == TIME_FORMAT_24H) {
-    snprintf(buffer, buffer_size, "%02d:%02d", tp->tm_hour, tp->tm_min);
-  } else {
-    int h = tp->tm_hour % 12; if (h == 0) h = 12;
-    snprintf(buffer, buffer_size, "%d:%02d", h, tp->tm_min);
-  }
-}
-
 static const char *side_slot_label(uint8_t slot) {
   switch (slot) {
     case SLOT_STEPS: return watch_text(TXT_STEPS);
@@ -1784,7 +1715,6 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_SUNRISE: return watch_text(TXT_RISE);
     case SLOT_SUNSET: return watch_text(TXT_SET);
     case SLOT_HIGH_LOW: return watch_text(TXT_HIGH_LOW);
-    case SLOT_TIME_ZONE: return "TZ";
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -1825,32 +1755,10 @@ static const char *side_slot_value(uint8_t slot) {
       return s_sunset_buf;
     case SLOT_HIGH_LOW:
       return high_low_text();
-    case SLOT_TIME_ZONE:
-      return "--";
     case SLOT_WEATHER:
     default:
       return s_weather_buf;
   }
-}
-
-static const char *top_side_slot_value(uint8_t slot, bool left) {
-  if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
-  if (left) {
-    format_time_zone_value(s_top_left_time_zone, s_tz_top_left_buf, sizeof(s_tz_top_left_buf));
-    return s_tz_top_left_buf;
-  }
-  format_time_zone_value(s_top_right_time_zone, s_tz_top_right_buf, sizeof(s_tz_top_right_buf));
-  return s_tz_top_right_buf;
-}
-
-static const char *bottom_side_slot_value(uint8_t slot, bool left) {
-  if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
-  if (left) {
-    format_time_zone_value(s_left_time_zone, s_tz_left_buf, sizeof(s_tz_left_buf));
-    return s_tz_left_buf;
-  }
-  format_time_zone_value(s_right_time_zone, s_tz_right_buf, sizeof(s_tz_right_buf));
-  return s_tz_right_buf;
 }
 
 static const char *center_slot_label(void) {
@@ -1892,8 +1800,7 @@ static bool side_slot_has_optional_label(uint8_t slot) {
          slot == SLOT_DISTANCE ||
          slot == SLOT_SUNRISE ||
          slot == SLOT_SUNSET ||
-         slot == SLOT_HIGH_LOW ||
-         slot == SLOT_TIME_ZONE;
+         slot == SLOT_HIGH_LOW;
 }
 
 static bool center_slot_has_optional_label(uint8_t slot) {
@@ -1925,7 +1832,6 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == SLOT_DISTANCE) return true;
   if (slot == SLOT_SUNRISE || slot == SLOT_SUNSET) return true;
   if (slot == SLOT_HIGH_LOW) return true;
-  if (slot == SLOT_TIME_ZONE) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
   return false;
@@ -1977,7 +1883,7 @@ static void update_header_content(void) {
       left_label_hidden ? "" : top_slot_label(s_settings.top_left_slot));
   text_layer_set_text(
       s_top_left_val,
-      top_side_slot_value(s_settings.top_left_slot, true));
+      top_slot_value(s_settings.top_left_slot));
 
   const char *center_label =
       s_settings.top_center_slot == SLOT_WEATHER
@@ -1996,7 +1902,7 @@ static void update_header_content(void) {
       right_label_hidden ? "" : top_slot_label(s_settings.top_right_slot));
   text_layer_set_text(
       s_top_right_val,
-      top_side_slot_value(s_settings.top_right_slot, false));
+      top_slot_value(s_settings.top_right_slot));
 
   // Hidden-label data normally uses the same large font as DAY / DATE / MONTH.
   // Long values use a 28px medium font before Pebble can ellipsize.
@@ -2109,7 +2015,7 @@ static void update_footer_content(void) {
       s_left_label,
       (left_calendar || left_label_hidden)
           ? "" : side_slot_label(s_settings.left_slot));
-  text_layer_set_text(s_left_val, bottom_side_slot_value(s_settings.left_slot, true));
+  text_layer_set_text(s_left_val, side_slot_value(s_settings.left_slot));
 
   text_layer_set_text(
       s_center_label,
@@ -2121,7 +2027,7 @@ static void update_footer_content(void) {
       s_right_label,
       (right_calendar || right_label_hidden)
           ? "" : side_slot_label(s_settings.right_slot));
-  text_layer_set_text(s_right_val, bottom_side_slot_value(s_settings.right_slot, false));
+  text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
 
   const bool left_medium_for_fit =
       left_label_hidden &&
@@ -3022,7 +2928,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) {
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -3043,7 +2949,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) {
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -3053,7 +2959,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -3067,44 +2973,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
-        break;
-      }
-
-      case KEY_TOP_LEFT_TIME_ZONE: {
-        int32_t value = tuple_to_int32(t, s_top_left_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
-          s_top_left_time_zone = (uint8_t)value;
-          persist_write_int(TZ_TOP_LEFT_PERSIST_KEY, value);
-          layout_changed = true;
-        }
-        break;
-      }
-      case KEY_TOP_RIGHT_TIME_ZONE: {
-        int32_t value = tuple_to_int32(t, s_top_right_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
-          s_top_right_time_zone = (uint8_t)value;
-          persist_write_int(TZ_TOP_RIGHT_PERSIST_KEY, value);
-          layout_changed = true;
-        }
-        break;
-      }
-      case KEY_LEFT_TIME_ZONE: {
-        int32_t value = tuple_to_int32(t, s_left_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
-          s_left_time_zone = (uint8_t)value;
-          persist_write_int(TZ_LEFT_PERSIST_KEY, value);
-          layout_changed = true;
-        }
-        break;
-      }
-      case KEY_RIGHT_TIME_ZONE: {
-        int32_t value = tuple_to_int32(t, s_right_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
-          s_right_time_zone = (uint8_t)value;
-          persist_write_int(TZ_RIGHT_PERSIST_KEY, value);
-          layout_changed = true;
-        }
+        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -3685,7 +3554,6 @@ static void window_unload(Window *window) {
 
 static void init(void) {
   settings_load();
-  load_time_zone_presets();
   weather_cache_load();
 
   // weather_cache_load() restores the raw Celsius value and availability flag.

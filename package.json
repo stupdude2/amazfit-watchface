@@ -53,11 +53,7 @@
       "LEFT_HIDE_LABEL": 32,
       "CENTER_HIDE_LABEL": 33,
       "RIGHT_HIDE_LABEL": 34,
-      "LANGUAGE": 35,
-      "TOP_LEFT_TIME_ZONE": 36,
-      "TOP_RIGHT_TIME_ZONE": 37,
-      "LEFT_TIME_ZONE": 38,
-      "RIGHT_TIME_ZONE": 39
+      "LANGUAGE": 35
     },
     "projectType": "native",
     "resources": {
@@ -127,5 +123,5 @@
       "watchface": true
     }
   },
-  "version": "3.0.3"
+  "version": "2.9.5"
 }

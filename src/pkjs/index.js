@@ -90,25 +90,6 @@ function customClay(minified) {
     bindConditionalLabelToggle('CENTER_SLOT', 'CENTER_HIDE_LABEL', true, false);
     bindConditionalLabelToggle('RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false);
 
-    function bindTimeZoneSelector(slotKey, timeZoneKey) {
-      var slot = clayPage.getItemByMessageKey(slotKey);
-      var timeZone = clayPage.getItemByMessageKey(timeZoneKey);
-      if (!slot || !timeZone) return;
-
-      function syncTimeZoneVisibility() {
-        if (String(slot.get()) === '13') timeZone.show();
-        else timeZone.hide();
-      }
-
-      syncTimeZoneVisibility();
-      slot.on('change', syncTimeZoneVisibility);
-    }
-
-    bindTimeZoneSelector('TOP_LEFT_SLOT', 'TOP_LEFT_TIME_ZONE');
-    bindTimeZoneSelector('TOP_RIGHT_SLOT', 'TOP_RIGHT_TIME_ZONE');
-    bindTimeZoneSelector('LEFT_SLOT', 'LEFT_TIME_ZONE');
-    bindTimeZoneSelector('RIGHT_SLOT', 'RIGHT_TIME_ZONE');
-
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
 
@@ -214,10 +195,6 @@ function customClay(minified) {
         setValue('TEMP_UNIT', '0');
         setValue('LANGUAGE', '0');
         setValue('WEATHER_REFRESH', '60');
-        setValue('TOP_LEFT_TIME_ZONE', '0');
-        setValue('TOP_RIGHT_TIME_ZONE', '0');
-        setValue('LEFT_TIME_ZONE', '0');
-        setValue('RIGHT_TIME_ZONE', '0');
         setValue('RIGHT_HIDE_LABEL', false);
         setValue('CENTER_HIDE_LABEL', false);
         setValue('LEFT_HIDE_LABEL', false);
@@ -354,7 +331,6 @@ function restorePersistedTrialToWatch() {
 }
 var sessionLicenseKnown = false;
 var sessionTrialUsed = trialWasUsedOnPhone();
-
 var pendingOpenSettings = false;
 
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
@@ -549,8 +525,6 @@ Pebble.addEventListener('webviewclosed', function(e) {
         console.log('Stored new Pro trial expiry=' + settings.TRY_PRO_FREE);
       }
     }
-
-    console.log('Sending config keys: ' + Object.keys(settings).join(','));
 
     Pebble.sendAppMessage(
       settings,

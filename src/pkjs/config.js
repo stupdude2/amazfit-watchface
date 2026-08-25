@@ -13,27 +13,7 @@ var sideOptions = [
   { "label": "Distance", "value": "9" },
   { "label": "Sunrise", "value": "10" },
   { "label": "Sunset", "value": "11" },
-  { "label": "High / Low Temp", "value": "12" },
-  { "label": "Time Zone", "value": "13" }
-];
-
-var timeZoneOptions = [
-  { "label": "Local Time", "value": "0" },
-  { "label": "UTC-12:00", "value": "1" }, { "label": "UTC-11:00", "value": "2" },
-  { "label": "UTC-10:00", "value": "3" }, { "label": "UTC-09:00", "value": "4" },
-  { "label": "UTC-08:00", "value": "5" }, { "label": "UTC-07:00", "value": "6" },
-  { "label": "UTC-06:00", "value": "7" }, { "label": "UTC-05:00", "value": "8" },
-  { "label": "UTC-04:00", "value": "9" }, { "label": "UTC-03:00", "value": "10" },
-  { "label": "UTC-02:00", "value": "11" }, { "label": "UTC-01:00", "value": "12" },
-  { "label": "UTC", "value": "13" }, { "label": "UTC+01:00", "value": "14" },
-  { "label": "UTC+02:00", "value": "15" }, { "label": "UTC+03:00", "value": "16" },
-  { "label": "UTC+04:00", "value": "17" }, { "label": "UTC+05:00", "value": "18" },
-  { "label": "UTC+05:30", "value": "19" }, { "label": "UTC+06:00", "value": "20" },
-  { "label": "UTC+07:00", "value": "21" }, { "label": "UTC+08:00", "value": "22" },
-  { "label": "UTC+09:00", "value": "23" }, { "label": "UTC+09:30", "value": "24" },
-  { "label": "UTC+10:00", "value": "25" }, { "label": "UTC+11:00", "value": "26" },
-  { "label": "UTC+12:00", "value": "27" }, { "label": "UTC+13:00", "value": "28" },
-  { "label": "UTC+14:00", "value": "29" }
+  { "label": "High / Low Temp", "value": "12" }
 ];
 
 var topCenterOptions = [
@@ -234,12 +214,10 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Top Bar" },
       { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
-      { "type": "select", "messageKey": "TOP_LEFT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Top Left Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "TOP_LEFT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions },
       { "type": "toggle", "messageKey": "TOP_CENTER_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
-      { "type": "select", "messageKey": "TOP_RIGHT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Top Right Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "TOP_RIGHT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       {
         "type": "select", "messageKey": "HEADER_MODE", "defaultValue": "0",
@@ -258,12 +236,10 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Bottom Bar" },
       { "type": "select", "messageKey": "LEFT_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
-      { "type": "select", "messageKey": "LEFT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Bottom Left Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "LEFT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "CENTER_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Center", "options": centerOptions },
       { "type": "toggle", "messageKey": "CENTER_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       { "type": "select", "messageKey": "RIGHT_SLOT", "defaultValue": "1", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
-      { "type": "select", "messageKey": "RIGHT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Bottom Right Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "RIGHT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       {
         "type": "select", "messageKey": "FOOTER_MODE", "defaultValue": "0",
