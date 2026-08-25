@@ -373,7 +373,8 @@ function forceFullLanguageOptions(configItems) {
     { label: 'Español', value: '2' },
     { label: 'Français', value: '3' },
     { label: 'Deutsch', value: '4' },
-    { label: 'Português', value: '5' }
+    { label: 'Português', value: '5' },
+    { label: 'Català', value: '6' }
   ];
 
   function visit(items) {

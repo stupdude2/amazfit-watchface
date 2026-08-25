@@ -1,0 +1,6 @@
+Big Time v3.1.2 Production Release Audit
+PASS: Catalan exists in config.js language selector.
+PASS: Catalan added to forceFullLanguageOptions() runtime selector list.
+PASS: Language ID 6 accepted by JS storage and watch validation.
+PASS: Existing language IDs and WatchfaceSettings remain unchanged.
+PASS: KiezelPay production mode retained.
