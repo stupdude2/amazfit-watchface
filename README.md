@@ -604,3 +604,15 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - KiezelPay verbose logging enabled for final validation.
 - This build is for development preview only and must not be published.
 - Before release, KIEZELPAY_TEST_MODE and KIEZELPAY_LOG_VERBOSE must both be returned to 0.
+
+## v3.0.0 DEV — Custom side-slot time zones
+- Added Time Zone to Top Left, Top Right, Bottom Left, and Bottom Right.
+- Time Zone is intentionally not available in center positions.
+- Selecting Time Zone reveals a slot-specific Time Zone dropdown.
+- Local Time uses Pebble's native local time/timezone, including normal local DST behavior.
+- Fixed-offset options cover UTC-12 through UTC+14, including UTC+05:30 and UTC+09:30.
+- Each side slot remembers its own selected zone independently.
+- Time Zone values follow Big Time's existing 12/24-hour Time Format.
+- The visible label is TZ; Hide Label is supported and uses the Medium font when hidden.
+- Time-zone selections use separate persistent keys to avoid another WatchfaceSettings migration.
+- Development/KiezelPay test mode remains enabled for preview testing.

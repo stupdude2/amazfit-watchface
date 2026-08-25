@@ -90,6 +90,25 @@ function customClay(minified) {
     bindConditionalLabelToggle('CENTER_SLOT', 'CENTER_HIDE_LABEL', true, false);
     bindConditionalLabelToggle('RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false);
 
+    function bindConditionalTimeZone(slotKey, timeZoneKey) {
+      var slot = clayPage.getItemByMessageKey(slotKey);
+      var timeZone = clayPage.getItemByMessageKey(timeZoneKey);
+      if (!slot || !timeZone) return;
+
+      function sync() {
+        if (String(slot.get()) === '13') timeZone.show();
+        else timeZone.hide();
+      }
+
+      sync();
+      slot.on('change', sync);
+    }
+
+    bindConditionalTimeZone('TOP_LEFT_SLOT', 'TOP_LEFT_TIME_ZONE');
+    bindConditionalTimeZone('TOP_RIGHT_SLOT', 'TOP_RIGHT_TIME_ZONE');
+    bindConditionalTimeZone('LEFT_SLOT', 'LEFT_TIME_ZONE');
+    bindConditionalTimeZone('RIGHT_SLOT', 'RIGHT_TIME_ZONE');
+
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
 
@@ -195,6 +214,10 @@ function customClay(minified) {
         setValue('TEMP_UNIT', '0');
         setValue('LANGUAGE', '0');
         setValue('WEATHER_REFRESH', '60');
+        setValue('TOP_LEFT_TIME_ZONE', '0');
+        setValue('TOP_RIGHT_TIME_ZONE', '0');
+        setValue('LEFT_TIME_ZONE', '0');
+        setValue('RIGHT_TIME_ZONE', '0');
         setValue('RIGHT_HIDE_LABEL', false);
         setValue('CENTER_HIDE_LABEL', false);
         setValue('LEFT_HIDE_LABEL', false);
