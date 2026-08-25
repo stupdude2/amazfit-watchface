@@ -549,15 +549,13 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
          settings->left_slot <= SLOT_BATTERY_PERCENT &&
-         ((settings->center_slot >= CENTER_HEART_RATE &&
-           settings->center_slot <= CENTER_MONTH &&
+         ((settings->center_slot <= CENTER_MONTH &&
            settings->center_slot != CENTER_STEPS) ||
           settings->center_slot == CENTER_BATTERY_ICON ||
           settings->center_slot == CENTER_BATTERY_PERCENT) &&
          settings->right_slot <= SLOT_BATTERY_PERCENT &&
          settings->top_left_slot <= SLOT_BATTERY_PERCENT &&
-         ((settings->top_center_slot >= SLOT_WEATHER &&
-           settings->top_center_slot <= SLOT_MONTH &&
+         ((settings->top_center_slot <= SLOT_MONTH &&
            settings->top_center_slot != SLOT_STEPS) ||
           settings->top_center_slot == SLOT_BATTERY_ICON ||
           settings->top_center_slot == SLOT_BATTERY_PERCENT) &&

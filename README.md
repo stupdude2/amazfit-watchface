@@ -664,3 +664,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Prevents the safety validator from restoring defaults when a new center battery option is selected.
 - Raised icon-only battery in Top Left and Top Right from y=18 to y=15, matching the bottom icon-only battery position.
 - Existing combined battery and language synchronization behavior are unchanged.
+
+## v2.9.15 DEV — Build fix
+- Removed redundant >= 0 checks from uint8_t center-slot validation.
+- Fixes Pebble SDK -Werror=type-limits compilation failure.
+- Keeps the v2.9.14 center battery validation fix and top icon alignment unchanged.
