@@ -549,3 +549,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Changing the interval does not clear or immediately replace cached weather; it recalculates when the next refresh is due.
 - Failed location/network/Open-Meteo refreshes continue showing the last successful cached weather.
 - Weather Refresh is intentionally phone-side only and is not sent through AppMessage to the watch.
+
+## v2.8.3 — Language selection fix
+- Fixed Swedish/English selection being overwritten by Free-mode default enforcement.
+- Language now persists correctly for both Free and Pro users.
+- Free-mode enforcement explicitly preserves Time Format, Center 12 Hour Clock, Temperature Unit, and Language.
+- Added watch-side logging for language changes to simplify future translation testing.

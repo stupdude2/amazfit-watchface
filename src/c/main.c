@@ -120,6 +120,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_LEFT_HIDE_LABEL       32
 #define KEY_CENTER_HIDE_LABEL     33
 #define KEY_RIGHT_HIDE_LABEL      34
+#define KEY_LANGUAGE              35
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -130,7 +131,7 @@ static bool conditional_ui_is_visible(void);
 
 // ── Persistent settings ──────────────────────────────────────────────────────
 #define SETTINGS_PERSIST_KEY 1
-#define SETTINGS_VERSION     15
+#define SETTINGS_VERSION     16
 
 typedef enum {
   SLOT_WEATHER = 0,
@@ -358,6 +359,34 @@ typedef struct {
   uint8_t left_hide_label;
   uint8_t center_hide_label;
   uint8_t right_hide_label;
+} WatchfaceSettingsV15;
+
+typedef struct {
+  uint8_t version;
+  GColor accent_color;
+  uint8_t left_slot;
+  uint8_t center_slot;
+  uint8_t right_slot;
+  uint8_t footer_mode;
+  uint8_t header_mode;
+  uint8_t stepbar_mode;
+  uint16_t step_goal;
+  uint8_t temp_unit;
+  GColor clock_color;
+  GColor background_color;
+  uint8_t top_left_slot;
+  uint8_t top_center_slot;
+  uint8_t top_right_slot;
+  uint8_t time_format;
+  uint8_t center_12h;
+  uint8_t raise_wake_mode;
+  uint8_t top_left_hide_label;
+  uint8_t top_center_hide_label;
+  uint8_t top_right_hide_label;
+  uint8_t left_hide_label;
+  uint8_t center_hide_label;
+  uint8_t right_hide_label;
+  uint8_t language;
 } WatchfaceSettings;
 
 static WatchfaceSettings s_settings;
@@ -374,6 +403,7 @@ static bool s_pro_unlocked = false;
 // automatic timed trial. This preserves a permanently usable Free edition.
 #define PRO_TRIAL_PERSIST_KEY  1002
 #define PURCHASED_PRO_PERSIST_KEY 1003
+#define WEATHER_CACHE_PERSIST_KEY 1004
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -421,14 +451,17 @@ static void settings_set_defaults(void) {
   s_settings.left_hide_label = 0;
   s_settings.center_hide_label = 0;
   s_settings.right_hide_label = 0;
+  s_settings.language = 0;
 }
 
 
 static void enforce_free_defaults(void) {
-  // Preserve the two free customization choices.
+  // Preserve all Free customization choices while resetting Pro-only
+  // presentation settings.
   uint8_t keep_time_format = s_settings.time_format;
   uint8_t keep_center_12h = s_settings.center_12h;
   uint8_t keep_temp_unit = s_settings.temp_unit;
+  uint8_t keep_language = s_settings.language;
 
   // Everything else returns to the standard watchface presentation.
   s_settings.accent_color = GColorCobaltBlue;
@@ -457,6 +490,8 @@ static void enforce_free_defaults(void) {
   s_settings.center_hide_label = 0;
   s_settings.right_hide_label = 0;
 
+  s_settings.language =
+      keep_language <= LANG_SWEDISH ? keep_language : LANG_ENGLISH;
   s_settings.time_format =
       keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
   s_settings.center_12h = keep_center_12h ? 1 : 0;
@@ -465,7 +500,8 @@ static void enforce_free_defaults(void) {
 static bool key_is_free_customization(uint32_t key) {
   return key == KEY_TIME_FORMAT ||
          key == KEY_CENTER_12H ||
-         key == KEY_TEMP_UNIT;
+         key == KEY_TEMP_UNIT ||
+         key == KEY_LANGUAGE;
 }
 
 static bool key_is_pro_customization(uint32_t key) {
@@ -518,7 +554,8 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->top_right_hide_label <= 1 &&
          settings->left_hide_label <= 1 &&
          settings->center_hide_label <= 1 &&
-         settings->right_hide_label <= 1;
+         settings->right_hide_label <= 1 &&
+         settings->language <= 1;
 }
 
 static void settings_load(void) {
@@ -531,6 +568,16 @@ static void settings_load(void) {
     if (persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored)) == (int)sizeof(stored) &&
         settings_values_valid(&stored)) {
       s_settings = stored;
+      return;
+    }
+  } else if (stored_size == (int)sizeof(WatchfaceSettingsV15)) {
+    WatchfaceSettingsV15 old;
+    if (persist_read_data(SETTINGS_PERSIST_KEY, &old, sizeof(old)) == (int)sizeof(old) &&
+        old.version == 15) {
+      memcpy(&s_settings, &old, sizeof(old));
+      s_settings.version = SETTINGS_VERSION;
+      s_settings.language = 0;
+      persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(s_settings));
       return;
     }
   } else if (stored_size == (int)sizeof(WatchfaceSettingsV14)) {
@@ -868,6 +915,7 @@ static void settings_save(void) {
   s_saved_settings.time_format = s_settings.time_format;
   s_saved_settings.center_12h = s_settings.center_12h;
   s_saved_settings.temp_unit = s_settings.temp_unit;
+  s_saved_settings.language = s_settings.language;
   persist_write_data(SETTINGS_PERSIST_KEY, &s_saved_settings, sizeof(s_saved_settings));
 }
 
@@ -953,6 +1001,17 @@ static int  s_sunset_minute = -1;
 static int  s_high_c_x10 = 0;
 static int  s_low_c_x10 = 0;
 static bool s_have_high_low = false;
+
+typedef struct {
+  int32_t temperature_c_x10;
+  int32_t weather_icon;
+  int32_t sunrise_minute;
+  int32_t sunset_minute;
+  int32_t high_c_x10;
+  int32_t low_c_x10;
+  uint8_t have_temperature;
+  uint8_t have_high_low;
+} WeatherCache;
 static bool s_backlight_subscribed = false;
 
 // Conditional bars/step bar normally follow Pebble's actual system backlight.
@@ -1124,6 +1183,45 @@ static void update_weather_icon(int icon_code) {
 }
 static int round_tenths_to_int(int value_x10) {
   return value_x10 >= 0 ? (value_x10 + 5) / 10 : (value_x10 - 5) / 10;
+}
+
+static void weather_cache_save(void) {
+  WeatherCache cache = {
+    .temperature_c_x10 = s_temperature_c_x10,
+    .weather_icon = s_weather_icon,
+    .sunrise_minute = s_sunrise_minute,
+    .sunset_minute = s_sunset_minute,
+    .high_c_x10 = s_high_c_x10,
+    .low_c_x10 = s_low_c_x10,
+    .have_temperature = s_have_temperature ? 1 : 0,
+    .have_high_low = s_have_high_low ? 1 : 0,
+  };
+  persist_write_data(WEATHER_CACHE_PERSIST_KEY, &cache, sizeof(cache));
+}
+
+static void weather_cache_load(void) {
+  if (!persist_exists(WEATHER_CACHE_PERSIST_KEY)) return;
+  if (persist_get_size(WEATHER_CACHE_PERSIST_KEY) != (int)sizeof(WeatherCache)) return;
+
+  WeatherCache cache;
+  if (persist_read_data(WEATHER_CACHE_PERSIST_KEY, &cache, sizeof(cache)) !=
+      (int)sizeof(cache)) {
+    return;
+  }
+
+  s_temperature_c_x10 = cache.temperature_c_x10;
+  s_weather_icon = cache.weather_icon;
+  s_sunrise_minute = cache.sunrise_minute;
+  s_sunset_minute = cache.sunset_minute;
+  s_high_c_x10 = cache.high_c_x10;
+  s_low_c_x10 = cache.low_c_x10;
+  s_have_temperature = cache.have_temperature != 0;
+  s_have_high_low = cache.have_high_low != 0;
+
+  APP_LOG(APP_LOG_LEVEL_INFO,
+          "Restored cached weather: temp=%ld icon=%ld",
+          (long)s_temperature_c_x10,
+          (long)s_weather_icon);
 }
 
 static void update_temperature_text(void) {
@@ -1489,22 +1587,104 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 
 static void update_time(struct tm *tick_time);
 
+typedef enum {
+  LANG_ENGLISH = 0,
+  LANG_SWEDISH = 1
+} WatchLanguage;
+
+typedef enum {
+  TXT_WEATHER,
+  TXT_STEPS,
+  TXT_HR,
+  TXT_BT,
+  TXT_DAY,
+  TXT_DATE,
+  TXT_MONTH,
+  TXT_CAL,
+  TXT_DIST,
+  TXT_RISE,
+  TXT_SET,
+  TXT_HIGH_LOW,
+  TXT_TEMP
+} WatchTextId;
+
+typedef struct {
+  const char *weather;
+  const char *steps;
+  const char *hr;
+  const char *bt;
+  const char *day;
+  const char *date;
+  const char *month;
+  const char *cal;
+  const char *dist;
+  const char *rise;
+  const char *set;
+  const char *high_low;
+  const char *temp;
+  const char *days[7];
+  const char *months[12];
+} WatchTranslation;
+
+static const WatchTranslation TRANSLATIONS[] = {
+  {
+    "WEATHER", "STEPS", "HR", "BT", "DAY", "DATE", "MONTH",
+    "CAL", "DIST", "RISE", "SET", "H/L", "TEMP",
+    { "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT" },
+    { "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+      "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" }
+  },
+  {
+    "VÄDER", "STEG", "PULS", "BT", "DAG", "DATUM", "MÅNAD",
+    "KCAL", "DIST", "UPP", "NED", "H/L", "TEMP",
+    { "SÖN", "MÅN", "TIS", "ONS", "TOR", "FRE", "LÖR" },
+    { "JAN", "FEB", "MAR", "APR", "MAJ", "JUN",
+      "JUL", "AUG", "SEP", "OKT", "NOV", "DEC" }
+  }
+};
+
+static const WatchTranslation *watch_translation(void) {
+  uint8_t language = s_settings.language;
+  if (language >= ARRAY_LENGTH(TRANSLATIONS)) language = LANG_ENGLISH;
+  return &TRANSLATIONS[language];
+}
+
+static const char *watch_text(WatchTextId id) {
+  const WatchTranslation *t = watch_translation();
+  switch (id) {
+    case TXT_WEATHER: return t->weather;
+    case TXT_STEPS: return t->steps;
+    case TXT_HR: return t->hr;
+    case TXT_BT: return t->bt;
+    case TXT_DAY: return t->day;
+    case TXT_DATE: return t->date;
+    case TXT_MONTH: return t->month;
+    case TXT_CAL: return t->cal;
+    case TXT_DIST: return t->dist;
+    case TXT_RISE: return t->rise;
+    case TXT_SET: return t->set;
+    case TXT_HIGH_LOW: return t->high_low;
+    case TXT_TEMP: return t->temp;
+    default: return "";
+  }
+}
+
 static const char *side_slot_label(uint8_t slot) {
   switch (slot) {
-    case SLOT_STEPS: return "STEPS";
+    case SLOT_STEPS: return watch_text(TXT_STEPS);
     case SLOT_BATTERY: return "";
-    case SLOT_HEART_RATE: return "HR";
-    case SLOT_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
-    case SLOT_DAY: return "DAY";
-    case SLOT_DATE: return "DATE";
-    case SLOT_MONTH: return "MONTH";
-    case SLOT_CALORIES: return "CAL";
-    case SLOT_DISTANCE: return "DIST";
-    case SLOT_SUNRISE: return "RISE";
-    case SLOT_SUNSET: return "SET";
-    case SLOT_HIGH_LOW: return "H/L";
+    case SLOT_HEART_RATE: return watch_text(TXT_HR);
+    case SLOT_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
+    case SLOT_DAY: return watch_text(TXT_DAY);
+    case SLOT_DATE: return watch_text(TXT_DATE);
+    case SLOT_MONTH: return watch_text(TXT_MONTH);
+    case SLOT_CALORIES: return watch_text(TXT_CAL);
+    case SLOT_DISTANCE: return watch_text(TXT_DIST);
+    case SLOT_SUNRISE: return watch_text(TXT_RISE);
+    case SLOT_SUNSET: return watch_text(TXT_SET);
+    case SLOT_HIGH_LOW: return watch_text(TXT_HIGH_LOW);
     case SLOT_WEATHER:
-    default: return "WEATHER";
+    default: return watch_text(TXT_WEATHER);
   }
 }
 
@@ -1552,12 +1732,12 @@ static const char *side_slot_value(uint8_t slot) {
 static const char *center_slot_label(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY: return "";
-    case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : "BT";
-    case CENTER_WEATHER: return "TEMP";
-    case CENTER_STEPS: return "STEPS";
-    case CENTER_DATE: return "DATE";
+    case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
+    case CENTER_WEATHER: return watch_text(TXT_TEMP);
+    case CENTER_STEPS: return watch_text(TXT_STEPS);
+    case CENTER_DATE: return watch_text(TXT_DATE);
     case CENTER_HEART_RATE:
-    default: return "HR";
+    default: return watch_text(TXT_HR);
   }
 }
 
@@ -2784,6 +2964,21 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_LANGUAGE: {
+        int32_t value = tuple_to_int32(t, s_settings.language);
+        if (value >= LANG_ENGLISH && value <= LANG_SWEDISH) {
+          s_settings.language = (uint8_t)value;
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Watchface language -> %s",
+                  value == LANG_SWEDISH ? "Swedish" : "English");
+          layout_changed = true;
+          time_t now = time(NULL);
+          struct tm *now_tm = localtime(&now);
+          if (now_tm) update_time(now_tm);
+        }
+        break;
+      }
+
       case KEY_TOP_LEFT_HIDE_LABEL:
         s_settings.top_left_hide_label =
             tuple_to_int32(t, s_settings.top_left_hide_label) ? 1 : 0;
@@ -2990,6 +3185,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
   if (weather_changed) {
+    weather_cache_save();
     update_weather_icon(s_weather_icon);
     update_footer_content();
     update_header_content();
@@ -3060,9 +3256,10 @@ static void update_time(struct tm *tick_time) {
   s_minute = tick_time->tm_min;
   layer_mark_dirty(s_clock_layer);
 
-  strftime(s_day_buf,   sizeof(s_day_buf),   "%a", tick_time); to_upper(s_day_buf);
-  strftime(s_date_buf,  sizeof(s_date_buf),  "%e", tick_time);
-  strftime(s_month_buf, sizeof(s_month_buf), "%b", tick_time); to_upper(s_month_buf);
+  const WatchTranslation *translation = watch_translation();
+  snprintf(s_day_buf, sizeof(s_day_buf), "%s", translation->days[tick_time->tm_wday]);
+  strftime(s_date_buf, sizeof(s_date_buf), "%e", tick_time);
+  snprintf(s_month_buf, sizeof(s_month_buf), "%s", translation->months[tick_time->tm_mon]);
 
   update_header_content();
   update_footer_content();
@@ -3322,6 +3519,7 @@ static void window_unload(Window *window) {
 
 static void init(void) {
   settings_load();
+  weather_cache_load();
 
   // Steps is no longer supported in either center position.
   if (s_settings.top_center_slot == SLOT_STEPS) {
