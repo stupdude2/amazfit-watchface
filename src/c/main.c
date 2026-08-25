@@ -1945,6 +1945,8 @@ static const char *side_slot_value(uint8_t slot) {
   }
 }
 
+static const char *top_slot_label(uint8_t slot);
+
 static const char *time_zone_label(uint8_t preset_index) {
   if (preset_index >= TIME_ZONE_PRESET_COUNT) preset_index = 0;
   return TIME_ZONE_PRESETS[preset_index].label;

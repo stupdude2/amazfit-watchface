@@ -711,3 +711,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Example: 2:35 PM.
 - 24-hour Time Zone values remain unchanged, e.g. 14:35.
 - Dynamic timezone labels and all prior RC fixes are unchanged.
+
+## v3.0.4 DEV RC — Timezone label build fix
+- Added the missing forward declaration for top_slot_label().
+- Fixes the GCC implicit-declaration/conflicting-types build failure in top_side_slot_label().
+- No runtime behavior or existing timezone logic was changed.
