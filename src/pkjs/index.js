@@ -610,14 +610,14 @@ var FREE_LANGUAGE_STORAGE_KEY = 'big_time_language_v1';
 function getStoredLanguage() {
   try {
     var value = parseInt(localStorage.getItem(FREE_LANGUAGE_STORAGE_KEY), 10);
-    if (value >= 0 && value <= 5) return value;
+    if (value >= 0 && value <= 6) return value;
   } catch (e) {}
   return 0;
 }
 
 function storeLanguage(value) {
   value = parseInt(value, 10);
-  if (value < 0 || value > 5 || isNaN(value)) value = 0;
+  if (value < 0 || value > 6 || isNaN(value)) value = 0;
   try {
     localStorage.setItem(FREE_LANGUAGE_STORAGE_KEY, String(value));
   } catch (e) {}

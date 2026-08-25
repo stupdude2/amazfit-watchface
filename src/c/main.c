@@ -203,7 +203,8 @@ typedef enum {
   LANG_SPANISH = 2,
   LANG_FRENCH = 3,
   LANG_GERMAN = 4,
-  LANG_PORTUGUESE = 5
+  LANG_PORTUGUESE = 5,
+  LANG_CATALAN = 6
 } WatchLanguage;
 
 typedef struct {
@@ -636,7 +637,7 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->left_hide_label <= 1 &&
          settings->center_hide_label <= 1 &&
          settings->right_hide_label <= 1 &&
-         settings->language <= LANG_PORTUGUESE;
+         settings->language <= LANG_CATALAN;
 }
 
 static void settings_load(void) {
@@ -1815,6 +1816,13 @@ static const WatchTranslation TRANSLATIONS[] = {
     { "DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB" },
     { "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
       "JUL", "AGO", "SET", "OUT", "NOV", "DEZ" }
+  },
+  {
+    "TEMPS", "PASSOS", "POLS", "BT", "DIA", "DATA", "MES",
+    "KCAL", "DIST", "SURT", "POSTA", "M/M", "TEMP",
+    { "DG", "DL", "DT", "DC", "DJ", "DV", "DS" },
+    { "GEN", "FEB", "MAR", "ABR", "MAI", "JUN",
+      "JUL", "AGO", "SET", "OCT", "NOV", "DES" }
   }
 };
 

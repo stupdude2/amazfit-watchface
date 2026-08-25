@@ -746,3 +746,13 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Reverted the dedicated hidden Time Zone font and timezone-specific widened frames.
 - Hidden-label Time Zone values now use the normal medium hidden-value font and normal medium-value alignment.
 - Other AM/PM displays remain unchanged.
+
+## v3.1.0 — Production release
+- Production KiezelPay mode enabled: test purchasing disabled and verbose native logging disabled.
+- Adds 15-minute weather refresh.
+- Adds improved hidden-label alignment and language settings synchronization.
+- Adds Battery Icon and Battery % display variants.
+- Adds side-slot Time Zone support for Top Left, Top Right, Bottom Left, and Bottom Right.
+- Time Zone uses separate persistence keys and does not alter WatchfaceSettings or SETTINGS_VERSION.
+- AppMessage inbox remains 512 bytes to safely receive the expanded Clay settings payload.
+- Existing app UUID is preserved for in-place upgrades and settings continuity.

@@ -1,0 +1,25 @@
+Big Time v3.1.0 Production Release Audit
+
+PASS: WatchfaceSettings struct unchanged from v2.9.17
+PASS: WatchfaceSettingsV15 migration struct unchanged
+PASS: SETTINGS_VERSION remains 16
+PASS: SETTINGS_PERSIST_KEY remains 1
+PASS: Pebble app UUID unchanged
+PASS: Existing saved customization data remains load-compatible
+PASS: Time Zone values use separate persistence keys 1101-1104
+PASS: Time Zone data is not embedded in WatchfaceSettings
+PASS: KiezelPay native TEST_MODE disabled
+PASS: KiezelPay native verbose logging disabled
+PASS: PebbleKit JS KiezelPay logging disabled
+PASS: AppMessage inbox remains 512 bytes for full Clay payload
+PASS: index.js syntax check
+PASS: config.js syntax check
+PASS: edition.js syntax check
+
+Upgrade behavior:
+An existing installation retains the same app UUID and persistence key. The
+v16 WatchfaceSettings layout is unchanged, so existing colors, slots, label
+visibility, bar modes, step goal, temperature unit, clock/background colors,
+time format, wrist raise mode, and language are read without migration or reset.
+New Time Zone selections default independently to Local Time and are only used
+when a user explicitly selects the Time Zone slot option.

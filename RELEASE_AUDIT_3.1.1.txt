@@ -1,0 +1,7 @@
+Big Time v3.1.1 Production Release Audit
+PASS: Catalan appended as language ID 6; existing language IDs 0-5 unchanged.
+PASS: WatchfaceSettings binary layout unchanged from v3.1.0.
+PASS: SETTINGS_VERSION remains 16; no migration/reset required.
+PASS: App UUID unchanged.
+PASS: KiezelPay test mode and verbose logging remain disabled.
+PASS: JavaScript syntax checks passed.
