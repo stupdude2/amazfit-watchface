@@ -2706,6 +2706,7 @@ static void license_send_status_to_phone(void) {
   }
 
   dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
+  dict_write_uint8(iter, KEY_LANGUAGE, s_settings.language);
 
   int32_t trial_remaining = 0;
   if (entitlement == 1 && persist_exists(PRO_TRIAL_PERSIST_KEY)) {

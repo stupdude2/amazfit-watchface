@@ -803,6 +803,13 @@ function refreshWeatherIfDue() {
 Pebble.addEventListener('appmessage', function(e) {
   if (!e || !e.payload) return;
 
+  // The watch is authoritative for the active language. Capture it whenever
+  // present so the next Settings page reflects what is actually displayed.
+  if (typeof e.payload.LANGUAGE !== 'undefined') {
+    storeLanguage(e.payload.LANGUAGE);
+    console.log('Synced language from watch: ' + e.payload.LANGUAGE);
+  }
+
   if (typeof e.payload.CONFIG_ACK !== 'undefined') {
     console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);
     return;

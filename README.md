@@ -591,3 +591,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Big Time now explicitly injects all six supported language options into the live Clay configuration every time Settings opens.
 - This overrides stale cached configuration objects on the Pebble companion.
 - All six languages remain Free: English, Swedish, Spanish, French, German, and Portuguese.
+
+## v2.9.4 — Settings language synchronization
+- The watch is now the authoritative source for the currently selected watchface language.
+- Current LANGUAGE is included in the existing watch-to-phone license/status response.
+- PebbleKit JS stores the language reported by the watch before opening Settings.
+- The Language selector therefore opens on the language the watch is actually displaying instead of falling back to stale phone-side/default English.
+- No new AppMessage key is required; the existing LANGUAGE key is reused bidirectionally.
