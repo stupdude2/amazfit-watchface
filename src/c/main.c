@@ -1387,7 +1387,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
         GRect(left_area.origin.x + (left_area.size.w - 42) / 2, 15, 42, 16),
         s_battery_percent, side_fg);
   else if (s_settings.top_left_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
-    draw_bluetooth_icon(ctx, GPoint(left_area.origin.x + left_area.size.w/2, 27), 34, 30, side_fg, true);
+    draw_bluetooth_icon(ctx, GPoint(left_area.origin.x + left_area.size.w/2, 24), 34, 30, side_fg, true);
   if (s_settings.top_center_slot == SLOT_BATTERY)
     draw_battery_icon(ctx, GRect(DATEBOX_X + 7, 7, 36, 9), s_battery_percent, center_fg);
   else if (s_settings.top_center_slot == SLOT_BATTERY_ICON)
@@ -1403,7 +1403,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
         GRect(right_area.origin.x + (right_area.size.w - 42) / 2, 15, 42, 16),
         s_battery_percent, side_fg);
   else if (s_settings.top_right_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
-    draw_bluetooth_icon(ctx, GPoint(right_area.origin.x + right_area.size.w/2, 27), 34, 30, side_fg, true);
+    draw_bluetooth_icon(ctx, GPoint(right_area.origin.x + right_area.size.w/2, 24), 34, 30, side_fg, true);
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────

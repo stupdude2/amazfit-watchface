@@ -675,3 +675,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Narrowed center Battery Icon from 42 px to 36 px in both top-center and bottom-center to better fit the smaller center areas.
 - Battery % now always uses the medium font in top-center and bottom-center to prevent truncation.
 - Left/right Battery Icon sizing remains unchanged.
+
+## v2.9.17 DEV — Top Bluetooth alignment
+- Raised connected Bluetooth icons in Top Left and Top Right by 3 px.
+- Corrects the visually low alignment in the upper side slots.
+- Top Center and bottom Bluetooth positioning remain unchanged.
