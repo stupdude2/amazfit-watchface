@@ -146,7 +146,9 @@ typedef enum {
   SLOT_DISTANCE = 9,
   SLOT_SUNRISE = 10,
   SLOT_SUNSET = 11,
-  SLOT_HIGH_LOW = 12
+  SLOT_HIGH_LOW = 12,
+  SLOT_BATTERY_ICON = 13,
+  SLOT_BATTERY_PERCENT = 14
 } SideSlotContent;
 
 typedef enum {
@@ -157,7 +159,9 @@ typedef enum {
   CENTER_STEPS = 4,
   CENTER_DAY = 5,
   CENTER_DATE = 6,
-  CENTER_MONTH = 7
+  CENTER_MONTH = 7,
+  CENTER_BATTERY_ICON = 8,
+  CENTER_BATTERY_PERCENT = 9
 } CenterSlotContent;
 
 typedef enum {
@@ -544,12 +548,12 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_HIGH_LOW &&
-         settings->center_slot <= CENTER_MONTH &&
-         settings->right_slot <= SLOT_HIGH_LOW &&
-         settings->top_left_slot <= SLOT_HIGH_LOW &&
+         settings->left_slot <= SLOT_BATTERY_PERCENT &&
+         settings->center_slot <= CENTER_BATTERY_PERCENT &&
+         settings->right_slot <= SLOT_BATTERY_PERCENT &&
+         settings->top_left_slot <= SLOT_BATTERY_PERCENT &&
          settings->top_center_slot <= SLOT_MONTH &&
-         settings->top_right_slot <= SLOT_HIGH_LOW &&
+         settings->top_right_slot <= SLOT_BATTERY_PERCENT &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1348,6 +1352,7 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
 }
 
 static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color);
+static void draw_battery_icon_fat(GContext *ctx, GRect r, int percent, GColor color);
 static void draw_bluetooth_icon(GContext *ctx, GPoint c, int width, int height, GColor color, bool connected);
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -1370,15 +1375,27 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
   int right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
   GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, HEADER_H);
   if (s_settings.top_left_slot == SLOT_BATTERY)
-    draw_battery_icon(ctx, GRect(left_area.origin.x, 20, 36, 9), s_battery_percent, side_fg);
+    draw_battery_icon(ctx, GRect(left_area.origin.x, 7, 36, 9), s_battery_percent, side_fg);
+  else if (s_settings.top_left_slot == SLOT_BATTERY_ICON)
+    draw_battery_icon_fat(ctx,
+        GRect(left_area.origin.x + (left_area.size.w - 42) / 2, 18, 42, 16),
+        s_battery_percent, side_fg);
   else if (s_settings.top_left_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(left_area.origin.x + left_area.size.w/2, 27), 34, 30, side_fg, true);
   if (s_settings.top_center_slot == SLOT_BATTERY)
     draw_battery_icon(ctx, GRect(DATEBOX_X + 7, 7, 36, 9), s_battery_percent, center_fg);
+  else if (s_settings.top_center_slot == SLOT_BATTERY_ICON)
+    draw_battery_icon_fat(ctx,
+        GRect(DATEBOX_X + (DATEBOX_W - 42) / 2, 18, 42, 16),
+        s_battery_percent, center_fg);
   else if (s_settings.top_center_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(DATEBOX_X + DATEBOX_W/2, 27), 34, 30, center_fg, true);
   if (s_settings.top_right_slot == SLOT_BATTERY)
-    draw_battery_icon(ctx, GRect(right_area.origin.x + right_area.size.w - 36, 20, 36, 9), s_battery_percent, side_fg);
+    draw_battery_icon(ctx, GRect(right_area.origin.x + right_area.size.w - 36, 7, 36, 9), s_battery_percent, side_fg);
+  else if (s_settings.top_right_slot == SLOT_BATTERY_ICON)
+    draw_battery_icon_fat(ctx,
+        GRect(right_area.origin.x + (right_area.size.w - 42) / 2, 18, 42, 16),
+        s_battery_percent, side_fg);
   else if (s_settings.top_right_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(right_area.origin.x + right_area.size.w/2, 27), 34, 30, side_fg, true);
 }
@@ -1507,6 +1524,35 @@ static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color)
   }
 }
 
+static void draw_battery_icon_fat(GContext *ctx, GRect r, int percent, GColor color) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_fill_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+
+  GRect body = GRect(r.origin.x, r.origin.y, r.size.w - 4, r.size.h);
+  graphics_draw_rect(ctx, body);
+  graphics_draw_rect(ctx,
+                     GRect(body.origin.x + 1, body.origin.y + 1,
+                           body.size.w - 2, body.size.h - 2));
+
+  graphics_fill_rect(ctx,
+                     GRect(r.origin.x + r.size.w - 3,
+                           r.origin.y + (r.size.h / 2) - 3,
+                           3, 6),
+                     0, GCornerNone);
+
+  int clamped = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+  int inner_w = r.size.w - 11;
+  int fill_w = (inner_w * clamped) / 100;
+  if (fill_w > 0) {
+    graphics_fill_rect(ctx,
+                       GRect(r.origin.x + 4, r.origin.y + 4,
+                             fill_w, r.size.h - 8),
+                       0, GCornerNone);
+  }
+}
+
+
 static void draw_bluetooth_icon(GContext *ctx, GPoint c, int width, int height,
                                 GColor color, bool connected) {
   (void)connected;
@@ -1545,8 +1591,6 @@ static void draw_bluetooth_icon(GContext *ctx, GPoint c, int width, int height,
 static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
                            GColor color, bool is_right_slot) {
   if (slot == SLOT_BATTERY) {
-    // Keep the original battery shape, but make it wider and move it down.
-    // Side batteries align with the same edge as their percentage value.
     const int icon_w = 36;
     const int icon_h = 9;
     const int icon_y = 7;
@@ -1555,6 +1599,12 @@ static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
                    : area.origin.x;
     draw_battery_icon(ctx, GRect(icon_x, icon_y, icon_w, icon_h),
                       s_battery_percent, color);
+  } else if (slot == SLOT_BATTERY_ICON) {
+    const int icon_w = 42;
+    const int icon_h = 16;
+    int icon_x = area.origin.x + (area.size.w - icon_w) / 2;
+    draw_battery_icon_fat(ctx, GRect(icon_x, 15, icon_w, icon_h),
+                          s_battery_percent, color);
   } else if (slot == SLOT_BLUETOOTH && s_bluetooth_connected) {
     // Connected Bluetooth is icon-only and fills most of the footer height.
     int cx = area.origin.x + area.size.w / 2;
@@ -1565,9 +1615,11 @@ static void draw_slot_icon(GContext *ctx, uint8_t slot, GRect area,
 static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
   int cx = HRBOX_X + BOX_W / 2;
   if (slot == CENTER_BATTERY) {
-    // Center battery remains centered above the percentage value.
     draw_battery_icon(ctx, GRect(cx - 18, 7, 36, 9),
                       s_battery_percent, color);
+  } else if (slot == CENTER_BATTERY_ICON) {
+    draw_battery_icon_fat(ctx, GRect(cx - 21, 15, 42, 16),
+                          s_battery_percent, color);
   } else if (slot == CENTER_BLUETOOTH && s_bluetooth_connected) {
     // Connected Bluetooth is icon-only and spans the label/value area.
     draw_bluetooth_icon(ctx, GPoint(cx, 22), 34, 30, color, true);
@@ -1755,6 +1807,11 @@ static const char *side_slot_value(uint8_t slot) {
       return s_sunset_buf;
     case SLOT_HIGH_LOW:
       return high_low_text();
+    case SLOT_BATTERY_ICON:
+      return "";
+    case SLOT_BATTERY_PERCENT:
+      snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
+      return s_battery_buf;
     case SLOT_WEATHER:
     default:
       return s_weather_buf;
@@ -1764,6 +1821,8 @@ static const char *side_slot_value(uint8_t slot) {
 static const char *center_slot_label(void) {
   switch (s_settings.center_slot) {
     case CENTER_BATTERY: return "";
+    case CENTER_BATTERY_ICON: return "";
+    case CENTER_BATTERY_PERCENT: return "";
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
     case CENTER_WEATHER: return watch_text(TXT_TEMP);
     case CENTER_STEPS: return watch_text(TXT_STEPS);
@@ -1778,6 +1837,11 @@ static const char *center_slot_value(void) {
     case CENTER_BATTERY:
       if (s_battery_percent == 100) snprintf(s_battery_buf, sizeof(s_battery_buf), "100");
       else snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
+      return s_battery_buf;
+    case CENTER_BATTERY_ICON:
+      return "";
+    case CENTER_BATTERY_PERCENT:
+      snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
       return s_battery_buf;
     case CENTER_BLUETOOTH: return "";
     case CENTER_WEATHER: return s_weather_buf;
@@ -1874,13 +1938,19 @@ static void update_header_content(void) {
       s_settings.top_right_hide_label &&
       side_slot_has_optional_label(s_settings.top_right_slot);
 
-  const bool left_large = left_calendar || left_label_hidden;
-  const bool center_large = center_calendar || center_label_hidden;
-  const bool right_large = right_calendar || right_label_hidden;
+  const bool left_large = left_calendar || left_label_hidden ||
+      s_settings.top_left_slot == SLOT_BATTERY_PERCENT;
+  const bool center_large = center_calendar || center_label_hidden ||
+      s_settings.top_center_slot == SLOT_BATTERY_PERCENT;
+  const bool right_large = right_calendar || right_label_hidden ||
+      s_settings.top_right_slot == SLOT_BATTERY_PERCENT;
 
   text_layer_set_text(
       s_top_left_label,
-      left_label_hidden ? "" : top_slot_label(s_settings.top_left_slot));
+      (left_label_hidden ||
+       s_settings.top_left_slot == SLOT_BATTERY_ICON ||
+       s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
+          ? "" : top_slot_label(s_settings.top_left_slot));
   text_layer_set_text(
       s_top_left_val,
       top_slot_value(s_settings.top_left_slot));
@@ -1892,14 +1962,20 @@ static void update_header_content(void) {
 
   text_layer_set_text(
       s_top_center_label,
-      center_label_hidden ? "" : center_label);
+      (center_label_hidden ||
+       s_settings.top_center_slot == SLOT_BATTERY_ICON ||
+       s_settings.top_center_slot == SLOT_BATTERY_PERCENT)
+          ? "" : center_label);
   text_layer_set_text(
       s_top_center_val,
       top_slot_value(s_settings.top_center_slot));
 
   text_layer_set_text(
       s_top_right_label,
-      right_label_hidden ? "" : top_slot_label(s_settings.top_right_slot));
+      (right_label_hidden ||
+       s_settings.top_right_slot == SLOT_BATTERY_ICON ||
+       s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
+          ? "" : top_slot_label(s_settings.top_right_slot));
   text_layer_set_text(
       s_top_right_val,
       top_slot_value(s_settings.top_right_slot));
@@ -1936,10 +2012,14 @@ static void update_header_content(void) {
   layer_set_frame(
       text_layer_get_layer(s_top_left_val),
       GRect(4,
-            left_calendar ? 4 : (left_label_hidden ? 4 : 15),
+            left_calendar ? 4 :
+              ((left_label_hidden ||
+                s_settings.top_left_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
             left_w,
             left_calendar ? HEADER_H - 5 :
-              (left_label_hidden ? HEADER_H - 5 : 34)));
+              ((left_label_hidden ||
+                 s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
+                    ? HEADER_H - 5 : 34)));
 
   const int top_center_value_x =
       DATEBOX_X + ((s_settings.top_center_slot == SLOT_WEATHER) ? 2 : 0);
@@ -1950,20 +2030,27 @@ static void update_header_content(void) {
       text_layer_get_layer(s_top_center_val),
       GRect(top_center_value_x,
             center_calendar ? 4 :
-              (center_label_hidden ? 4 :
+              ((center_label_hidden ||
+                 s_settings.top_center_slot == SLOT_BATTERY_PERCENT) ? 4 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15)),
             top_center_value_w,
             center_calendar ? HEADER_H - 5 :
-              (center_label_hidden ? HEADER_H - 5 :
+              ((center_label_hidden ||
+                 s_settings.top_center_slot == SLOT_BATTERY_PERCENT)
+                    ? HEADER_H - 5 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34))));
 
   layer_set_frame(
       text_layer_get_layer(s_top_right_val),
       GRect(top_right_x,
-            right_calendar ? 4 : (right_label_hidden ? 4 : 15),
+            right_calendar ? 4 :
+              ((right_label_hidden ||
+                s_settings.top_right_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
             top_right_w,
             right_calendar ? HEADER_H - 5 :
-              (right_label_hidden ? HEADER_H - 5 : 34)));
+              ((right_label_hidden ||
+                 s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
+                    ? HEADER_H - 5 : 34)));
 
   text_layer_set_text_alignment(
       s_top_left_label,
@@ -2007,25 +2094,34 @@ static void update_footer_content(void) {
       s_settings.right_hide_label &&
       side_slot_has_optional_label(s_settings.right_slot);
 
-  const bool left_large = left_calendar || left_label_hidden;
-  const bool center_large = center_calendar || center_label_hidden;
-  const bool right_large = right_calendar || right_label_hidden;
+  const bool left_large = left_calendar || left_label_hidden ||
+      s_settings.left_slot == SLOT_BATTERY_PERCENT;
+  const bool center_large = center_calendar || center_label_hidden ||
+      s_settings.center_slot == CENTER_BATTERY_PERCENT;
+  const bool right_large = right_calendar || right_label_hidden ||
+      s_settings.right_slot == SLOT_BATTERY_PERCENT;
 
   text_layer_set_text(
       s_left_label,
-      (left_calendar || left_label_hidden)
+      (left_calendar || left_label_hidden ||
+       s_settings.left_slot == SLOT_BATTERY_ICON ||
+       s_settings.left_slot == SLOT_BATTERY_PERCENT)
           ? "" : side_slot_label(s_settings.left_slot));
   text_layer_set_text(s_left_val, side_slot_value(s_settings.left_slot));
 
   text_layer_set_text(
       s_center_label,
-      (center_calendar || center_label_hidden)
+      (center_calendar || center_label_hidden ||
+       s_settings.center_slot == CENTER_BATTERY_ICON ||
+       s_settings.center_slot == CENTER_BATTERY_PERCENT)
           ? "" : center_slot_label());
   text_layer_set_text(s_center_val, center_slot_value());
 
   text_layer_set_text(
       s_right_label,
-      (right_calendar || right_label_hidden)
+      (right_calendar || right_label_hidden ||
+       s_settings.right_slot == SLOT_BATTERY_ICON ||
+       s_settings.right_slot == SLOT_BATTERY_PERCENT)
           ? "" : side_slot_label(s_settings.right_slot));
   text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
 
@@ -2059,10 +2155,14 @@ static void update_footer_content(void) {
   layer_set_frame(
       text_layer_get_layer(s_left_val),
       GRect(4,
-            left_calendar ? 1 : (left_label_hidden ? 4 : 14),
+            left_calendar ? 1 :
+              ((left_label_hidden ||
+                s_settings.left_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
             left_w,
             left_calendar ? FOOTER_H - 1 :
-              (left_label_hidden ? FOOTER_H - 4 : 38)));
+              ((left_label_hidden ||
+                 s_settings.left_slot == SLOT_BATTERY_PERCENT)
+                    ? FOOTER_H - 4 : 38)));
 
   const int center_value_x =
       HRBOX_X + ((s_settings.center_slot == CENTER_WEATHER) ? 2 : 0);
@@ -2072,18 +2172,26 @@ static void update_footer_content(void) {
   layer_set_frame(
       text_layer_get_layer(s_center_val),
       GRect(center_value_x,
-            center_calendar ? 1 : (center_label_hidden ? 4 : 14),
+            center_calendar ? 1 :
+              ((center_label_hidden ||
+                s_settings.center_slot == CENTER_BATTERY_PERCENT) ? 4 : 14),
             center_value_w,
             center_calendar ? FOOTER_H - 1 :
-              (center_label_hidden ? FOOTER_H - 4 : 38)));
+              ((center_label_hidden ||
+                 s_settings.center_slot == CENTER_BATTERY_PERCENT)
+                    ? FOOTER_H - 4 : 38)));
 
   layer_set_frame(
       text_layer_get_layer(s_right_val),
       GRect(right_x,
-            right_calendar ? 1 : (right_label_hidden ? 4 : 14),
+            right_calendar ? 1 :
+              ((right_label_hidden ||
+                s_settings.right_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
             right_w,
             right_calendar ? FOOTER_H - 1 :
-              (right_label_hidden ? FOOTER_H - 4 : 38)));
+              ((right_label_hidden ||
+                 s_settings.right_slot == SLOT_BATTERY_PERCENT)
+                    ? FOOTER_H - 4 : 38)));
 
   // Weather icon uses the outer/right edge of its side slot. When data labels
   // are hidden, center the 25px icon against the full-height enlarged value.
@@ -2928,7 +3036,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) {
+        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -2938,8 +3046,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_CENTER_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.center_slot);
-        if (value >= CENTER_HEART_RATE && value <= CENTER_MONTH &&
-            value != CENTER_STEPS) {
+        if ((value >= CENTER_HEART_RATE && value <= CENTER_MONTH &&
+             value != CENTER_STEPS) ||
+            value == CENTER_BATTERY_ICON ||
+            value == CENTER_BATTERY_PERCENT) {
           s_settings.center_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
           layout_changed = true;
@@ -2949,7 +3059,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) {
+        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -2959,13 +3069,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_center_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_MONTH &&
-            value != SLOT_STEPS) {
+        if ((value >= SLOT_WEATHER && value <= SLOT_MONTH &&
+             value != SLOT_STEPS) ||
+            value == SLOT_BATTERY_ICON ||
+            value == SLOT_BATTERY_PERCENT) {
           s_settings.top_center_slot = (uint8_t)value;
           layout_changed = true;
         }
@@ -2973,7 +3085,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_HIGH_LOW) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 

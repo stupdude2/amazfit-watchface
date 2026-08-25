@@ -4,6 +4,8 @@ var sideOptions = [
   { "label": "Weather", "value": "0" },
   { "label": "Steps", "value": "1" },
   { "label": "Battery (icon + %)", "value": "2" },
+  { "label": "Battery Icon", "value": "13" },
+  { "label": "Battery %", "value": "14" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Day of Week", "value": "5" },
@@ -19,6 +21,8 @@ var sideOptions = [
 var topCenterOptions = [
   { "label": "Weather", "value": "0" },
   { "label": "Battery (icon + %)", "value": "2" },
+  { "label": "Battery Icon", "value": "13" },
+  { "label": "Battery %", "value": "14" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Date", "value": "6" }
@@ -27,6 +31,8 @@ var topCenterOptions = [
 var centerOptions = [
   { "label": "Heart Rate", "value": "0" },
   { "label": "Battery (icon + %)", "value": "1" },
+  { "label": "Battery Icon", "value": "8" },
+  { "label": "Battery %", "value": "9" },
   { "label": "Bluetooth", "value": "2" },
   { "label": "Weather", "value": "3" },
   { "label": "Date", "value": "6" }

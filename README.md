@@ -645,3 +645,15 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - The existing AppMessage language handler updates the selected language before the entitlement handler opens Clay.
 - Added a 1.5-second fallback so Settings cannot become unresponsive if the status response is delayed.
 - This directly fixes the observed sequence where Settings opened as English and Swedish arrived immediately afterward.
+
+## v2.9.12 DEV — Battery display variants
+- Added Battery Icon and Battery % while preserving Battery (icon + %).
+- Battery Icon is icon-only and uses a larger, thicker 42x16 battery graphic.
+- Battery % is percentage-only, with no icon or label, using the enlarged value layout.
+- New variants are available in all top and bottom positions, including centers.
+- Existing combined battery behavior remains unchanged.
+
+## v2.9.13 DEV — Top battery alignment
+- Moved the combined Battery (icon + %) icon upward in the top-left and top-right slots.
+- Top combined battery formatting now matches the bottom-bar layout, with the icon above the percentage instead of overlapping it.
+- Top-center combined battery was already correctly positioned and remains unchanged.
