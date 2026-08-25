@@ -630,3 +630,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Hidden-label values in Top Left, Top Center, and Top Right are moved up 6 px from v2.9.8.
 - Their top edge now matches the y=4 geometry already used by the large calendar-style text in the same 52 px header.
 - Normal labeled layouts are unchanged.
+
+## v2.9.10 DEV — Language save race fix
+- Fixed a race where the watch could successfully switch languages but an older in-flight status response would temporarily reset the Settings selector to the previous language.
+- A newly saved language now remains authoritative until the watch reports that same language back.
+- Stale mismatched watch-language responses are ignored while confirmation is pending.
+- Settings prioritizes the just-saved language, then the latest confirmed watch language, then phone storage.
+- Existing translations, weather refresh options, and top hidden-label alignment are unchanged.

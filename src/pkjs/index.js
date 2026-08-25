@@ -332,6 +332,7 @@ function restorePersistedTrialToWatch() {
 var sessionLicenseKnown = false;
 var sessionTrialUsed = trialWasUsedOnPhone();
 var sessionWatchLanguage = null;
+var pendingSavedLanguage = null;
 var pendingOpenSettings = false;
 
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
@@ -416,7 +417,11 @@ function openSettingsPage() {
     // Language is a Free preference. Keep the selector available and
     // synchronized regardless of entitlement.
     var languageForSettings =
-        sessionWatchLanguage !== null ? sessionWatchLanguage : getStoredLanguage();
+        pendingSavedLanguage !== null ? pendingSavedLanguage :
+        (sessionWatchLanguage !== null
+          ? sessionWatchLanguage
+          : getStoredLanguage());
+
     clay.setSettings('LANGUAGE', String(languageForSettings));
     console.log('Settings language selected: ' + languageForSettings);
 
@@ -502,8 +507,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var settings = clay.getSettings(e.response);
 
     if (settings && typeof settings.LANGUAGE !== 'undefined') {
-      sessionWatchLanguage = parseInt(settings.LANGUAGE, 10);
-      storeLanguage(sessionWatchLanguage);
+      var savedLanguage = parseInt(settings.LANGUAGE, 10);
+      sessionWatchLanguage = savedLanguage;
+      pendingSavedLanguage = savedLanguage;
+      storeLanguage(savedLanguage);
+      console.log('Language saved; awaiting watch confirmation: ' + savedLanguage);
     }
 
     if (settings && typeof settings.WEATHER_REFRESH !== 'undefined') {
@@ -811,9 +819,28 @@ Pebble.addEventListener('appmessage', function(e) {
   // The watch is authoritative for the active language. Capture it whenever
   // present so the next Settings page reflects what is actually displayed.
   if (typeof e.payload.LANGUAGE !== 'undefined') {
-    sessionWatchLanguage = parseInt(e.payload.LANGUAGE, 10);
-    storeLanguage(sessionWatchLanguage);
-    console.log('Synced language from watch: ' + sessionWatchLanguage);
+    var reportedLanguage = parseInt(e.payload.LANGUAGE, 10);
+
+    if (pendingSavedLanguage !== null &&
+        reportedLanguage !== pendingSavedLanguage) {
+      // A status response that was already in flight can still contain the
+      // language from before the most recent Settings Save. Do not let that
+      // stale response overwrite the user's new selection.
+      console.log(
+        'Ignoring stale watch language ' + reportedLanguage +
+        '; waiting for saved language ' + pendingSavedLanguage);
+    } else {
+      sessionWatchLanguage = reportedLanguage;
+      storeLanguage(reportedLanguage);
+
+      if (pendingSavedLanguage !== null &&
+          reportedLanguage === pendingSavedLanguage) {
+        console.log('Watch confirmed saved language: ' + reportedLanguage);
+        pendingSavedLanguage = null;
+      } else {
+        console.log('Synced language from watch: ' + reportedLanguage);
+      }
+    }
   }
 
   if (typeof e.payload.CONFIG_ACK !== 'undefined') {
