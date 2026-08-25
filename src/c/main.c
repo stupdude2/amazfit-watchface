@@ -242,19 +242,6 @@ static const TimeZonePreset TIME_ZONE_PRESETS[] = {
 
 #define TIME_ZONE_PRESET_COUNT ((uint8_t)ARRAY_LENGTH(TIME_ZONE_PRESETS))
 
-static uint8_t load_time_zone_preset(uint32_t persist_key) {
-  if (!persist_exists(persist_key)) return 0;
-  int value = persist_read_int(persist_key);
-  if (value < 0 || value >= TIME_ZONE_PRESET_COUNT) return 0;
-  return (uint8_t)value;
-}
-
-static void load_time_zone_presets(void) {
-  s_top_left_time_zone = load_time_zone_preset(TZ_TOP_LEFT_PERSIST_KEY);
-  s_top_right_time_zone = load_time_zone_preset(TZ_TOP_RIGHT_PERSIST_KEY);
-  s_left_time_zone = load_time_zone_preset(TZ_LEFT_PERSIST_KEY);
-  s_right_time_zone = load_time_zone_preset(TZ_RIGHT_PERSIST_KEY);
-}
 
 
 typedef enum {
@@ -1075,6 +1062,21 @@ static char s_tz_top_left_buf[12];
 static char s_tz_top_right_buf[12];
 static char s_tz_left_buf[12];
 static char s_tz_right_buf[12];
+
+static uint8_t load_time_zone_preset(uint32_t persist_key) {
+  if (!persist_exists(persist_key)) return 0;
+  int value = persist_read_int(persist_key);
+  if (value < 0 || value >= TIME_ZONE_PRESET_COUNT) return 0;
+  return (uint8_t)value;
+}
+
+static void load_time_zone_presets(void) {
+  s_top_left_time_zone = load_time_zone_preset(TZ_TOP_LEFT_PERSIST_KEY);
+  s_top_right_time_zone = load_time_zone_preset(TZ_TOP_RIGHT_PERSIST_KEY);
+  s_left_time_zone = load_time_zone_preset(TZ_LEFT_PERSIST_KEY);
+  s_right_time_zone = load_time_zone_preset(TZ_RIGHT_PERSIST_KEY);
+}
+
 static bool s_bluetooth_connected = false;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
