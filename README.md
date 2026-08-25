@@ -604,3 +604,23 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - KiezelPay verbose logging enabled for final validation.
 - This build is for development preview only and must not be published.
 - Before release, KIEZELPAY_TEST_MODE and KIEZELPAY_LOG_VERBOSE must both be returned to 0.
+
+## v2.9.6 DEV — 15-minute weather refresh
+- Added 15 Minutes as a Weather Refresh Interval option.
+- Existing 30-minute, 1-hour, 2-hour, 3-hour, and 6-hour options remain unchanged.
+- Cached weather continues to remain visible between scheduled refreshes.
+- Default refresh interval remains 1 hour.
+- Built from the stable pre-Time-Zone v2.9.5 DEV baseline.
+
+## v2.9.7 DEV — Top hidden-label vertical alignment
+- Vertically centered enlarged values in the top bar when Hide Label is enabled.
+- Applies consistently to top-left, top-center, and top-right.
+- Normal labeled layouts and calendar positioning are unchanged.
+- Retains the 15-minute Weather Refresh option from v2.9.6.
+
+## v2.9.8 DEV — Language selector synchronization
+- Settings now keeps a session copy of the language reported by the watch.
+- When Settings opens, the Language selector prefers the watch-authoritative value over stale phone storage.
+- Saving a new language updates both session state and persistent phone storage immediately.
+- Existing language choices and translations are unchanged.
+- Retains the 15-minute weather option and top hidden-label alignment fixes.

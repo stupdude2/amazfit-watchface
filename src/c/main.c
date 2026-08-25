@@ -1936,10 +1936,10 @@ static void update_header_content(void) {
   layer_set_frame(
       text_layer_get_layer(s_top_left_val),
       GRect(4,
-            left_calendar ? 4 : (left_label_hidden ? 7 : 15),
+            left_calendar ? 4 : (left_label_hidden ? 10 : 15),
             left_w,
             left_calendar ? HEADER_H - 5 :
-              (left_label_hidden ? HEADER_H - 8 : 34)));
+              (left_label_hidden ? HEADER_H - 11 : 34)));
 
   const int top_center_value_x =
       DATEBOX_X + ((s_settings.top_center_slot == SLOT_WEATHER) ? 2 : 0);
@@ -1950,20 +1950,20 @@ static void update_header_content(void) {
       text_layer_get_layer(s_top_center_val),
       GRect(top_center_value_x,
             center_calendar ? 4 :
-              (center_label_hidden ? 7 :
+              (center_label_hidden ? 10 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15)),
             top_center_value_w,
             center_calendar ? HEADER_H - 5 :
-              (center_label_hidden ? HEADER_H - 8 :
+              (center_label_hidden ? HEADER_H - 11 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34))));
 
   layer_set_frame(
       text_layer_get_layer(s_top_right_val),
       GRect(top_right_x,
-            right_calendar ? 4 : (right_label_hidden ? 7 : 15),
+            right_calendar ? 4 : (right_label_hidden ? 10 : 15),
             top_right_w,
             right_calendar ? HEADER_H - 5 :
-              (right_label_hidden ? HEADER_H - 8 : 34)));
+              (right_label_hidden ? HEADER_H - 11 : 34)));
 
   text_layer_set_text_alignment(
       s_top_left_label,

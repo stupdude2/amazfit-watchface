@@ -133,6 +133,7 @@ var config = [
         "label": "Weather Refresh Interval",
         "description": "Cached weather remains visible between refreshes.",
         "options": [
+          { "label": "15 Minutes", "value": "15" },
           { "label": "30 Minutes", "value": "30" },
           { "label": "1 Hour", "value": "60" },
           { "label": "2 Hours", "value": "120" },

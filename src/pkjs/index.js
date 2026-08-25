@@ -331,6 +331,7 @@ function restorePersistedTrialToWatch() {
 }
 var sessionLicenseKnown = false;
 var sessionTrialUsed = trialWasUsedOnPhone();
+var sessionWatchLanguage = null;
 var pendingOpenSettings = false;
 
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
@@ -414,7 +415,10 @@ function openSettingsPage() {
 
     // Language is a Free preference. Keep the selector available and
     // synchronized regardless of entitlement.
-    clay.setSettings('LANGUAGE', String(getStoredLanguage()));
+    var languageForSettings =
+        sessionWatchLanguage !== null ? sessionWatchLanguage : getStoredLanguage();
+    clay.setSettings('LANGUAGE', String(languageForSettings));
+    console.log('Settings language selected: ' + languageForSettings);
 
     // Weather refresh is phone-side only, so keep Clay synchronized with the
     // value stored by Big Time rather than sending it to the watch.
@@ -498,7 +502,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var settings = clay.getSettings(e.response);
 
     if (settings && typeof settings.LANGUAGE !== 'undefined') {
-      storeLanguage(settings.LANGUAGE);
+      sessionWatchLanguage = parseInt(settings.LANGUAGE, 10);
+      storeLanguage(sessionWatchLanguage);
     }
 
     if (settings && typeof settings.WEATHER_REFRESH !== 'undefined') {
@@ -580,7 +585,7 @@ function getWeatherRefreshMinutes() {
   try {
     var value = parseInt(
       localStorage.getItem(WEATHER_REFRESH_SETTING_KEY), 10);
-    if (value === 30 || value === 60 || value === 120 ||
+    if (value === 15 || value === 30 || value === 60 || value === 120 ||
         value === 180 || value === 360) {
       return value;
     }
@@ -590,7 +595,7 @@ function getWeatherRefreshMinutes() {
 
 function setWeatherRefreshMinutes(value) {
   value = parseInt(value, 10);
-  if (value !== 30 && value !== 60 && value !== 120 &&
+  if (value !== 15 && value !== 30 && value !== 60 && value !== 120 &&
       value !== 180 && value !== 360) {
     value = DEFAULT_WEATHER_REFRESH_MINUTES;
   }
@@ -806,8 +811,9 @@ Pebble.addEventListener('appmessage', function(e) {
   // The watch is authoritative for the active language. Capture it whenever
   // present so the next Settings page reflects what is actually displayed.
   if (typeof e.payload.LANGUAGE !== 'undefined') {
-    storeLanguage(e.payload.LANGUAGE);
-    console.log('Synced language from watch: ' + e.payload.LANGUAGE);
+    sessionWatchLanguage = parseInt(e.payload.LANGUAGE, 10);
+    storeLanguage(sessionWatchLanguage);
+    console.log('Synced language from watch: ' + sessionWatchLanguage);
   }
 
   if (typeof e.payload.CONFIG_ACK !== 'undefined') {
