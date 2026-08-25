@@ -555,3 +555,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Language now persists correctly for both Free and Pro users.
 - Free-mode enforcement explicitly preserves Time Format, Center 12 Hour Clock, Temperature Unit, and Language.
 - Added watch-side logging for language changes to simplify future translation testing.
+
+## v2.8.4 — Language build fix
+- Moved the WatchLanguage enum alongside the other settings enums so LANG_ENGLISH and LANG_SWEDISH are declared before Free-default logic uses them.
+- No translation behavior changed from v2.8.3.
+- Swedish/English selection still persists for both Free and Pro users.

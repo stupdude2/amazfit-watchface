@@ -189,6 +189,11 @@ typedef enum {
 } ClockTimeFormat;
 
 typedef enum {
+  LANG_ENGLISH = 0,
+  LANG_SWEDISH = 1
+} WatchLanguage;
+
+typedef enum {
   RAISE_WAKE_OFF = 0,
   RAISE_WAKE_NORMAL = 1,
   RAISE_WAKE_SENSITIVE = 2
@@ -1586,11 +1591,6 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 }
 
 static void update_time(struct tm *tick_time);
-
-typedef enum {
-  LANG_ENGLISH = 0,
-  LANG_SWEDISH = 1
-} WatchLanguage;
 
 typedef enum {
   TXT_WEATHER,
