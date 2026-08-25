@@ -680,3 +680,15 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Raised connected Bluetooth icons in Top Left and Top Right by 3 px.
 - Corrects the visually low alignment in the upper side slots.
 - Top Center and bottom Bluetooth positioning remain unchanged.
+
+## v3.0.0 DEV RC — Isolated side-slot Time Zones
+- Reimplemented Time Zone support directly on the stable v2.9.17 release-candidate baseline.
+- Time Zone is available only in Top Left, Top Right, Bottom Left, and Bottom Right.
+- Top Center and Bottom Center are untouched.
+- Selecting Time Zone reveals one slot-specific Time Zone dropdown using the existing Clay slot-change listener; no competing listener is added.
+- Timezone choices are persisted separately from WatchfaceSettings, so SETTINGS_VERSION and all existing saved settings remain untouched.
+- Local Time uses the watch's native local clock/timezone.
+- Additional choices are explicit UTC offsets from UTC-12:00 through UTC+14:00, including common half-hour and quarter-hour offsets.
+- Time Zone values follow Big Time's current 12/24-hour format.
+- Hide Label is supported for Time Zone; the enlarged timezone time uses the medium font for reliable fit.
+- No changes were made to KiezelPay entitlement, language synchronization, weather caching, battery options, or center-slot behavior.

@@ -52,7 +52,7 @@ function customClay(minified) {
       value = String(value);
       return value === '0' || value === '1' || value === '3' ||
              value === '8' || value === '9' || value === '10' ||
-             value === '11' || value === '12';
+             value === '11' || value === '12' || value === '15';
     }
 
     function centerSlotHasLabel(value, topCenter) {
@@ -65,30 +65,52 @@ function customClay(minified) {
       return value === '0' || value === '3';
     }
 
-    function bindConditionalLabelToggle(slotKey, toggleKey, isCenter, isTopCenter) {
+    function bindConditionalLabelToggle(
+        slotKey, toggleKey, isCenter, isTopCenter, timeZoneKey) {
       var slot = clayPage.getItemByMessageKey(slotKey);
       var toggle = clayPage.getItemByMessageKey(toggleKey);
+      var timeZone = timeZoneKey
+        ? clayPage.getItemByMessageKey(timeZoneKey)
+        : null;
       if (!slot || !toggle) return;
 
       function sync() {
+        var slotValue = String(slot.get());
         var visible = isCenter
-          ? centerSlotHasLabel(slot.get(), isTopCenter)
-          : sideSlotHasLabel(slot.get());
+          ? centerSlotHasLabel(slotValue, isTopCenter)
+          : sideSlotHasLabel(slotValue);
 
         if (visible) toggle.show();
         else toggle.hide();
+
+        // Side positions use this same listener for the dependent Time Zone
+        // selector. No second listener is attached to the slot.
+        if (timeZone) {
+          if (slotValue === '15') timeZone.show();
+          else timeZone.hide();
+        }
       }
 
       sync();
       slot.on('change', sync);
     }
 
-    bindConditionalLabelToggle('TOP_LEFT_SLOT', 'TOP_LEFT_HIDE_LABEL', false, false);
-    bindConditionalLabelToggle('TOP_CENTER_SLOT', 'TOP_CENTER_HIDE_LABEL', true, true);
-    bindConditionalLabelToggle('TOP_RIGHT_SLOT', 'TOP_RIGHT_HIDE_LABEL', false, false);
-    bindConditionalLabelToggle('LEFT_SLOT', 'LEFT_HIDE_LABEL', false, false);
-    bindConditionalLabelToggle('CENTER_SLOT', 'CENTER_HIDE_LABEL', true, false);
-    bindConditionalLabelToggle('RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle(
+      'TOP_LEFT_SLOT', 'TOP_LEFT_HIDE_LABEL', false, false,
+      'TOP_LEFT_TIME_ZONE');
+    bindConditionalLabelToggle(
+      'TOP_CENTER_SLOT', 'TOP_CENTER_HIDE_LABEL', true, true, null);
+    bindConditionalLabelToggle(
+      'TOP_RIGHT_SLOT', 'TOP_RIGHT_HIDE_LABEL', false, false,
+      'TOP_RIGHT_TIME_ZONE');
+    bindConditionalLabelToggle(
+      'LEFT_SLOT', 'LEFT_HIDE_LABEL', false, false,
+      'LEFT_TIME_ZONE');
+    bindConditionalLabelToggle(
+      'CENTER_SLOT', 'CENTER_HIDE_LABEL', true, false, null);
+    bindConditionalLabelToggle(
+      'RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false,
+      'RIGHT_TIME_ZONE');
 
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
@@ -195,6 +217,10 @@ function customClay(minified) {
         setValue('TEMP_UNIT', '0');
         setValue('LANGUAGE', '0');
         setValue('WEATHER_REFRESH', '60');
+        setValue('TOP_LEFT_TIME_ZONE', '0');
+        setValue('TOP_RIGHT_TIME_ZONE', '0');
+        setValue('LEFT_TIME_ZONE', '0');
+        setValue('RIGHT_TIME_ZONE', '0');
         setValue('RIGHT_HIDE_LABEL', false);
         setValue('CENTER_HIDE_LABEL', false);
         setValue('LEFT_HIDE_LABEL', false);

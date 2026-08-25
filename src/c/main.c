@@ -121,6 +121,10 @@ static bool conditional_ui_is_visible(void);
 #define KEY_CENTER_HIDE_LABEL     33
 #define KEY_RIGHT_HIDE_LABEL      34
 #define KEY_LANGUAGE              35
+#define KEY_TOP_LEFT_TIME_ZONE    36
+#define KEY_TOP_RIGHT_TIME_ZONE   37
+#define KEY_LEFT_TIME_ZONE        38
+#define KEY_RIGHT_TIME_ZONE       39
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -148,7 +152,8 @@ typedef enum {
   SLOT_SUNSET = 11,
   SLOT_HIGH_LOW = 12,
   SLOT_BATTERY_ICON = 13,
-  SLOT_BATTERY_PERCENT = 14
+  SLOT_BATTERY_PERCENT = 14,
+  SLOT_TIME_ZONE = 15
 } SideSlotContent;
 
 typedef enum {
@@ -200,6 +205,54 @@ typedef enum {
   LANG_GERMAN = 4,
   LANG_PORTUGUESE = 5
 } WatchLanguage;
+
+typedef struct {
+  int16_t utc_offset_minutes;
+  bool use_local;
+} TimeZonePreset;
+
+static const TimeZonePreset TIME_ZONE_PRESETS[] = {
+  {    0, true  },  // Local Time
+  { -720, false },  // UTC-12:00
+  { -660, false },  // UTC-11:00
+  { -600, false },  // UTC-10:00
+  { -540, false },  // UTC-09:00
+  { -480, false },  // UTC-08:00
+  { -420, false },  // UTC-07:00
+  { -360, false },  // UTC-06:00
+  { -300, false },  // UTC-05:00
+  { -240, false },  // UTC-04:00
+  { -180, false },  // UTC-03:00
+  { -120, false },  // UTC-02:00
+  {  -60, false },  // UTC-01:00
+  {    0, false },  // UTC
+  {   60, false },  // UTC+01:00
+  {  120, false },  // UTC+02:00
+  {  180, false },  // UTC+03:00
+  {  210, false },  // UTC+03:30
+  {  240, false },  // UTC+04:00
+  {  270, false },  // UTC+04:30
+  {  300, false },  // UTC+05:00
+  {  330, false },  // UTC+05:30
+  {  345, false },  // UTC+05:45
+  {  360, false },  // UTC+06:00
+  {  390, false },  // UTC+06:30
+  {  420, false },  // UTC+07:00
+  {  480, false },  // UTC+08:00
+  {  525, false },  // UTC+08:45
+  {  540, false },  // UTC+09:00
+  {  570, false },  // UTC+09:30
+  {  600, false },  // UTC+10:00
+  {  630, false },  // UTC+10:30
+  {  660, false },  // UTC+11:00
+  {  720, false },  // UTC+12:00
+  {  765, false },  // UTC+12:45
+  {  780, false },  // UTC+13:00
+  {  840, false }   // UTC+14:00
+};
+
+#define TIME_ZONE_PRESET_COUNT ((uint8_t)ARRAY_LENGTH(TIME_ZONE_PRESETS))
+
 
 typedef enum {
   RAISE_WAKE_OFF = 0,
@@ -417,6 +470,10 @@ static bool s_pro_unlocked = false;
 #define PRO_TRIAL_PERSIST_KEY  1002
 #define PURCHASED_PRO_PERSIST_KEY 1003
 #define WEATHER_CACHE_PERSIST_KEY 1004
+#define TZ_TOP_LEFT_PERSIST_KEY   1101
+#define TZ_TOP_RIGHT_PERSIST_KEY  1102
+#define TZ_LEFT_PERSIST_KEY       1103
+#define TZ_RIGHT_PERSIST_KEY      1104
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -539,6 +596,10 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_LEFT_HIDE_LABEL:
     case KEY_CENTER_HIDE_LABEL:
     case KEY_RIGHT_HIDE_LABEL:
+    case KEY_TOP_LEFT_TIME_ZONE:
+    case KEY_TOP_RIGHT_TIME_ZONE:
+    case KEY_LEFT_TIME_ZONE:
+    case KEY_RIGHT_TIME_ZONE:
       return true;
     default:
       return false;
@@ -548,18 +609,18 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_BATTERY_PERCENT &&
+         settings->left_slot <= SLOT_TIME_ZONE &&
          ((settings->center_slot <= CENTER_MONTH &&
            settings->center_slot != CENTER_STEPS) ||
           settings->center_slot == CENTER_BATTERY_ICON ||
           settings->center_slot == CENTER_BATTERY_PERCENT) &&
-         settings->right_slot <= SLOT_BATTERY_PERCENT &&
-         settings->top_left_slot <= SLOT_BATTERY_PERCENT &&
+         settings->right_slot <= SLOT_TIME_ZONE &&
+         settings->top_left_slot <= SLOT_TIME_ZONE &&
          ((settings->top_center_slot <= SLOT_MONTH &&
            settings->top_center_slot != SLOT_STEPS) ||
           settings->top_center_slot == SLOT_BATTERY_ICON ||
           settings->top_center_slot == SLOT_BATTERY_PERCENT) &&
-         settings->top_right_slot <= SLOT_BATTERY_PERCENT &&
+         settings->top_right_slot <= SLOT_TIME_ZONE &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1009,6 +1070,29 @@ static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
 static int  s_heart_rate  = 0;
 static int  s_battery_percent = 0;
+static uint8_t s_top_left_time_zone = 0;
+static uint8_t s_top_right_time_zone = 0;
+static uint8_t s_left_time_zone = 0;
+static uint8_t s_right_time_zone = 0;
+static char s_tz_top_left_buf[12];
+static char s_tz_top_right_buf[12];
+static char s_tz_left_buf[12];
+static char s_tz_right_buf[12];
+static uint8_t load_time_zone_preset(uint32_t persist_key) {
+  if (!persist_exists(persist_key)) return 0;
+
+  int value = persist_read_int(persist_key);
+  if (value < 0 || value >= TIME_ZONE_PRESET_COUNT) return 0;
+  return (uint8_t)value;
+}
+
+static void load_time_zone_presets(void) {
+  s_top_left_time_zone = load_time_zone_preset(TZ_TOP_LEFT_PERSIST_KEY);
+  s_top_right_time_zone = load_time_zone_preset(TZ_TOP_RIGHT_PERSIST_KEY);
+  s_left_time_zone = load_time_zone_preset(TZ_LEFT_PERSIST_KEY);
+  s_right_time_zone = load_time_zone_preset(TZ_RIGHT_PERSIST_KEY);
+}
+
 static bool s_bluetooth_connected = false;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
@@ -1759,6 +1843,38 @@ static const char *watch_text(WatchTextId id) {
   }
 }
 
+static void format_time_zone_value(uint8_t preset_index,
+                                   char *buffer,
+                                   size_t buffer_size) {
+  if (preset_index >= TIME_ZONE_PRESET_COUNT) preset_index = 0;
+
+  time_t now = time(NULL);
+  struct tm *time_ptr = NULL;
+
+  if (TIME_ZONE_PRESETS[preset_index].use_local) {
+    time_ptr = localtime(&now);
+  } else {
+    time_t shifted =
+        now + ((time_t)TIME_ZONE_PRESETS[preset_index].utc_offset_minutes * 60);
+    time_ptr = gmtime(&shifted);
+  }
+
+  if (!time_ptr) {
+    snprintf(buffer, buffer_size, "--");
+    return;
+  }
+
+  if (s_settings.time_format == TIME_FORMAT_24H) {
+    snprintf(buffer, buffer_size, "%02d:%02d",
+             time_ptr->tm_hour, time_ptr->tm_min);
+  } else {
+    int hour12 = time_ptr->tm_hour % 12;
+    if (hour12 == 0) hour12 = 12;
+    snprintf(buffer, buffer_size, "%d:%02d",
+             hour12, time_ptr->tm_min);
+  }
+}
+
 static const char *side_slot_label(uint8_t slot) {
   switch (slot) {
     case SLOT_STEPS: return watch_text(TXT_STEPS);
@@ -1773,6 +1889,7 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_SUNRISE: return watch_text(TXT_RISE);
     case SLOT_SUNSET: return watch_text(TXT_SET);
     case SLOT_HIGH_LOW: return watch_text(TXT_HIGH_LOW);
+    case SLOT_TIME_ZONE: return "TZ";
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -1813,6 +1930,8 @@ static const char *side_slot_value(uint8_t slot) {
       return s_sunset_buf;
     case SLOT_HIGH_LOW:
       return high_low_text();
+    case SLOT_TIME_ZONE:
+      return "";
     case SLOT_BATTERY_ICON:
       return "";
     case SLOT_BATTERY_PERCENT:
@@ -1822,6 +1941,34 @@ static const char *side_slot_value(uint8_t slot) {
     default:
       return s_weather_buf;
   }
+}
+
+static const char *top_side_slot_value(uint8_t slot, bool left_side) {
+  if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
+
+  if (left_side) {
+    format_time_zone_value(s_top_left_time_zone,
+                           s_tz_top_left_buf, sizeof(s_tz_top_left_buf));
+    return s_tz_top_left_buf;
+  }
+
+  format_time_zone_value(s_top_right_time_zone,
+                         s_tz_top_right_buf, sizeof(s_tz_top_right_buf));
+  return s_tz_top_right_buf;
+}
+
+static const char *bottom_side_slot_value(uint8_t slot, bool left_side) {
+  if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
+
+  if (left_side) {
+    format_time_zone_value(s_left_time_zone,
+                           s_tz_left_buf, sizeof(s_tz_left_buf));
+    return s_tz_left_buf;
+  }
+
+  format_time_zone_value(s_right_time_zone,
+                         s_tz_right_buf, sizeof(s_tz_right_buf));
+  return s_tz_right_buf;
 }
 
 static const char *center_slot_label(void) {
@@ -1870,7 +2017,8 @@ static bool side_slot_has_optional_label(uint8_t slot) {
          slot == SLOT_DISTANCE ||
          slot == SLOT_SUNRISE ||
          slot == SLOT_SUNSET ||
-         slot == SLOT_HIGH_LOW;
+         slot == SLOT_HIGH_LOW ||
+         slot == SLOT_TIME_ZONE;
 }
 
 static bool center_slot_has_optional_label(uint8_t slot) {
@@ -1902,6 +2050,7 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == SLOT_DISTANCE) return true;
   if (slot == SLOT_SUNRISE || slot == SLOT_SUNSET) return true;
   if (slot == SLOT_HIGH_LOW) return true;
+  if (slot == SLOT_TIME_ZONE) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
   return false;
@@ -1959,7 +2108,7 @@ static void update_header_content(void) {
           ? "" : top_slot_label(s_settings.top_left_slot));
   text_layer_set_text(
       s_top_left_val,
-      top_slot_value(s_settings.top_left_slot));
+      top_side_slot_value(s_settings.top_left_slot, true));
 
   const char *center_label =
       s_settings.top_center_slot == SLOT_WEATHER
@@ -1984,7 +2133,7 @@ static void update_header_content(void) {
           ? "" : top_slot_label(s_settings.top_right_slot));
   text_layer_set_text(
       s_top_right_val,
-      top_slot_value(s_settings.top_right_slot));
+      top_side_slot_value(s_settings.top_right_slot, false));
 
   // Hidden-label data normally uses the same large font as DAY / DATE / MONTH.
   // Long values use a 28px medium font before Pebble can ellipsize.
@@ -2114,7 +2263,7 @@ static void update_footer_content(void) {
        s_settings.left_slot == SLOT_BATTERY_ICON ||
        s_settings.left_slot == SLOT_BATTERY_PERCENT)
           ? "" : side_slot_label(s_settings.left_slot));
-  text_layer_set_text(s_left_val, side_slot_value(s_settings.left_slot));
+  text_layer_set_text(s_left_val, bottom_side_slot_value(s_settings.left_slot, true));
 
   text_layer_set_text(
       s_center_label,
@@ -2130,7 +2279,7 @@ static void update_footer_content(void) {
        s_settings.right_slot == SLOT_BATTERY_ICON ||
        s_settings.right_slot == SLOT_BATTERY_PERCENT)
           ? "" : side_slot_label(s_settings.right_slot));
-  text_layer_set_text(s_right_val, side_slot_value(s_settings.right_slot));
+  text_layer_set_text(s_right_val, bottom_side_slot_value(s_settings.right_slot, false));
 
   const bool left_medium_for_fit =
       left_label_hidden &&
@@ -3044,7 +3193,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) {
+        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -3067,7 +3216,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) {
+        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -3077,7 +3226,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -3093,7 +3242,47 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_BATTERY_PERCENT) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        break;
+      }
+
+      case KEY_TOP_LEFT_TIME_ZONE: {
+        int32_t value = tuple_to_int32(t, s_top_left_time_zone);
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+          s_top_left_time_zone = (uint8_t)value;
+          persist_write_int(TZ_TOP_LEFT_PERSIST_KEY, value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_TOP_RIGHT_TIME_ZONE: {
+        int32_t value = tuple_to_int32(t, s_top_right_time_zone);
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+          s_top_right_time_zone = (uint8_t)value;
+          persist_write_int(TZ_TOP_RIGHT_PERSIST_KEY, value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_LEFT_TIME_ZONE: {
+        int32_t value = tuple_to_int32(t, s_left_time_zone);
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+          s_left_time_zone = (uint8_t)value;
+          persist_write_int(TZ_LEFT_PERSIST_KEY, value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_RIGHT_TIME_ZONE: {
+        int32_t value = tuple_to_int32(t, s_right_time_zone);
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+          s_right_time_zone = (uint8_t)value;
+          persist_write_int(TZ_RIGHT_PERSIST_KEY, value);
+          layout_changed = true;
+        }
         break;
       }
 
@@ -3674,6 +3863,7 @@ static void window_unload(Window *window) {
 
 static void init(void) {
   settings_load();
+  load_time_zone_presets();
   weather_cache_load();
 
   // weather_cache_load() restores the raw Celsius value and availability flag.
