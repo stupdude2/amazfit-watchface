@@ -560,3 +560,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Moved the WatchLanguage enum alongside the other settings enums so LANG_ENGLISH and LANG_SWEDISH are declared before Free-default logic uses them.
 - No translation behavior changed from v2.8.3.
 - Swedish/English selection still persists for both Free and Pro users.
+
+## v2.8.5 — Swedish calendar text fix
+- Expanded weekday and month buffers for UTF-8 translations.
+- Fixes MÅN being truncated to MÅ because Å uses two bytes in UTF-8.
+- Adds headroom for future translated calendar abbreviations.

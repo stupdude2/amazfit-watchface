@@ -978,9 +978,9 @@ static GFont s_font_label;
 static GFont s_font_value;
 
 // ── State ─────────────────────────────────────────────────────────────────────
-static char s_day_buf[4];
+static char s_day_buf[8];
 static char s_date_buf[3];
-static char s_month_buf[4];
+static char s_month_buf[8];
 static char s_hr_buf[12];
 static char s_steps_buf[8];
 static char s_weather_buf[12];
