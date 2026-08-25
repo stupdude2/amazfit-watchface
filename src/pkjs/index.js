@@ -441,23 +441,37 @@ Pebble.addEventListener('showConfiguration', function() {
   // controls which Clay controls are shown; C-side licensing remains the
   // authority and still rejects locked Pro AppMessage keys.
   if (sessionEntitlement === 2 || cachedPurchasedUi()) {
+    // Purchased Pro can use the cached entitlement for UI availability, but
+    // Settings must wait for one fresh watch status response so LANGUAGE (and
+    // any other watch-authoritative status values) are current before Clay is
+    // generated. Previously Settings opened first, then LANGUAGE arrived a
+    // moment later, leaving the selector one step behind.
     sessionEntitlement = 2;
     sessionProUnlocked = true;
-    sessionLicenseKnown = true;
-    pendingOpenSettings = false;
+    sessionLicenseKnown = false;
+    pendingOpenSettings = true;
 
-    console.log('Opening cached Purchased Pro settings immediately');
-    openSettingsPage();
+    console.log('Refreshing purchased Pro status before opening Settings');
 
-    // Refresh entitlement quietly in the background so a future genuine
-    // unlicensed result can clear the cache without blocking this settings tap.
     Pebble.sendAppMessage(
       {'LICENSE_CHECK': 1},
       function() {},
       function(err) {
-        console.log('Background license refresh failed: ' + JSON.stringify(err));
+        console.log('Purchased status refresh send failed: ' + JSON.stringify(err));
       }
     );
+
+    // Purchased status normally returns almost immediately. Keep a short
+    // fallback so Settings remains responsive if AppMessage is delayed.
+    setTimeout(function() {
+      if (pendingOpenSettings) {
+        pendingOpenSettings = false;
+        sessionLicenseKnown = true;
+        console.log('Purchased status refresh timed out; opening cached Settings');
+        openSettingsPage();
+      }
+    }, 1500);
+
     return;
   }
 

@@ -637,3 +637,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Stale mismatched watch-language responses are ignored while confirmation is pending.
 - Settings prioritizes the just-saved language, then the latest confirmed watch language, then phone storage.
 - Existing translations, weather refresh options, and top hidden-label alignment are unchanged.
+
+## v2.9.11 DEV — Correct language before Settings opens
+- Fixed the remaining Language selector timing issue for purchased Pro users.
+- Purchased Settings no longer opens immediately from cached entitlement before the watch replies.
+- Big Time now requests a fresh LICENSE_CHECK/status response first; that response already contains the watch's current LANGUAGE.
+- The existing AppMessage language handler updates the selected language before the entitlement handler opens Clay.
+- Added a 1.5-second fallback so Settings cannot become unresponsive if the status response is delayed.
+- This directly fixes the observed sequence where Settings opened as English and Swedish arrived immediately afterward.
