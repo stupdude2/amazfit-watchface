@@ -733,3 +733,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Added a dedicated 20 px bold font for hidden-label Time Zone values.
 - Expanded hidden Time Zone text frames by 16 px total so long 12-hour values such as 12:59 PM fit without ellipsis.
 - Other hidden-label values and normal Time Zone labels remain unchanged.
+
+## v3.0.8 DEV RC — Hidden Time Zone font build fix
+- Replaced unsupported FONT_KEY_GOTHIC_20_BOLD with Pebble's supported FONT_KEY_GOTHIC_18_BOLD.
+- Keeps the dedicated smaller hidden Time Zone font and widened text frames from v3.0.7.
+- Fixes the Emery compile failure without changing Time Zone behavior.

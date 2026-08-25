@@ -3703,7 +3703,7 @@ static void window_load(Window *window) {
   s_font_medium = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   s_font_value  = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-  s_font_timezone_hidden = fonts_get_system_font(FONT_KEY_GOTHIC_20_BOLD);
+  s_font_timezone_hidden = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
 
   // Header — full height, datebox starts at y=0
   s_header_layer = layer_create(GRect(0, 0, SCREEN_W, HEADER_H));
