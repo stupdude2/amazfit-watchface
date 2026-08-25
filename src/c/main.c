@@ -549,10 +549,18 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
          settings->left_slot <= SLOT_BATTERY_PERCENT &&
-         settings->center_slot <= CENTER_BATTERY_PERCENT &&
+         ((settings->center_slot >= CENTER_HEART_RATE &&
+           settings->center_slot <= CENTER_MONTH &&
+           settings->center_slot != CENTER_STEPS) ||
+          settings->center_slot == CENTER_BATTERY_ICON ||
+          settings->center_slot == CENTER_BATTERY_PERCENT) &&
          settings->right_slot <= SLOT_BATTERY_PERCENT &&
          settings->top_left_slot <= SLOT_BATTERY_PERCENT &&
-         settings->top_center_slot <= SLOT_MONTH &&
+         ((settings->top_center_slot >= SLOT_WEATHER &&
+           settings->top_center_slot <= SLOT_MONTH &&
+           settings->top_center_slot != SLOT_STEPS) ||
+          settings->top_center_slot == SLOT_BATTERY_ICON ||
+          settings->top_center_slot == SLOT_BATTERY_PERCENT) &&
          settings->top_right_slot <= SLOT_BATTERY_PERCENT &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
@@ -1378,7 +1386,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
     draw_battery_icon(ctx, GRect(left_area.origin.x, 7, 36, 9), s_battery_percent, side_fg);
   else if (s_settings.top_left_slot == SLOT_BATTERY_ICON)
     draw_battery_icon_fat(ctx,
-        GRect(left_area.origin.x + (left_area.size.w - 42) / 2, 18, 42, 16),
+        GRect(left_area.origin.x + (left_area.size.w - 42) / 2, 15, 42, 16),
         s_battery_percent, side_fg);
   else if (s_settings.top_left_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(left_area.origin.x + left_area.size.w/2, 27), 34, 30, side_fg, true);
@@ -1394,7 +1402,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
     draw_battery_icon(ctx, GRect(right_area.origin.x + right_area.size.w - 36, 7, 36, 9), s_battery_percent, side_fg);
   else if (s_settings.top_right_slot == SLOT_BATTERY_ICON)
     draw_battery_icon_fat(ctx,
-        GRect(right_area.origin.x + (right_area.size.w - 42) / 2, 18, 42, 16),
+        GRect(right_area.origin.x + (right_area.size.w - 42) / 2, 15, 42, 16),
         s_battery_percent, side_fg);
   else if (s_settings.top_right_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(right_area.origin.x + right_area.size.w/2, 27), 34, 30, side_fg, true);

@@ -657,3 +657,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Moved the combined Battery (icon + %) icon upward in the top-left and top-right slots.
 - Top combined battery formatting now matches the bottom-bar layout, with the icon above the percentage instead of overlapping it.
 - Top-center combined battery was already correctly positioned and remains unchanged.
+
+## v2.9.14 DEV — Battery center validation and icon alignment
+- Fixed new Battery Icon / Battery % choices in Top Center being accepted by the AppMessage handler but rejected by settings validation.
+- Top Center and Bottom Center validation now mirror their actual allowed selector values.
+- Prevents the safety validator from restoring defaults when a new center battery option is selected.
+- Raised icon-only battery in Top Left and Top Right from y=18 to y=15, matching the bottom icon-only battery position.
+- Existing combined battery and language synchronization behavior are unchanged.
