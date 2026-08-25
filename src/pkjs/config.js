@@ -66,6 +66,24 @@ var config = [
   {
     "type": "section",
     "items": [
+      { "type": "heading", "defaultValue": "Language" },
+      {
+        "type": "select",
+        "messageKey": "LANGUAGE",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Watchface Language",
+        "description": "Changes text displayed on the watchface.",
+        "options": [
+          { "label": "English", "value": "0" },
+          { "label": "Svenska", "value": "1" }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "section",
+    "items": [
       { "type": "heading", "defaultValue": "Clock" },
       {
         "type": "select",
@@ -101,6 +119,21 @@ var config = [
         "options": [
           { "label": "Fahrenheit (°F)", "value": "0" },
           { "label": "Celsius (°C)", "value": "1" }
+        ]
+      },
+      {
+        "type": "select",
+        "messageKey": "WEATHER_REFRESH",
+        "defaultValue": "60",
+        "serializeValueAs": "integer",
+        "label": "Weather Refresh Interval",
+        "description": "Cached weather remains visible between refreshes.",
+        "options": [
+          { "label": "30 Minutes", "value": "30" },
+          { "label": "1 Hour", "value": "60" },
+          { "label": "2 Hours", "value": "120" },
+          { "label": "3 Hours", "value": "180" },
+          { "label": "6 Hours", "value": "360" }
         ]
       }
     ]

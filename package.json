@@ -52,7 +52,8 @@
       "TOP_RIGHT_HIDE_LABEL": 31,
       "LEFT_HIDE_LABEL": 32,
       "CENTER_HIDE_LABEL": 33,
-      "RIGHT_HIDE_LABEL": 34
+      "RIGHT_HIDE_LABEL": 34,
+      "LANGUAGE": 35
     },
     "projectType": "native",
     "resources": {
@@ -122,5 +123,5 @@
       "watchface": true
     }
   },
-  "version": "2.7.2"
+  "version": "2.8.2"
 }

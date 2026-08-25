@@ -523,3 +523,29 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Removed the lingering Steps option from Top Center.
 - Steps remains unavailable in both center positions as intended.
 - Bottom Right continues to default to Steps.
+
+## v2.8.0 — Watchface translations
+- Added a Language selector to settings with English and Swedish (Svenska).
+- Swedish translates watchface data labels plus day-of-week and month abbreviations.
+- Language is a Free setting and persists independently of Pro entitlement.
+- Added a table-driven translation layer in main.c so future languages can be added by supplying one translation record and one settings option.
+- Restore Defaults returns the watchface language to English.
+
+## v2.8.1 — Persistent weather cache
+- Weather remains visible when Big Time returns from menus or the watchface process restarts.
+- The watch persists the last successful temperature, icon, high/low, sunrise, and sunset values and restores them before drawing the UI.
+- PebbleKit JS also caches the last successful Open-Meteo payload in localStorage.
+- Cached weather remains static until the next scheduled refresh.
+- Open-Meteo/location refreshes now run on a 30-minute interval instead of fetching every PebbleKit launch.
+- Failed refreshes leave the previous weather visible.
+- Refresh timing is centralized in WEATHER_REFRESH_MS for easy future configuration.
+
+## v2.8.2 — Configurable weather refresh interval
+- Added Weather Refresh Interval to Big Time settings.
+- Available intervals: 30 minutes, 1 hour, 2 hours, 3 hours, and 6 hours.
+- Default interval is 1 hour.
+- The selected interval is stored on the phone side and survives watchface restarts.
+- Cached weather remains displayed continuously between refreshes.
+- Changing the interval does not clear or immediately replace cached weather; it recalculates when the next refresh is due.
+- Failed location/network/Open-Meteo refreshes continue showing the last successful cached weather.
+- Weather Refresh is intentionally phone-side only and is not sent through AppMessage to the watch.

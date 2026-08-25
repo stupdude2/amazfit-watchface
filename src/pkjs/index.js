@@ -193,6 +193,14 @@ function customClay(minified) {
         setValue('RAISE_WAKE', '0');
         setValue('BACKGROUND_COLOR', '0x000000');
         setValue('TEMP_UNIT', '0');
+        setValue('LANGUAGE', '0');
+        setValue('WEATHER_REFRESH', '60');
+        setValue('RIGHT_HIDE_LABEL', false);
+        setValue('CENTER_HIDE_LABEL', false);
+        setValue('LEFT_HIDE_LABEL', false);
+        setValue('TOP_RIGHT_HIDE_LABEL', false);
+        setValue('TOP_CENTER_HIDE_LABEL', false);
+        setValue('TOP_LEFT_HIDE_LABEL', false);
 
         setValue('TOP_LEFT_SLOT', '5');
         setValue('TOP_CENTER_SLOT', '6');
@@ -367,6 +375,10 @@ function openSettingsPage() {
       } catch (e) {}
     }
 
+    // Weather refresh is phone-side only, so keep Clay synchronized with the
+    // value stored by Big Time rather than sending it to the watch.
+    clay.setSettings('WEATHER_REFRESH', String(getWeatherRefreshMinutes()));
+
     console.log('Opening Clay configuration page; pro=' + sessionProUnlocked);
     Pebble.openURL(clay.generateUrl());
   } catch (e) {
@@ -444,6 +456,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
   try {
     var settings = clay.getSettings(e.response);
 
+    if (settings && typeof settings.WEATHER_REFRESH !== 'undefined') {
+      setWeatherRefreshMinutes(settings.WEATHER_REFRESH);
+      delete settings.WEATHER_REFRESH;
+    }
+
     if (settings && Number(settings.TRY_PRO_FREE) !== 0) {
       var now = Math.floor(Date.now() / 1000);
       var existingExpiry = getStoredTrialExpiry();
@@ -489,6 +506,97 @@ var ICON_CLOUDY  = 1;
 var ICON_RAIN    = 2;
 var ICON_SNOW    = 3;
 var ICON_THUNDER = 4;
+
+var WEATHER_CACHE_STORAGE_KEY = 'big_time_weather_cache_v1';
+var WEATHER_CACHE_TIME_STORAGE_KEY = 'big_time_weather_cache_time_v1';
+var WEATHER_REFRESH_SETTING_KEY = 'big_time_weather_refresh_minutes';
+var DEFAULT_WEATHER_REFRESH_MINUTES = 60;
+var weatherRefreshTimer = null;
+
+function getWeatherRefreshMinutes() {
+  try {
+    var value = parseInt(
+      localStorage.getItem(WEATHER_REFRESH_SETTING_KEY), 10);
+    if (value === 30 || value === 60 || value === 120 ||
+        value === 180 || value === 360) {
+      return value;
+    }
+  } catch (e) {}
+  return DEFAULT_WEATHER_REFRESH_MINUTES;
+}
+
+function setWeatherRefreshMinutes(value) {
+  value = parseInt(value, 10);
+  if (value !== 30 && value !== 60 && value !== 120 &&
+      value !== 180 && value !== 360) {
+    value = DEFAULT_WEATHER_REFRESH_MINUTES;
+  }
+
+  try {
+    localStorage.setItem(
+      WEATHER_REFRESH_SETTING_KEY, String(value));
+  } catch (e) {}
+
+  // Recalculate the next due time without discarding or re-fetching the
+  // existing cached weather.
+  scheduleNextWeatherRefresh();
+}
+
+function getWeatherRefreshMs() {
+  return getWeatherRefreshMinutes() * 60 * 1000;
+}
+
+function readCachedWeather() {
+  try {
+    var raw = localStorage.getItem(WEATHER_CACHE_STORAGE_KEY);
+    if (!raw) return null;
+    var payload = JSON.parse(raw);
+    return payload && typeof payload.TEMPERATURE !== 'undefined'
+      ? payload : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function readCachedWeatherTime() {
+  try {
+    var value = parseInt(
+      localStorage.getItem(WEATHER_CACHE_TIME_STORAGE_KEY), 10);
+    return isNaN(value) ? 0 : value;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function storeCachedWeather(payload) {
+  try {
+    localStorage.setItem(
+      WEATHER_CACHE_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(
+      WEATHER_CACHE_TIME_STORAGE_KEY, String(Date.now()));
+  } catch (e) {}
+}
+
+function weatherRefreshDue() {
+  var timestamp = readCachedWeatherTime();
+  return !timestamp || (Date.now() - timestamp) >= getWeatherRefreshMs();
+}
+
+function scheduleNextWeatherRefresh() {
+  if (weatherRefreshTimer) {
+    clearTimeout(weatherRefreshTimer);
+    weatherRefreshTimer = null;
+  }
+
+  var age = Date.now() - readCachedWeatherTime();
+  var delay = getWeatherRefreshMs() - Math.max(0, age);
+  if (delay < 1000) delay = 1000;
+
+  weatherRefreshTimer = setTimeout(function() {
+    weatherRefreshTimer = null;
+    refreshWeatherIfDue();
+  }, delay);
+}
 
 function iconFromOpenMeteo(code) {
   code = Number(code);
@@ -589,7 +697,9 @@ function fetchWeather(lat, lon) {
         }
       }
 
+      storeCachedWeather(payload);
       sendWeatherPayload(payload);
+      scheduleNextWeatherRefresh();
     } catch (e) {
       console.log('Open-Meteo parse error: ' + e);
     }
@@ -601,6 +711,29 @@ function fetchWeather(lat, lon) {
 
   xhr.open('GET', url);
   xhr.send();
+}
+
+function fetchWeatherForCurrentLocation() {
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      fetchWeather(pos.coords.latitude, pos.coords.longitude);
+    },
+    function(err) {
+      console.log('Geolocation error: ' + err.message);
+      scheduleNextWeatherRefresh();
+    },
+    { timeout: 15000, maximumAge: 300000 }
+  );
+}
+
+function refreshWeatherIfDue() {
+  if (!weatherRefreshDue()) {
+    scheduleNextWeatherRefresh();
+    return;
+  }
+
+  console.log('Weather cache due for refresh');
+  fetchWeatherForCurrentLocation();
 }
 
 // Messages from the watch: configuration acknowledgement or weather request.
@@ -619,15 +752,11 @@ Pebble.addEventListener('appmessage', function(e) {
   }
 
   console.log('Watch requested weather update');
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      fetchWeather(pos.coords.latitude, pos.coords.longitude);
-    },
-    function(err) {
-      console.log('Geolocation error: ' + err.message);
-    },
-    { timeout: 15000, maximumAge: 60000 }
-  );
+  var cached = readCachedWeather();
+  if (cached) {
+    sendWeatherPayload(cached);
+  }
+  refreshWeatherIfDue();
 });
 
 // Fetch on launch.
@@ -639,15 +768,13 @@ Pebble.addEventListener('ready', function() {
   // If it already expired, do nothing so reinstalling cannot grant another one.
   restorePersistedTrialToWatch();
 
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      fetchWeather(pos.coords.latitude, pos.coords.longitude);
-    },
-    function(err) {
-      console.log('Geolocation error on ready: ' + err.message);
-    },
-    { timeout: 15000, maximumAge: 300000 }
-  );
+  var cachedWeather = readCachedWeather();
+  if (cachedWeather) {
+    console.log('Sending cached weather on PebbleKit ready');
+    sendWeatherPayload(cachedWeather);
+  }
+
+  refreshWeatherIfDue();
 });
 
 // Runtime Pro status is authoritative from the watch/C side.
