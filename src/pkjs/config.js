@@ -114,6 +114,9 @@ var config = [
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Language" },
+      // LANGUAGE MAINTENANCE:
+      // When adding a language, also follow the REQUIRED CHECKLIST beside
+      // WatchLanguage in main.c and add it to SUPPORTED_LANGUAGES in index.js.
       {
         "type": "select",
         "messageKey": "LANGUAGE",

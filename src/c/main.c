@@ -197,6 +197,25 @@ typedef enum {
   TIME_FORMAT_24H = 1
 } ClockTimeFormat;
 
+/*
+ * ADDING A WATCHFACE LANGUAGE — REQUIRED CHECKLIST
+ *
+ * Language support spans both watch C code and PebbleKit JS. When adding a
+ * language, update EVERY item below. Append new IDs; never renumber existing
+ * languages because the numeric value is persisted on users' watches/phones.
+ *
+ *   1. WatchLanguage enum below — append the new LANG_* ID.
+ *   2. TRANSLATIONS[] — add labels, weekdays, and months in the same order.
+ *   3. settings_values_valid() — upper bound must allow the newest language.
+ *   4. enforce_free_defaults() — keep_language upper bound must allow it.
+ *   5. inbox_received_handler(), KEY_LANGUAGE — accepted upper bound must allow it.
+ *   6. src/pkjs/config.js LANGUAGE selector — add the visible dropdown option.
+ *   7. src/pkjs/index.js SUPPORTED_LANGUAGES — add the same ID/label once;
+ *      this registry drives runtime Clay options and JS language validation.
+ *
+ * Before release, verify: select newest language -> Save -> face translates ->
+ * reopen Settings -> newest language is still selected.
+ */
 typedef enum {
   LANG_ENGLISH = 0,
   LANG_SWEDISH = 1,
@@ -563,7 +582,7 @@ static void enforce_free_defaults(void) {
   s_settings.right_hide_label = 0;
 
   s_settings.language =
-      keep_language <= LANG_PORTUGUESE ? keep_language : LANG_ENGLISH;
+      keep_language <= LANG_CATALAN ? keep_language : LANG_ENGLISH;
   s_settings.time_format =
       keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
   s_settings.center_12h = keep_center_12h ? 1 : 0;
@@ -3338,7 +3357,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LANGUAGE: {
         int32_t value = tuple_to_int32(t, s_settings.language);
-        if (value >= LANG_ENGLISH && value <= LANG_PORTUGUESE) {
+        if (value >= LANG_ENGLISH && value <= LANG_CATALAN) {
           s_settings.language = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO,
                   "Watchface language -> %ld", (long)value);

@@ -1,0 +1,10 @@
+Big Time v3.1.3 Production Release Audit
+PASS: Catalan ID 6 accepted by settings_values_valid().
+PASS: Catalan ID 6 accepted by KEY_LANGUAGE inbox handler.
+PASS: Catalan ID 6 preserved by enforce_free_defaults().
+PASS: Catalan is present in config.js selector.
+PASS: Catalan is present in central SUPPORTED_LANGUAGES JS registry.
+PASS: JS language storage validates against the central registry.
+PASS: Existing language IDs 0-5 unchanged.
+PASS: Production KiezelPay mode retained.
+PASS: Future-language maintenance checklist added to main.c/config.js.

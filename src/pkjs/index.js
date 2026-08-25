@@ -367,15 +367,7 @@ var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
 // Clay's automatic Pebble event registration. This is more robust alongside
 // KiezelPay/other packages that also register PebbleKit JS listeners.
 function forceFullLanguageOptions(configItems) {
-  var languageOptions = [
-    { label: 'English', value: '0' },
-    { label: 'Svenska', value: '1' },
-    { label: 'Español', value: '2' },
-    { label: 'Français', value: '3' },
-    { label: 'Deutsch', value: '4' },
-    { label: 'Português', value: '5' },
-    { label: 'Català', value: '6' }
-  ];
+  var languageOptions = SUPPORTED_LANGUAGES;
 
   function visit(items) {
     if (!items) return;
@@ -606,19 +598,39 @@ var ICON_RAIN    = 2;
 var ICON_SNOW    = 3;
 var ICON_THUNDER = 4;
 
+// LANGUAGE REGISTRY
+// Add future languages HERE and in the watch-side checklist in main.c.
+// Do not renumber existing values: they are persisted user settings.
+var SUPPORTED_LANGUAGES = [
+  { label: 'English', value: '0' },
+  { label: 'Svenska', value: '1' },
+  { label: 'Español', value: '2' },
+  { label: 'Français', value: '3' },
+  { label: 'Deutsch', value: '4' },
+  { label: 'Português', value: '5' },
+  { label: 'Català', value: '6' }
+];
+
+function isSupportedLanguage(value) {
+  value = parseInt(value, 10);
+  return !isNaN(value) &&
+         value >= 0 &&
+         value < SUPPORTED_LANGUAGES.length;
+}
+
 var FREE_LANGUAGE_STORAGE_KEY = 'big_time_language_v1';
 
 function getStoredLanguage() {
   try {
     var value = parseInt(localStorage.getItem(FREE_LANGUAGE_STORAGE_KEY), 10);
-    if (value >= 0 && value <= 6) return value;
+    if (isSupportedLanguage(value)) return value;
   } catch (e) {}
   return 0;
 }
 
 function storeLanguage(value) {
   value = parseInt(value, 10);
-  if (value < 0 || value > 6 || isNaN(value)) value = 0;
+  if (!isSupportedLanguage(value)) value = 0;
   try {
     localStorage.setItem(FREE_LANGUAGE_STORAGE_KEY, String(value));
   } catch (e) {}
