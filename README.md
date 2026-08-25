@@ -692,3 +692,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Time Zone values follow Big Time's current 12/24-hour format.
 - Hide Label is supported for Time Zone; the enlarged timezone time uses the medium font for reliable fit.
 - No changes were made to KiezelPay entitlement, language synchronization, weather caching, battery options, or center-slot behavior.
+
+## v3.0.1 DEV RC — Time Zone AppMessage capacity fix
+- Increased the watch AppMessage inbox from 256 bytes to 512 bytes.
+- Time Zone adds four values to Clay's complete Save Settings payload; the previous 256-byte inbox could reject the enlarged dictionary before any setting reached the watch.
+- Outbox remains 256 bytes.
+- No Time Zone logic, existing slot logic, licensing, language, weather, or layout behavior was otherwise changed.

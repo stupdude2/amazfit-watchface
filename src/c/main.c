@@ -3924,7 +3924,13 @@ static void init(void) {
       events_app_message_register_inbox_dropped(inbox_dropped_handler, NULL);
   s_appmsg_handlers_registered = true;
 
-  events_app_message_request_inbox_size(256);
+  // Clay sends the complete configuration dictionary on Save. Time Zone adds
+  // four selector keys, which pushes the Pro settings payload beyond the old
+  // 256-byte inbox. When that dictionary is too large Pebble rejects/drops the
+  // entire message, making it look like none of the settings work.
+  //
+  // Keep the outbox unchanged; only the incoming configuration needs room.
+  events_app_message_request_inbox_size(512);
   events_app_message_request_outbox_size(256);
   events_app_message_open();
 
