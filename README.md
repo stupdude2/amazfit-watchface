@@ -728,3 +728,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Allows long 12-hour strings such as 12:59 PM to extend slightly beyond the normal slot boundary instead of ellipsizing.
 - Standardized time displays that include AM/PM to use a space before the suffix, e.g. 6:42 AM.
 - Other slot geometry remains unchanged.
+
+## v3.0.7 DEV RC — Robust hidden Time Zone fit
+- Added a dedicated 20 px bold font for hidden-label Time Zone values.
+- Expanded hidden Time Zone text frames by 16 px total so long 12-hour values such as 12:59 PM fit without ellipsis.
+- Other hidden-label values and normal Time Zone labels remain unchanged.
