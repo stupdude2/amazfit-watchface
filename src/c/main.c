@@ -3475,7 +3475,10 @@ static void window_load(Window *window) {
   bitmap_layer_set_compositing_mode(s_weather_icon_right_layer, GCompOpSet);
   layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_weather_icon_right_layer));
 
-  snprintf(s_weather_buf, sizeof(s_weather_buf), "--");
+  // Do not reset s_weather_buf here. init() has already restored and
+  // formatted the persisted weather cache before the window is created.
+  // Resetting it to "--" caused cached temperature to disappear until the
+  // phone re-sent its cached payload.
   BatteryChargeState charge = battery_state_service_peek();
   s_battery_percent = charge.charge_percent;
   s_bluetooth_connected = connection_service_peek_pebble_app_connection();

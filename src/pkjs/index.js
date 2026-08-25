@@ -375,6 +375,10 @@ function openSettingsPage() {
       } catch (e) {}
     }
 
+    // Language is a Free preference. Keep the selector available and
+    // synchronized regardless of entitlement.
+    clay.setSettings('LANGUAGE', String(getStoredLanguage()));
+
     // Weather refresh is phone-side only, so keep Clay synchronized with the
     // value stored by Big Time rather than sending it to the watch.
     clay.setSettings('WEATHER_REFRESH', String(getWeatherRefreshMinutes()));
@@ -456,6 +460,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
   try {
     var settings = clay.getSettings(e.response);
 
+    if (settings && typeof settings.LANGUAGE !== 'undefined') {
+      storeLanguage(settings.LANGUAGE);
+    }
+
     if (settings && typeof settings.WEATHER_REFRESH !== 'undefined') {
       setWeatherRefreshMinutes(settings.WEATHER_REFRESH);
       delete settings.WEATHER_REFRESH;
@@ -506,6 +514,24 @@ var ICON_CLOUDY  = 1;
 var ICON_RAIN    = 2;
 var ICON_SNOW    = 3;
 var ICON_THUNDER = 4;
+
+var FREE_LANGUAGE_STORAGE_KEY = 'big_time_language_v1';
+
+function getStoredLanguage() {
+  try {
+    var value = parseInt(localStorage.getItem(FREE_LANGUAGE_STORAGE_KEY), 10);
+    if (value >= 0 && value <= 5) return value;
+  } catch (e) {}
+  return 0;
+}
+
+function storeLanguage(value) {
+  value = parseInt(value, 10);
+  if (value < 0 || value > 5 || isNaN(value)) value = 0;
+  try {
+    localStorage.setItem(FREE_LANGUAGE_STORAGE_KEY, String(value));
+  } catch (e) {}
+}
 
 var WEATHER_CACHE_STORAGE_KEY = 'big_time_weather_cache_v1';
 var WEATHER_CACHE_TIME_STORAGE_KEY = 'big_time_weather_cache_time_v1';

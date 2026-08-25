@@ -578,3 +578,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - The watch was already restoring the raw cached temperature, but the formatted temperature string was not rebuilt until another AppMessage arrived.
 - Cached temperature text is now formatted immediately after weather cache restoration, before the watchface UI appears.
 - Temperature, weather icon, high/low, sunrise, and sunset continue to use the same cached weather snapshot and refresh interval.
+
+## v2.9.2 — Free languages and atomic cached weather
+- All six watchface languages are explicitly available and persisted for Free users: English, Swedish, Spanish, French, German, and Portuguese.
+- Language selection is now also persisted phone-side and re-seeded into Clay whenever Settings opens, independent of Pro entitlement.
+- Fixed the remaining temperature pop-in: window_load was resetting the already-restored cached temperature display string to "--".
+- The window now preserves the formatted cached temperature prepared during init, so temperature appears with the rest of the cached weather immediately.
+- Temperature, icon, high/low, sunrise, and sunset continue to update together on the selected weather refresh interval.
