@@ -52,7 +52,7 @@ function customClay(minified) {
       value = String(value);
       return value === '0' || value === '1' || value === '3' ||
              value === '8' || value === '9' || value === '10' ||
-             value === '11' || value === '12' || value === '13';
+             value === '11' || value === '12';
     }
 
     function centerSlotHasLabel(value, topCenter) {
@@ -65,40 +65,17 @@ function customClay(minified) {
       return value === '0' || value === '3';
     }
 
-    // Side positions have two dependent controls (Hide Label and Time Zone).
-    // Keep them under ONE change listener per selector so Clay never has
-    // competing handlers attached to the same Select manipulator.
-    function bindSideSlotControls(slotKey, hideLabelKey, timeZoneKey) {
-      var slot = clayPage.getItemByMessageKey(slotKey);
-      var hideLabel = clayPage.getItemByMessageKey(hideLabelKey);
-      var timeZone = clayPage.getItemByMessageKey(timeZoneKey);
-      if (!slot) return;
-
-      function sync() {
-        var value = String(slot.get());
-
-        if (hideLabel) {
-          if (sideSlotHasLabel(value)) hideLabel.show();
-          else hideLabel.hide();
-        }
-
-        if (timeZone) {
-          if (value === '13') timeZone.show();
-          else timeZone.hide();
-        }
-      }
-
-      sync();
-      slot.on('change', sync);
-    }
-
-    function bindCenterLabelToggle(slotKey, toggleKey, isTopCenter) {
+    function bindConditionalLabelToggle(slotKey, toggleKey, isCenter, isTopCenter) {
       var slot = clayPage.getItemByMessageKey(slotKey);
       var toggle = clayPage.getItemByMessageKey(toggleKey);
       if (!slot || !toggle) return;
 
       function sync() {
-        if (centerSlotHasLabel(slot.get(), isTopCenter)) toggle.show();
+        var visible = isCenter
+          ? centerSlotHasLabel(slot.get(), isTopCenter)
+          : sideSlotHasLabel(slot.get());
+
+        if (visible) toggle.show();
         else toggle.hide();
       }
 
@@ -106,17 +83,31 @@ function customClay(minified) {
       slot.on('change', sync);
     }
 
-    bindSideSlotControls(
-      'TOP_LEFT_SLOT', 'TOP_LEFT_HIDE_LABEL', 'TOP_LEFT_TIME_ZONE');
-    bindSideSlotControls(
-      'TOP_RIGHT_SLOT', 'TOP_RIGHT_HIDE_LABEL', 'TOP_RIGHT_TIME_ZONE');
-    bindSideSlotControls(
-      'LEFT_SLOT', 'LEFT_HIDE_LABEL', 'LEFT_TIME_ZONE');
-    bindSideSlotControls(
-      'RIGHT_SLOT', 'RIGHT_HIDE_LABEL', 'RIGHT_TIME_ZONE');
+    bindConditionalLabelToggle('TOP_LEFT_SLOT', 'TOP_LEFT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle('TOP_CENTER_SLOT', 'TOP_CENTER_HIDE_LABEL', true, true);
+    bindConditionalLabelToggle('TOP_RIGHT_SLOT', 'TOP_RIGHT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle('LEFT_SLOT', 'LEFT_HIDE_LABEL', false, false);
+    bindConditionalLabelToggle('CENTER_SLOT', 'CENTER_HIDE_LABEL', true, false);
+    bindConditionalLabelToggle('RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false);
 
-    bindCenterLabelToggle('TOP_CENTER_SLOT', 'TOP_CENTER_HIDE_LABEL', true);
-    bindCenterLabelToggle('CENTER_SLOT', 'CENTER_HIDE_LABEL', false);
+    function bindTimeZoneSelector(slotKey, timeZoneKey) {
+      var slot = clayPage.getItemByMessageKey(slotKey);
+      var timeZone = clayPage.getItemByMessageKey(timeZoneKey);
+      if (!slot || !timeZone) return;
+
+      function syncTimeZoneVisibility() {
+        if (String(slot.get()) === '13') timeZone.show();
+        else timeZone.hide();
+      }
+
+      syncTimeZoneVisibility();
+      slot.on('change', syncTimeZoneVisibility);
+    }
+
+    bindTimeZoneSelector('TOP_LEFT_SLOT', 'TOP_LEFT_TIME_ZONE');
+    bindTimeZoneSelector('TOP_RIGHT_SLOT', 'TOP_RIGHT_TIME_ZONE');
+    bindTimeZoneSelector('LEFT_SLOT', 'LEFT_TIME_ZONE');
+    bindTimeZoneSelector('RIGHT_SLOT', 'RIGHT_TIME_ZONE');
 
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
@@ -363,6 +354,16 @@ function restorePersistedTrialToWatch() {
 }
 var sessionLicenseKnown = false;
 var sessionTrialUsed = trialWasUsedOnPhone();
+var watchSlotSync = {
+  TOP_LEFT_SLOT: null,
+  TOP_RIGHT_SLOT: null,
+  LEFT_SLOT: null,
+  RIGHT_SLOT: null,
+  TOP_LEFT_TIME_ZONE: null,
+  TOP_RIGHT_TIME_ZONE: null,
+  LEFT_TIME_ZONE: null,
+  RIGHT_TIME_ZONE: null
+};
 var pendingOpenSettings = false;
 
 var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
@@ -447,6 +448,10 @@ function openSettingsPage() {
     // Language is a Free preference. Keep the selector available and
     // synchronized regardless of entitlement.
     clay.setSettings('LANGUAGE', String(getStoredLanguage()));
+
+    Object.keys(watchSlotSync).forEach(function(key) {
+      if (watchSlotSync[key] !== null) clay.setSettings(key, watchSlotSync[key]);
+    });
 
     // Weather refresh is phone-side only, so keep Clay synchronized with the
     // value stored by Big Time rather than sending it to the watch.
@@ -841,6 +846,15 @@ Pebble.addEventListener('appmessage', function(e) {
     storeLanguage(e.payload.LANGUAGE);
     console.log('Synced language from watch: ' + e.payload.LANGUAGE);
   }
+
+  [
+    'TOP_LEFT_SLOT','TOP_RIGHT_SLOT','LEFT_SLOT','RIGHT_SLOT',
+    'TOP_LEFT_TIME_ZONE','TOP_RIGHT_TIME_ZONE','LEFT_TIME_ZONE','RIGHT_TIME_ZONE'
+  ].forEach(function(key) {
+    if (typeof e.payload[key] !== 'undefined') {
+      watchSlotSync[key] = String(e.payload[key]);
+    }
+  });
 
   if (typeof e.payload.CONFIG_ACK !== 'undefined') {
     console.log('WATCH APPLIED ACCENT_COLOR: ' + e.payload.CONFIG_ACK);

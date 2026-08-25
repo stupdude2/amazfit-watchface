@@ -605,23 +605,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - This build is for development preview only and must not be published.
 - Before release, KIEZELPAY_TEST_MODE and KIEZELPAY_LOG_VERBOSE must both be returned to 0.
 
-## v3.0.0 DEV — Custom side-slot time zones
-- Added Time Zone to Top Left, Top Right, Bottom Left, and Bottom Right.
-- Time Zone is intentionally not available in center positions.
-- Selecting Time Zone reveals a slot-specific Time Zone dropdown.
-- Local Time uses Pebble's native local time/timezone, including normal local DST behavior.
-- Fixed-offset options cover UTC-12 through UTC+14, including UTC+05:30 and UTC+09:30.
-- Each side slot remembers its own selected zone independently.
-- Time Zone values follow Big Time's existing 12/24-hour Time Format.
-- The visible label is TZ; Hide Label is supported and uses the Medium font when hidden.
-- Time-zone selections use separate persistent keys to avoid another WatchfaceSettings migration.
-- Development/KiezelPay test mode remains enabled for preview testing.
-
-## v3.0.1 DEV — Side-slot Settings fix
-- Reworked conditional Settings behavior for Top Left, Top Right, Bottom Left, and Bottom Right.
-- Each side selector now has exactly one Clay change listener.
-- That single listener controls both its Hide Label toggle and its conditional Time Zone dropdown.
-- Removes competing change handlers introduced by the first Time Zone implementation.
-- Time Zone now correctly counts as a label-bearing item, so Hide Label appears when Time Zone is selected.
-- Slot values and AppMessage keys remain unchanged from v3.0.0.
-- Development/KiezelPay test mode remains enabled.
+## v3.0.2 DEV — Clean Time Zone rebuild
+- Rebuilt Time Zone support directly on the last stable v2.9.5 DEV settings implementation.
+- Preserves the original Clay settings and Hide Label behavior.
+- The watch reports current side-slot and timezone choices back to Settings before opening.
+- Settings is seeded from the watch, preventing stale defaults from overwriting active side-slot selections.
+- Time Zone is available only in Top/Bottom Left/Right; Local Time and UTC-12 through UTC+14 are supported.
+- DEV/KiezelPay test mode remains enabled.

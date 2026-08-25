@@ -201,47 +201,20 @@ typedef enum {
   LANG_GERMAN = 4,
   LANG_PORTUGUESE = 5
 } WatchLanguage;
-
 typedef struct {
   int16_t utc_offset_minutes;
   bool use_local;
 } TimeZonePreset;
 
 static const TimeZonePreset TIME_ZONE_PRESETS[] = {
-  {    0, true  },  // Local Time
-  { -720, false },  // UTC-12
-  { -660, false },  // UTC-11
-  { -600, false },  // UTC-10
-  { -540, false },  // UTC-09
-  { -480, false },  // UTC-08
-  { -420, false },  // UTC-07
-  { -360, false },  // UTC-06
-  { -300, false },  // UTC-05
-  { -240, false },  // UTC-04
-  { -180, false },  // UTC-03
-  { -120, false },  // UTC-02
-  {  -60, false },  // UTC-01
-  {    0, false },  // UTC
-  {   60, false },  // UTC+01
-  {  120, false },  // UTC+02
-  {  180, false },  // UTC+03
-  {  240, false },  // UTC+04
-  {  300, false },  // UTC+05
-  {  330, false },  // UTC+05:30
-  {  360, false },  // UTC+06
-  {  420, false },  // UTC+07
-  {  480, false },  // UTC+08
-  {  540, false },  // UTC+09
-  {  570, false },  // UTC+09:30
-  {  600, false },  // UTC+10
-  {  660, false },  // UTC+11
-  {  720, false },  // UTC+12
-  {  780, false },  // UTC+13
-  {  840, false }   // UTC+14
+  {0,true},
+  {-720,false},{-660,false},{-600,false},{-540,false},{-480,false},
+  {-420,false},{-360,false},{-300,false},{-240,false},{-180,false},
+  {-120,false},{-60,false},{0,false},{60,false},{120,false},{180,false},
+  {240,false},{300,false},{330,false},{360,false},{420,false},{480,false},
+  {540,false},{570,false},{600,false},{660,false},{720,false},{780,false},{840,false}
 };
-
 #define TIME_ZONE_PRESET_COUNT ((uint8_t)ARRAY_LENGTH(TIME_ZONE_PRESETS))
-
 
 
 typedef enum {
@@ -1062,12 +1035,10 @@ static char s_tz_top_left_buf[12];
 static char s_tz_top_right_buf[12];
 static char s_tz_left_buf[12];
 static char s_tz_right_buf[12];
-
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
   if (!persist_exists(persist_key)) return 0;
   int value = persist_read_int(persist_key);
-  if (value < 0 || value >= TIME_ZONE_PRESET_COUNT) return 0;
-  return (uint8_t)value;
+  return (value >= 0 && value < TIME_ZONE_PRESET_COUNT) ? (uint8_t)value : 0;
 }
 
 static void load_time_zone_presets(void) {
@@ -1779,38 +1750,23 @@ static const char *watch_text(WatchTextId id) {
   }
 }
 
-static void format_time_zone_value(uint8_t preset_index,
-                                   char *buffer,
-                                   size_t buffer_size) {
+static void format_time_zone_value(uint8_t preset_index, char *buffer, size_t buffer_size) {
   if (preset_index >= TIME_ZONE_PRESET_COUNT) preset_index = 0;
-
   time_t now = time(NULL);
-  struct tm result;
-  struct tm *time_ptr = NULL;
-
+  struct tm *tp;
   if (TIME_ZONE_PRESETS[preset_index].use_local) {
-    time_ptr = localtime(&now);
+    tp = localtime(&now);
   } else {
-    time_t shifted =
-        now + ((time_t)TIME_ZONE_PRESETS[preset_index].utc_offset_minutes * 60);
-    time_ptr = gmtime(&shifted);
+    time_t shifted = now + ((time_t)TIME_ZONE_PRESETS[preset_index].utc_offset_minutes * 60);
+    tp = gmtime(&shifted);
   }
-
-  if (!time_ptr) {
-    snprintf(buffer, buffer_size, "--");
-    return;
-  }
-
-  result = *time_ptr;
+  if (!tp) { snprintf(buffer, buffer_size, "--"); return; }
 
   if (s_settings.time_format == TIME_FORMAT_24H) {
-    snprintf(buffer, buffer_size, "%02d:%02d",
-             result.tm_hour, result.tm_min);
+    snprintf(buffer, buffer_size, "%02d:%02d", tp->tm_hour, tp->tm_min);
   } else {
-    int hour12 = result.tm_hour % 12;
-    if (hour12 == 0) hour12 = 12;
-    snprintf(buffer, buffer_size, "%d:%02d",
-             hour12, result.tm_min);
+    int h = tp->tm_hour % 12; if (h == 0) h = 12;
+    snprintf(buffer, buffer_size, "%d:%02d", h, tp->tm_min);
   }
 }
 
@@ -1877,31 +1833,23 @@ static const char *side_slot_value(uint8_t slot) {
   }
 }
 
-static const char *top_side_slot_value(uint8_t slot, bool left_side) {
+static const char *top_side_slot_value(uint8_t slot, bool left) {
   if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
-
-  if (left_side) {
-    format_time_zone_value(s_top_left_time_zone,
-                           s_tz_top_left_buf, sizeof(s_tz_top_left_buf));
+  if (left) {
+    format_time_zone_value(s_top_left_time_zone, s_tz_top_left_buf, sizeof(s_tz_top_left_buf));
     return s_tz_top_left_buf;
   }
-
-  format_time_zone_value(s_top_right_time_zone,
-                         s_tz_top_right_buf, sizeof(s_tz_top_right_buf));
+  format_time_zone_value(s_top_right_time_zone, s_tz_top_right_buf, sizeof(s_tz_top_right_buf));
   return s_tz_top_right_buf;
 }
 
-static const char *bottom_side_slot_value(uint8_t slot, bool left_side) {
+static const char *bottom_side_slot_value(uint8_t slot, bool left) {
   if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
-
-  if (left_side) {
-    format_time_zone_value(s_left_time_zone,
-                           s_tz_left_buf, sizeof(s_tz_left_buf));
+  if (left) {
+    format_time_zone_value(s_left_time_zone, s_tz_left_buf, sizeof(s_tz_left_buf));
     return s_tz_left_buf;
   }
-
-  format_time_zone_value(s_right_time_zone,
-                         s_tz_right_buf, sizeof(s_tz_right_buf));
+  format_time_zone_value(s_right_time_zone, s_tz_right_buf, sizeof(s_tz_right_buf));
   return s_tz_right_buf;
 }
 
@@ -2853,6 +2801,14 @@ static void license_send_status_to_phone(void) {
 
   dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
   dict_write_uint8(iter, KEY_LANGUAGE, s_settings.language);
+  dict_write_uint8(iter, KEY_TOP_LEFT_SLOT, s_settings.top_left_slot);
+  dict_write_uint8(iter, KEY_TOP_RIGHT_SLOT, s_settings.top_right_slot);
+  dict_write_uint8(iter, KEY_LEFT_SLOT, s_settings.left_slot);
+  dict_write_uint8(iter, KEY_RIGHT_SLOT, s_settings.right_slot);
+  dict_write_uint8(iter, KEY_TOP_LEFT_TIME_ZONE, s_top_left_time_zone);
+  dict_write_uint8(iter, KEY_TOP_RIGHT_TIME_ZONE, s_top_right_time_zone);
+  dict_write_uint8(iter, KEY_LEFT_TIME_ZONE, s_left_time_zone);
+  dict_write_uint8(iter, KEY_RIGHT_TIME_ZONE, s_right_time_zone);
 
   int32_t trial_remaining = 0;
   if (entitlement == 1 && persist_exists(PRO_TRIAL_PERSIST_KEY)) {
@@ -3132,7 +3088,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
       }
-
       case KEY_TOP_RIGHT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_top_right_time_zone);
         if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
@@ -3142,7 +3097,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
       }
-
       case KEY_LEFT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_left_time_zone);
         if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
@@ -3152,7 +3106,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
       }
-
       case KEY_RIGHT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_right_time_zone);
         if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
