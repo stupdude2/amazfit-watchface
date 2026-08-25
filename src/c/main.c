@@ -190,7 +190,11 @@ typedef enum {
 
 typedef enum {
   LANG_ENGLISH = 0,
-  LANG_SWEDISH = 1
+  LANG_SWEDISH = 1,
+  LANG_SPANISH = 2,
+  LANG_FRENCH = 3,
+  LANG_GERMAN = 4,
+  LANG_PORTUGUESE = 5
 } WatchLanguage;
 
 typedef enum {
@@ -496,7 +500,7 @@ static void enforce_free_defaults(void) {
   s_settings.right_hide_label = 0;
 
   s_settings.language =
-      keep_language <= LANG_SWEDISH ? keep_language : LANG_ENGLISH;
+      keep_language <= LANG_PORTUGUESE ? keep_language : LANG_ENGLISH;
   s_settings.time_format =
       keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
   s_settings.center_12h = keep_center_12h ? 1 : 0;
@@ -560,7 +564,7 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->left_hide_label <= 1 &&
          settings->center_hide_label <= 1 &&
          settings->right_hide_label <= 1 &&
-         settings->language <= 1;
+         settings->language <= LANG_PORTUGUESE;
 }
 
 static void settings_load(void) {
@@ -1640,6 +1644,34 @@ static const WatchTranslation TRANSLATIONS[] = {
     { "SÖN", "MÅN", "TIS", "ONS", "TOR", "FRE", "LÖR" },
     { "JAN", "FEB", "MAR", "APR", "MAJ", "JUN",
       "JUL", "AUG", "SEP", "OKT", "NOV", "DEC" }
+  },
+  {
+    "CLIMA", "PASOS", "PULSO", "BT", "DÍA", "FECHA", "MES",
+    "KCAL", "DIST", "SALE", "PONE", "M/M", "TEMP",
+    { "DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB" },
+    { "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
+      "JUL", "AGO", "SEP", "OCT", "NOV", "DIC" }
+  },
+  {
+    "MÉTÉO", "PAS", "POULS", "BT", "JOUR", "DATE", "MOIS",
+    "KCAL", "DIST", "LEVE", "COUC", "H/B", "TEMP",
+    { "DIM", "LUN", "MAR", "MER", "JEU", "VEN", "SAM" },
+    { "JAN", "FÉV", "MAR", "AVR", "MAI", "JUN",
+      "JUL", "AOÛ", "SEP", "OCT", "NOV", "DÉC" }
+  },
+  {
+    "WETTER", "SCHR", "PULS", "BT", "TAG", "DATUM", "MONAT",
+    "KCAL", "DIST", "AUFG", "UNTR", "H/T", "TEMP",
+    { "SO", "MO", "DI", "MI", "DO", "FR", "SA" },
+    { "JAN", "FEB", "MÄR", "APR", "MAI", "JUN",
+      "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ" }
+  },
+  {
+    "TEMPO", "PASSOS", "PULSO", "BT", "DIA", "DATA", "MÊS",
+    "KCAL", "DIST", "NASCE", "PÕE", "M/M", "TEMP",
+    { "DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB" },
+    { "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
+      "JUL", "AGO", "SET", "OUT", "NOV", "DEZ" }
   }
 };
 
@@ -2966,11 +2998,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LANGUAGE: {
         int32_t value = tuple_to_int32(t, s_settings.language);
-        if (value >= LANG_ENGLISH && value <= LANG_SWEDISH) {
+        if (value >= LANG_ENGLISH && value <= LANG_PORTUGUESE) {
           s_settings.language = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO,
-                  "Watchface language -> %s",
-                  value == LANG_SWEDISH ? "Swedish" : "English");
+                  "Watchface language -> %ld", (long)value);
           layout_changed = true;
           time_t now = time(NULL);
           struct tm *now_tm = localtime(&now);
@@ -3520,6 +3551,11 @@ static void window_unload(Window *window) {
 static void init(void) {
   settings_load();
   weather_cache_load();
+
+  // weather_cache_load() restores the raw Celsius value and availability flag.
+  // Rebuild the display string immediately so cached temperature and cached
+  // weather icon appear atomically when the watchface becomes visible.
+  update_temperature_text();
 
   // Steps is no longer supported in either center position.
   if (s_settings.top_center_slot == SLOT_STEPS) {

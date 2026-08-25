@@ -565,3 +565,16 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Expanded weekday and month buffers for UTF-8 translations.
 - Fixes MÅN being truncated to MÅ because Å uses two bytes in UTF-8.
 - Adds headroom for future translated calendar abbreviations.
+
+## v2.9.0 — Expanded watchface translations
+- Added Spanish, French, German, and Portuguese.
+- English and Swedish remain available.
+- Translates watchface labels, weekday abbreviations, and month abbreviations.
+- Settings interface remains English.
+- Languages remain centralized in the WatchTranslation table for easy expansion.
+
+## v2.9.1 — Cached temperature display fix
+- Fixed cached temperature briefly appearing blank when Big Time returns from Settings or menus.
+- The watch was already restoring the raw cached temperature, but the formatted temperature string was not rebuilt until another AppMessage arrived.
+- Cached temperature text is now formatted immediately after weather cache restoration, before the watchface UI appears.
+- Temperature, weather icon, high/low, sunrise, and sunset continue to use the same cached weather snapshot and refresh interval.
