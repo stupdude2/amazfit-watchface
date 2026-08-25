@@ -1365,7 +1365,7 @@ static void format_solar_time(int minute_of_day, char *buffer, size_t buffer_siz
     int hour12 = hour % 12;
     if (hour12 == 0) hour12 = 12;
     const char *ampm = hour < 12 ? "AM" : "PM";
-    snprintf(buffer, buffer_size, "%d:%02d%s", hour12, minute, ampm);
+    snprintf(buffer, buffer_size, "%d:%02d %s", hour12, minute, ampm);
   }
 }
 
@@ -2190,13 +2190,20 @@ static void update_header_content(void) {
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
   int top_right_w = SCREEN_W - top_right_x - 4;
 
+  // Hidden Time Zone values can be as wide as "12:59 PM". Let those
+  // text layers borrow a few pixels beyond the normal side-slot bounds.
+  const bool top_left_tz_hidden =
+      left_label_hidden && s_settings.top_left_slot == SLOT_TIME_ZONE;
+  const bool top_right_tz_hidden =
+      right_label_hidden && s_settings.top_right_slot == SLOT_TIME_ZONE;
+
   layer_set_frame(
       text_layer_get_layer(s_top_left_val),
-      GRect(4,
+      GRect(top_left_tz_hidden ? 0 : 4,
             left_calendar ? 4 :
               ((left_label_hidden ||
                 s_settings.top_left_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
-            left_w,
+            left_w + (top_left_tz_hidden ? 8 : 0),
             left_calendar ? HEADER_H - 5 :
               ((left_label_hidden ||
                  s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
@@ -2223,11 +2230,11 @@ static void update_header_content(void) {
 
   layer_set_frame(
       text_layer_get_layer(s_top_right_val),
-      GRect(top_right_x,
+      GRect(top_right_tz_hidden ? top_right_x - 4 : top_right_x,
             right_calendar ? 4 :
               ((right_label_hidden ||
                 s_settings.top_right_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
-            top_right_w,
+            top_right_w + (top_right_tz_hidden ? 8 : 0),
             right_calendar ? HEADER_H - 5 :
               ((right_label_hidden ||
                  s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
@@ -2338,13 +2345,18 @@ static void update_footer_content(void) {
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   int right_w = SCREEN_W - right_x - 4;
 
+  const bool bottom_left_tz_hidden =
+      left_label_hidden && s_settings.left_slot == SLOT_TIME_ZONE;
+  const bool bottom_right_tz_hidden =
+      right_label_hidden && s_settings.right_slot == SLOT_TIME_ZONE;
+
   layer_set_frame(
       text_layer_get_layer(s_left_val),
-      GRect(4,
+      GRect(bottom_left_tz_hidden ? 0 : 4,
             left_calendar ? 1 :
               ((left_label_hidden ||
                 s_settings.left_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
-            left_w,
+            left_w + (bottom_left_tz_hidden ? 8 : 0),
             left_calendar ? FOOTER_H - 1 :
               ((left_label_hidden ||
                  s_settings.left_slot == SLOT_BATTERY_PERCENT)
@@ -2369,11 +2381,11 @@ static void update_footer_content(void) {
 
   layer_set_frame(
       text_layer_get_layer(s_right_val),
-      GRect(right_x,
+      GRect(bottom_right_tz_hidden ? right_x - 4 : right_x,
             right_calendar ? 1 :
               ((right_label_hidden ||
                 s_settings.right_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
-            right_w,
+            right_w + (bottom_right_tz_hidden ? 8 : 0),
             right_calendar ? FOOTER_H - 1 :
               ((right_label_hidden ||
                  s_settings.right_slot == SLOT_BATTERY_PERCENT)

@@ -722,3 +722,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Prevents 12-hour timezone strings such as 12:59 PM from being truncated with an ellipsis.
 - Applies to Top Left, Top Right, Bottom Left, and Bottom Right only when Time Zone's label is hidden.
 - Normal labeled Time Zone display and all other hidden-label items are unchanged.
+
+## v3.0.6 DEV RC — Time value fit and AM/PM spacing
+- Hidden-label Time Zone values now receive 8 px of additional text width in all four side positions.
+- Allows long 12-hour strings such as 12:59 PM to extend slightly beyond the normal slot boundary instead of ellipsizing.
+- Standardized time displays that include AM/PM to use a space before the suffix, e.g. 6:42 AM.
+- Other slot geometry remains unchanged.
