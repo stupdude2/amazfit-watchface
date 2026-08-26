@@ -338,6 +338,12 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Step Progress Bar" },
       {
+        "type": "toggle", "messageKey": "PROGRESS_TRACK_BATTERY",
+        "defaultValue": false,
+        "label": "Track Battery Instead of Steps",
+        "description": "Use the progress bar to show remaining battery life from full to empty."
+      },
+      {
         "type": "slider", "messageKey": "STEP_GOAL", "defaultValue": 5000,
         "label": "Daily Step Goal", "min": 1000, "max": 30000, "step": 500
       },

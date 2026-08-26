@@ -113,6 +113,21 @@ function customClay(minified) {
       'RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false,
       'RIGHT_TIME_ZONE');
 
+    // The Step Progress Bar can track either daily steps or remaining battery.
+    // Preserve the user's step goal, but disable it while battery mode is active.
+    var progressTrackBattery =
+        clayPage.getItemByMessageKey('PROGRESS_TRACK_BATTERY');
+    var stepGoal = clayPage.getItemByMessageKey('STEP_GOAL');
+
+    if (progressTrackBattery && stepGoal) {
+      function syncProgressSource() {
+        if (progressTrackBattery.get()) stepGoal.disable();
+        else stepGoal.enable();
+      }
+      syncProgressSource();
+      progressTrackBattery.on('change', syncProgressSource);
+    }
+
     // Split clock colors are opt-in for backward compatibility. Existing users
     // keep their single Clock Color until they explicitly enable this toggle.
     var splitClockColors =
@@ -237,6 +252,7 @@ function customClay(minified) {
         setValue('HOUR_COLOR', '0xFFFFFF');
         setValue('MINUTE_COLOR', '0xFFFFFF');
         setValue('FLASH_COLON', false);
+        setValue('PROGRESS_TRACK_BATTERY', false);
         setValue('ROUNDED_TIME', '0');
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);

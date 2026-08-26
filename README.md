@@ -794,10 +794,16 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Slightly Rounded colon dots now use the matching 3 px corner radius.
 - Square and Rounded styles are unchanged.
 
-## v3.2.5 DEV — Forecast + Rain Chance
+## 1.3-dev-001 — Forecast + Rain Chance
 - Added Forecast to Top/Bottom Left and Right: tomorrow's condition icon plus high/low.
 - Added Rain Chance to all six information positions with optional RAIN label.
 - Rain Chance uses today's daily precipitation_probability_max from Open-Meteo.
 - Weather requests now retrieve two forecast days in the existing request and cache all values together phone-side.
 - New forecast/rain watch data is persisted in a separate extended cache so the existing current-weather cache remains upgrade-compatible.
 - Existing slot IDs were not renumbered; new IDs are appended.
+
+## 1.3-dev-002 — Battery Progress Bar
+- Added Track Battery Instead of Steps to the Step Progress Bar section.
+- Battery uses the existing progress styles and drains from full at 100% to empty at 0%.
+- Step Goal is disabled while battery tracking is selected, without deleting the saved goal.
+- The new preference is persisted separately; WatchfaceSettings v16 and package version 1.3.0 remain unchanged.

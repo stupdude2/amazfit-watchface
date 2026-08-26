@@ -134,6 +134,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_FORECAST_HIGH_TEMP    46
 #define KEY_FORECAST_LOW_TEMP     47
 #define KEY_RAIN_CHANCE           48
+#define KEY_PROGRESS_TRACK_BATTERY 49
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -515,6 +516,7 @@ static bool s_pro_unlocked = false;
 #define FLASH_COLON_PERSIST_KEY   1108
 #define ROUNDED_TIME_PERSIST_KEY  1109
 #define WEATHER_EXT_CACHE_PERSIST_KEY 1110
+#define PROGRESS_TRACK_BATTERY_PERSIST_KEY 1111
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -646,6 +648,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_SPLIT_CLOCK_COLORS:
     case KEY_FLASH_COLON:
     case KEY_ROUNDED_TIME:
+    case KEY_PROGRESS_TRACK_BATTERY:
       return true;
     default:
       return false;
@@ -1132,6 +1135,7 @@ static GColor s_hour_color;
 static GColor s_minute_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
+static bool s_progress_track_battery = false;
 typedef enum {
   TIME_STYLE_SQUARE = 0,
   TIME_STYLE_ROUNDED = 1,
@@ -1181,6 +1185,10 @@ static void load_split_clock_colors(void) {
   } else {
     s_time_style = TIME_STYLE_SQUARE;
   }
+
+  s_progress_track_battery =
+      persist_exists(PROGRESS_TRACK_BATTERY_PERSIST_KEY) &&
+      persist_read_int(PROGRESS_TRACK_BATTERY_PERSIST_KEY) != 0;
 }
 
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
@@ -1751,11 +1759,26 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
 
   if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return;
 
-  int steps = s_step_count < 0 ? 0 : s_step_count;
-  int fill_w = (steps >= s_settings.step_goal) ? bar_w : (steps * bar_w / s_settings.step_goal);
+  int progress_value;
+  int progress_goal;
 
-  if (steps >= s_settings.step_goal) {
-    // Goal reached: celebrate by switching the completed bar to the accent color.
+  if (s_progress_track_battery) {
+    // Battery mode maps system battery percentage directly onto the existing
+    // progress geometry: 100% = full, 0% = empty.
+    progress_value = s_battery_percent;
+    if (progress_value < 0) progress_value = 0;
+    if (progress_value > 100) progress_value = 100;
+    progress_goal = 100;
+  } else {
+    progress_value = s_step_count < 0 ? 0 : s_step_count;
+    progress_goal = s_settings.step_goal > 0 ? s_settings.step_goal : 1;
+  }
+
+  int fill_w = (progress_value >= progress_goal)
+      ? bar_w
+      : (progress_value * bar_w / progress_goal);
+
+  if (progress_value >= progress_goal) {
     graphics_context_set_fill_color(ctx, s_settings.accent_color);
     graphics_fill_rect(ctx, GRect(bar_x, cy - 1, bar_w, 4), 0, GCornerNone);
     return;
@@ -3040,6 +3063,9 @@ static void battery_handler(BatteryChargeState charge) {
   s_battery_percent = charge.charge_percent;
   update_footer_content();
   update_header_content();
+  if (s_progress_track_battery && s_stepbar_layer) {
+    layer_mark_dirty(s_stepbar_layer);
+  }
 }
 
 static void connection_handler(bool connected) {
@@ -3856,6 +3882,19 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         persist_write_int(ROUNDED_TIME_PERSIST_KEY, value);
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Time style -> %d", value);
+        break;
+      }
+
+      case KEY_PROGRESS_TRACK_BATTERY: {
+        bool enabled =
+            tuple_to_int32(t, s_progress_track_battery ? 1 : 0) != 0;
+        s_progress_track_battery = enabled;
+        persist_write_int(PROGRESS_TRACK_BATTERY_PERSIST_KEY,
+                          enabled ? 1 : 0);
+        if (s_stepbar_layer) layer_mark_dirty(s_stepbar_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Progress bar source -> %s",
+                enabled ? "BATTERY" : "STEPS");
         break;
       }
 
