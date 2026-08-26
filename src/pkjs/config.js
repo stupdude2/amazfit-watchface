@@ -248,8 +248,11 @@ if (edition.isPro) {
       { "type": "color", "messageKey": "HOUR_COLOR", "defaultValue": "0xFFFFFF", "label": "Hour Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "MINUTE_COLOR", "defaultValue": "0xFFFFFF", "label": "Minute Color", "layout": "COLOR" },
       { "type": "toggle", "messageKey": "FLASH_COLON", "defaultValue": false,
-        "label": "Flashing Colon",
-        "description": "Flash the main clock colon on and off once per second." },
+        "label": "Seconds Colon",
+        "description": "Flash the main clock colon on and off once per second to indicate seconds." },
+      { "type": "toggle", "messageKey": "ROUNDED_TIME", "defaultValue": false,
+        "label": "Rounded Time",
+        "description": "Round the corners and ends of the clock segments for a softer display style." },
       { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });

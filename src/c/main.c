@@ -129,6 +129,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_MINUTE_COLOR          41
 #define KEY_SPLIT_CLOCK_COLORS    42
 #define KEY_FLASH_COLON           43
+#define KEY_ROUNDED_TIME          44
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -505,6 +506,7 @@ static bool s_pro_unlocked = false;
 #define MINUTE_COLOR_PERSIST_KEY  1106
 #define SPLIT_COLOR_PERSIST_KEY   1107
 #define FLASH_COLON_PERSIST_KEY   1108
+#define ROUNDED_TIME_PERSIST_KEY  1109
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -635,6 +637,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_MINUTE_COLOR:
     case KEY_SPLIT_CLOCK_COLORS:
     case KEY_FLASH_COLON:
+    case KEY_ROUNDED_TIME:
       return true;
     default:
       return false;
@@ -1112,6 +1115,7 @@ static GColor s_hour_color;
 static GColor s_minute_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
+static bool s_rounded_time = false;
 static bool s_second_tick_mode = false;
 // Drawing helpers use this transient color so their geometry remains unchanged.
 static GColor s_clock_draw_color;
@@ -1143,6 +1147,9 @@ static void load_split_clock_colors(void) {
   s_flash_colon =
       persist_exists(FLASH_COLON_PERSIST_KEY) &&
       persist_read_int(FLASH_COLON_PERSIST_KEY) != 0;
+  s_rounded_time =
+      persist_exists(ROUNDED_TIME_PERSIST_KEY) &&
+      persist_read_int(ROUNDED_TIME_PERSIST_KEY) != 0;
 }
 
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
@@ -1215,11 +1222,21 @@ static void to_upper(char *s) {
 }
 
 // ── Segment drawing ───────────────────────────────────────────────────────────
+static int clock_segment_radius(int thickness) {
+  return s_rounded_time ? thickness / 2 : 0;
+}
+
+static GCornerMask clock_segment_corners(void) {
+  return s_rounded_time ? GCornersAll : GCornerNone;
+}
+
 static void draw_h(GContext *ctx, int ox, int oy) {
-  graphics_fill_rect(ctx, GRect(ox, oy, DIGIT_WIDTH, STK), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(ox, oy, DIGIT_WIDTH, STK),
+                     clock_segment_radius(STK), clock_segment_corners());
 }
 static void draw_v(GContext *ctx, int ox, int oy, int len) {
-  graphics_fill_rect(ctx, GRect(ox, oy, STK, len), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(ox, oy, STK, len),
+                     clock_segment_radius(STK), clock_segment_corners());
 }
 static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
   if (digit < 0 || digit > 9) return;
@@ -1259,8 +1276,12 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
   int upper_y = oy + DIGIT_HEIGHT / 3 - COLON_DOT / 2;
   int lower_y = oy + (DIGIT_HEIGHT * 2) / 3 - COLON_DOT / 2;
-  graphics_fill_rect(ctx, GRect(cx, upper_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT), 0, GCornerNone);
+  int radius = s_rounded_time ? COLON_DOT / 2 : 0;
+  GCornerMask corners = s_rounded_time ? GCornersAll : GCornerNone;
+  graphics_fill_rect(ctx, GRect(cx, upper_y, COLON_DOT, COLON_DOT),
+                     radius, corners);
+  graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT),
+                     radius, corners);
 }
 
 static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
@@ -1274,13 +1295,13 @@ static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
   int lx = ox;
   int rx = ox + width - H24_STK;
 
-  if (s & SEG_TOP) graphics_fill_rect(ctx, GRect(ox, top_y, width, H24_STK), 0, GCornerNone);
-  if (s & SEG_MID) graphics_fill_rect(ctx, GRect(ox, mid_y, width, H24_STK), 0, GCornerNone);
-  if (s & SEG_BOT) graphics_fill_rect(ctx, GRect(ox, bot_y, width, H24_STK), 0, GCornerNone);
-  if (s & SEG_TL) graphics_fill_rect(ctx, GRect(lx, top_y, H24_STK, mid_y - top_y + H24_STK), 0, GCornerNone);
-  if (s & SEG_TR) graphics_fill_rect(ctx, GRect(rx, top_y, H24_STK, mid_y - top_y + H24_STK), 0, GCornerNone);
-  if (s & SEG_BL) graphics_fill_rect(ctx, GRect(lx, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
-  if (s & SEG_BR) graphics_fill_rect(ctx, GRect(rx, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
+  if (s & SEG_TOP) graphics_fill_rect(ctx, GRect(ox, top_y, width, H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  if (s & SEG_MID) graphics_fill_rect(ctx, GRect(ox, mid_y, width, H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  if (s & SEG_BOT) graphics_fill_rect(ctx, GRect(ox, bot_y, width, H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  if (s & SEG_TL) graphics_fill_rect(ctx, GRect(lx, top_y, H24_STK, mid_y - top_y + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  if (s & SEG_TR) graphics_fill_rect(ctx, GRect(rx, top_y, H24_STK, mid_y - top_y + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  if (s & SEG_BL) graphics_fill_rect(ctx, GRect(lx, mid_y, H24_STK, bot_y - mid_y + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  if (s & SEG_BR) graphics_fill_rect(ctx, GRect(rx, mid_y, H24_STK, bot_y - mid_y + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
 }
 
 static void draw_one_24(GContext *ctx, int cell_x, int oy) {
@@ -1292,8 +1313,8 @@ static void draw_one_24(GContext *ctx, int cell_x, int oy) {
   int mid_y = oy + HALF_V - H24_STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - H24_STK;
 
-  graphics_fill_rect(ctx, GRect(ox, oy, H24_STK, mid_y - oy + H24_STK), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(ox, mid_y, H24_STK, bot_y - mid_y + H24_STK), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(ox, oy, H24_STK, mid_y - oy + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
+  graphics_fill_rect(ctx, GRect(ox, mid_y, H24_STK, bot_y - mid_y + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
 }
 
 
@@ -3611,6 +3632,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         update_tick_service();
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Flashing colon -> %d", enabled ? 1 : 0);
+        break;
+      }
+
+      case KEY_ROUNDED_TIME: {
+        bool enabled = tuple_to_int32(t, s_rounded_time ? 1 : 0) != 0;
+        s_rounded_time = enabled;
+        persist_write_int(ROUNDED_TIME_PERSIST_KEY, enabled ? 1 : 0);
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Rounded time -> %d", enabled ? 1 : 0);
         break;
       }
 

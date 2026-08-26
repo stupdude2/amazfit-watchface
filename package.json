@@ -61,7 +61,8 @@
       "HOUR_COLOR": 40,
       "MINUTE_COLOR": 41,
       "SPLIT_CLOCK_COLORS": 42,
-      "FLASH_COLON": 43
+      "FLASH_COLON": 43,
+      "ROUNDED_TIME": 44
     },
     "projectType": "native",
     "resources": {
@@ -131,5 +132,5 @@
       "watchface": true
     }
   },
-  "version": "3.2.1"
+  "version": "3.2.2"
 }

@@ -772,3 +772,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - SECOND_UNIT ticks are used only while Flashing Colon or a Seconds slot is active; otherwise the original MINUTE_UNIT cadence is retained.
 - Flashing Colon is persisted separately, preserving WatchfaceSettings v16 compatibility.
 - KiezelPay development/test mode remains enabled.
+
+## v3.2.2 DEV — Rounded Time style
+- Renamed Flashing Colon to Seconds Colon in Settings.
+- Added opt-in Rounded Time style.
+- Rounded Time uses Pebble's native rounded-rectangle drawing for all seven-segment digit strokes and colon dots.
+- Existing square segment style remains the default.
+- Rounded Time is persisted separately; WatchfaceSettings v16 remains unchanged.
+- DEV/KiezelPay test mode remains enabled.
