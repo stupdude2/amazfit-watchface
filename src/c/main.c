@@ -128,6 +128,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_HOUR_COLOR            40
 #define KEY_MINUTE_COLOR          41
 #define KEY_SPLIT_CLOCK_COLORS    42
+#define KEY_FLASH_COLON           43
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -156,7 +157,8 @@ typedef enum {
   SLOT_HIGH_LOW = 12,
   SLOT_BATTERY_ICON = 13,
   SLOT_BATTERY_PERCENT = 14,
-  SLOT_TIME_ZONE = 15
+  SLOT_TIME_ZONE = 15,
+  SLOT_SECONDS = 16
 } SideSlotContent;
 
 typedef enum {
@@ -169,7 +171,8 @@ typedef enum {
   CENTER_DATE = 6,
   CENTER_MONTH = 7,
   CENTER_BATTERY_ICON = 8,
-  CENTER_BATTERY_PERCENT = 9
+  CENTER_BATTERY_PERCENT = 9,
+  CENTER_SECONDS = 10
 } CenterSlotContent;
 
 typedef enum {
@@ -501,6 +504,7 @@ static bool s_pro_unlocked = false;
 #define HOUR_COLOR_PERSIST_KEY    1105
 #define MINUTE_COLOR_PERSIST_KEY  1106
 #define SPLIT_COLOR_PERSIST_KEY   1107
+#define FLASH_COLON_PERSIST_KEY   1108
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -630,6 +634,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_HOUR_COLOR:
     case KEY_MINUTE_COLOR:
     case KEY_SPLIT_CLOCK_COLORS:
+    case KEY_FLASH_COLON:
       return true;
     default:
       return false;
@@ -639,18 +644,20 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_TIME_ZONE &&
+         settings->left_slot <= SLOT_SECONDS &&
          ((settings->center_slot <= CENTER_MONTH &&
            settings->center_slot != CENTER_STEPS) ||
           settings->center_slot == CENTER_BATTERY_ICON ||
-          settings->center_slot == CENTER_BATTERY_PERCENT) &&
-         settings->right_slot <= SLOT_TIME_ZONE &&
-         settings->top_left_slot <= SLOT_TIME_ZONE &&
+          settings->center_slot == CENTER_BATTERY_PERCENT ||
+          settings->center_slot == CENTER_SECONDS) &&
+         settings->right_slot <= SLOT_SECONDS &&
+         settings->top_left_slot <= SLOT_SECONDS &&
          ((settings->top_center_slot <= SLOT_MONTH &&
            settings->top_center_slot != SLOT_STEPS) ||
           settings->top_center_slot == SLOT_BATTERY_ICON ||
-          settings->top_center_slot == SLOT_BATTERY_PERCENT) &&
-         settings->top_right_slot <= SLOT_TIME_ZONE &&
+          settings->top_center_slot == SLOT_BATTERY_PERCENT ||
+          settings->top_center_slot == SLOT_SECONDS) &&
+         settings->top_right_slot <= SLOT_SECONDS &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1090,6 +1097,7 @@ static char s_hr_buf[12];
 static char s_steps_buf[8];
 static char s_weather_buf[12];
 static char s_battery_buf[12];
+static char s_seconds_buf[3];
 static char s_calories_buf[12];
 static char s_distance_buf[12];
 static char s_sunrise_buf[12];
@@ -1103,6 +1111,8 @@ static int  s_battery_percent = 0;
 static GColor s_hour_color;
 static GColor s_minute_color;
 static bool s_split_clock_colors = false;
+static bool s_flash_colon = false;
+static bool s_second_tick_mode = false;
 // Drawing helpers use this transient color so their geometry remains unchanged.
 static GColor s_clock_draw_color;
 static uint8_t s_top_left_time_zone = 0;
@@ -1130,6 +1140,9 @@ static void load_split_clock_colors(void) {
   if (persist_exists(SPLIT_COLOR_PERSIST_KEY)) {
     s_split_clock_colors = persist_read_int(SPLIT_COLOR_PERSIST_KEY) != 0;
   }
+  s_flash_colon =
+      persist_exists(FLASH_COLON_PERSIST_KEY) &&
+      persist_read_int(FLASH_COLON_PERSIST_KEY) != 0;
 }
 
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
@@ -1150,6 +1163,7 @@ static void load_time_zone_presets(void) {
 static bool s_bluetooth_connected = false;
 static int  s_hour        = 0;
 static int  s_minute      = 0;
+static int  s_second      = 0;
 static int  s_weather_icon = -1;
 static int  s_temperature_c_x10 = 0;
 static bool s_have_temperature = false;
@@ -1482,7 +1496,9 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     else draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);
 
     s_clock_draw_color = s_settings.clock_color;
-    draw_colon(ctx, H24_COL_X, sy);
+    if (!s_flash_colon || (s_second % 2) == 0) {
+      draw_colon(ctx, H24_COL_X, sy);
+    }
 
     s_clock_draw_color = minute_color;
     if (m1 == 1) draw_one_24(ctx, H24_M1_X, sy);
@@ -1502,7 +1518,9 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     if (h2 == 1) draw_one(ctx, h2_x, sy); else draw_digit(ctx, h2_x, sy, h2);
 
     s_clock_draw_color = s_settings.clock_color;
-    draw_colon(ctx, col_x, sy);
+    if (!s_flash_colon || (s_second % 2) == 0) {
+      draw_colon(ctx, col_x, sy);
+    }
 
     s_clock_draw_color = minute_color;
     if (m1 == 1) draw_one(ctx, m1_x, sy); else draw_digit(ctx, m1_x, sy, m1);
@@ -1806,6 +1824,8 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 }
 
 static void update_time(struct tm *tick_time);
+static void tick_handler(struct tm *tick_time, TimeUnits changed);
+static void update_tick_service(void);
 
 typedef enum {
   TXT_WEATHER,
@@ -1966,6 +1986,7 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_SUNSET: return watch_text(TXT_SET);
     case SLOT_HIGH_LOW: return watch_text(TXT_HIGH_LOW);
     case SLOT_TIME_ZONE: return "TZ";
+    case SLOT_SECONDS: return "";
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -2008,6 +2029,9 @@ static const char *side_slot_value(uint8_t slot) {
       return high_low_text();
     case SLOT_TIME_ZONE:
       return "";
+    case SLOT_SECONDS:
+      snprintf(s_seconds_buf, sizeof(s_seconds_buf), "%02d", s_second);
+      return s_seconds_buf;
     case SLOT_BATTERY_ICON:
       return "";
     case SLOT_BATTERY_PERCENT:
@@ -2071,6 +2095,7 @@ static const char *center_slot_label(void) {
     case CENTER_BATTERY: return "";
     case CENTER_BATTERY_ICON: return "";
     case CENTER_BATTERY_PERCENT: return "";
+    case CENTER_SECONDS: return "";
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
     case CENTER_WEATHER: return watch_text(TXT_TEMP);
     case CENTER_STEPS: return watch_text(TXT_STEPS);
@@ -2091,6 +2116,9 @@ static const char *center_slot_value(void) {
     case CENTER_BATTERY_PERCENT:
       snprintf(s_battery_buf, sizeof(s_battery_buf), "%d%%", s_battery_percent);
       return s_battery_buf;
+    case CENTER_SECONDS:
+      snprintf(s_seconds_buf, sizeof(s_seconds_buf), "%02d", s_second);
+      return s_seconds_buf;
     case CENTER_BLUETOOTH: return "";
     case CENTER_WEATHER: return s_weather_buf;
     case CENTER_STEPS:
@@ -2189,17 +2217,21 @@ static void update_header_content(void) {
       side_slot_has_optional_label(s_settings.top_right_slot);
 
   const bool left_large = left_calendar || left_label_hidden ||
-      s_settings.top_left_slot == SLOT_BATTERY_PERCENT;
+      s_settings.top_left_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.top_left_slot == SLOT_SECONDS;
   const bool center_large = center_calendar || center_label_hidden ||
-      s_settings.top_center_slot == SLOT_BATTERY_PERCENT;
+      s_settings.top_center_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.top_center_slot == SLOT_SECONDS;
   const bool right_large = right_calendar || right_label_hidden ||
-      s_settings.top_right_slot == SLOT_BATTERY_PERCENT;
+      s_settings.top_right_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.top_right_slot == SLOT_SECONDS;
 
   text_layer_set_text(
       s_top_left_label,
       (left_label_hidden ||
        s_settings.top_left_slot == SLOT_BATTERY_ICON ||
-       s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
+       s_settings.top_left_slot == SLOT_BATTERY_PERCENT ||
+       s_settings.top_left_slot == SLOT_SECONDS)
           ? "" : top_side_slot_label(s_settings.top_left_slot, true));
   text_layer_set_text(
       s_top_left_val,
@@ -2214,7 +2246,8 @@ static void update_header_content(void) {
       s_top_center_label,
       (center_label_hidden ||
        s_settings.top_center_slot == SLOT_BATTERY_ICON ||
-       s_settings.top_center_slot == SLOT_BATTERY_PERCENT)
+       s_settings.top_center_slot == SLOT_BATTERY_PERCENT ||
+       s_settings.top_center_slot == SLOT_SECONDS)
           ? "" : center_label);
   text_layer_set_text(
       s_top_center_val,
@@ -2224,7 +2257,8 @@ static void update_header_content(void) {
       s_top_right_label,
       (right_label_hidden ||
        s_settings.top_right_slot == SLOT_BATTERY_ICON ||
-       s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
+       s_settings.top_right_slot == SLOT_BATTERY_PERCENT ||
+       s_settings.top_right_slot == SLOT_SECONDS)
           ? "" : top_side_slot_label(s_settings.top_right_slot, false));
   text_layer_set_text(
       s_top_right_val,
@@ -2260,18 +2294,27 @@ static void update_header_content(void) {
   int top_right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
   int top_right_w = SCREEN_W - top_right_x - 4;
 
+  const bool left_full_value =
+      left_label_hidden ||
+      s_settings.top_left_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.top_left_slot == SLOT_SECONDS;
+  const bool center_full_value =
+      center_label_hidden ||
+      s_settings.top_center_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.top_center_slot == SLOT_SECONDS;
+  const bool right_full_value =
+      right_label_hidden ||
+      s_settings.top_right_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.top_right_slot == SLOT_SECONDS;
 
   layer_set_frame(
       text_layer_get_layer(s_top_left_val),
       GRect(4,
             left_calendar ? 4 :
-              ((left_label_hidden ||
-                s_settings.top_left_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
+              (left_full_value ? 4 : 15),
             left_w,
             left_calendar ? HEADER_H - 5 :
-              ((left_label_hidden ||
-                 s_settings.top_left_slot == SLOT_BATTERY_PERCENT)
-                    ? HEADER_H - 5 : 34)));
+              (left_full_value ? HEADER_H - 5 : 34)));
 
   const int top_center_value_x =
       DATEBOX_X + ((s_settings.top_center_slot == SLOT_WEATHER) ? 2 : 0);
@@ -2282,27 +2325,21 @@ static void update_header_content(void) {
       text_layer_get_layer(s_top_center_val),
       GRect(top_center_value_x,
             center_calendar ? 4 :
-              ((center_label_hidden ||
-                 s_settings.top_center_slot == SLOT_BATTERY_PERCENT) ? 4 :
+              (center_full_value ? 4 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 14 : 15)),
             top_center_value_w,
             center_calendar ? HEADER_H - 5 :
-              ((center_label_hidden ||
-                 s_settings.top_center_slot == SLOT_BATTERY_PERCENT)
-                    ? HEADER_H - 5 :
+              (center_full_value ? HEADER_H - 5 :
                 (s_settings.top_center_slot == SLOT_BATTERY ? 38 : 34))));
 
   layer_set_frame(
       text_layer_get_layer(s_top_right_val),
       GRect(top_right_x,
             right_calendar ? 4 :
-              ((right_label_hidden ||
-                s_settings.top_right_slot == SLOT_BATTERY_PERCENT) ? 4 : 15),
+              (right_full_value ? 4 : 15),
             top_right_w,
             right_calendar ? HEADER_H - 5 :
-              ((right_label_hidden ||
-                 s_settings.top_right_slot == SLOT_BATTERY_PERCENT)
-                    ? HEADER_H - 5 : 34)));
+              (right_full_value ? HEADER_H - 5 : 34)));
 
   text_layer_set_text_alignment(
       s_top_left_label,
@@ -2347,17 +2384,21 @@ static void update_footer_content(void) {
       side_slot_has_optional_label(s_settings.right_slot);
 
   const bool left_large = left_calendar || left_label_hidden ||
-      s_settings.left_slot == SLOT_BATTERY_PERCENT;
+      s_settings.left_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.left_slot == SLOT_SECONDS;
   const bool center_large = center_calendar || center_label_hidden ||
-      s_settings.center_slot == CENTER_BATTERY_PERCENT;
+      s_settings.center_slot == CENTER_BATTERY_PERCENT ||
+      s_settings.center_slot == CENTER_SECONDS;
   const bool right_large = right_calendar || right_label_hidden ||
-      s_settings.right_slot == SLOT_BATTERY_PERCENT;
+      s_settings.right_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.right_slot == SLOT_SECONDS;
 
   text_layer_set_text(
       s_left_label,
       (left_calendar || left_label_hidden ||
        s_settings.left_slot == SLOT_BATTERY_ICON ||
-       s_settings.left_slot == SLOT_BATTERY_PERCENT)
+       s_settings.left_slot == SLOT_BATTERY_PERCENT ||
+       s_settings.left_slot == SLOT_SECONDS)
           ? "" : bottom_side_slot_label(s_settings.left_slot, true));
   text_layer_set_text(s_left_val, bottom_side_slot_value(s_settings.left_slot, true));
 
@@ -2365,7 +2406,8 @@ static void update_footer_content(void) {
       s_center_label,
       (center_calendar || center_label_hidden ||
        s_settings.center_slot == CENTER_BATTERY_ICON ||
-       s_settings.center_slot == CENTER_BATTERY_PERCENT)
+       s_settings.center_slot == CENTER_BATTERY_PERCENT ||
+       s_settings.center_slot == CENTER_SECONDS)
           ? "" : center_slot_label());
   text_layer_set_text(s_center_val, center_slot_value());
 
@@ -2373,7 +2415,8 @@ static void update_footer_content(void) {
       s_right_label,
       (right_calendar || right_label_hidden ||
        s_settings.right_slot == SLOT_BATTERY_ICON ||
-       s_settings.right_slot == SLOT_BATTERY_PERCENT)
+       s_settings.right_slot == SLOT_BATTERY_PERCENT ||
+       s_settings.right_slot == SLOT_SECONDS)
           ? "" : bottom_side_slot_label(s_settings.right_slot, false));
   text_layer_set_text(s_right_val, bottom_side_slot_value(s_settings.right_slot, false));
 
@@ -2405,18 +2448,27 @@ static void update_footer_content(void) {
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   int right_w = SCREEN_W - right_x - 4;
 
+  const bool left_full_value =
+      left_label_hidden ||
+      s_settings.left_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.left_slot == SLOT_SECONDS;
+  const bool center_full_value =
+      center_label_hidden ||
+      s_settings.center_slot == CENTER_BATTERY_PERCENT ||
+      s_settings.center_slot == CENTER_SECONDS;
+  const bool right_full_value =
+      right_label_hidden ||
+      s_settings.right_slot == SLOT_BATTERY_PERCENT ||
+      s_settings.right_slot == SLOT_SECONDS;
 
   layer_set_frame(
       text_layer_get_layer(s_left_val),
       GRect(4,
             left_calendar ? 1 :
-              ((left_label_hidden ||
-                s_settings.left_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
+              (left_full_value ? 4 : 14),
             left_w,
             left_calendar ? FOOTER_H - 1 :
-              ((left_label_hidden ||
-                 s_settings.left_slot == SLOT_BATTERY_PERCENT)
-                    ? FOOTER_H - 4 : 38)));
+              (left_full_value ? FOOTER_H - 4 : 38)));
 
   const int center_value_x =
       HRBOX_X + ((s_settings.center_slot == CENTER_WEATHER) ? 2 : 0);
@@ -2427,25 +2479,19 @@ static void update_footer_content(void) {
       text_layer_get_layer(s_center_val),
       GRect(center_value_x,
             center_calendar ? 1 :
-              ((center_label_hidden ||
-                s_settings.center_slot == CENTER_BATTERY_PERCENT) ? 4 : 14),
+              (center_full_value ? 4 : 14),
             center_value_w,
             center_calendar ? FOOTER_H - 1 :
-              ((center_label_hidden ||
-                 s_settings.center_slot == CENTER_BATTERY_PERCENT)
-                    ? FOOTER_H - 4 : 38)));
+              (center_full_value ? FOOTER_H - 4 : 38)));
 
   layer_set_frame(
       text_layer_get_layer(s_right_val),
       GRect(right_x,
             right_calendar ? 1 :
-              ((right_label_hidden ||
-                s_settings.right_slot == SLOT_BATTERY_PERCENT) ? 4 : 14),
+              (right_full_value ? 4 : 14),
             right_w,
             right_calendar ? FOOTER_H - 1 :
-              ((right_label_hidden ||
-                 s_settings.right_slot == SLOT_BATTERY_PERCENT)
-                    ? FOOTER_H - 4 : 38)));
+              (right_full_value ? FOOTER_H - 4 : 38)));
 
   // Weather icon uses the outer/right edge of its side slot. When data labels
   // are hidden, center the 25px icon against the full-height enlarged value.
@@ -3121,6 +3167,7 @@ static void license_refresh_ui(void) {
   update_stepbar_layout();
   update_bar_input_services();
   update_raise_wake_service();
+  update_tick_service();
   apply_bar_visibility();
   update_accent_text_contrast();
   update_background_contrast();
@@ -3290,7 +3337,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) {
+        if (value >= SLOT_WEATHER && value <= SLOT_SECONDS) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -3303,7 +3350,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         if ((value >= CENTER_HEART_RATE && value <= CENTER_MONTH &&
              value != CENTER_STEPS) ||
             value == CENTER_BATTERY_ICON ||
-            value == CENTER_BATTERY_PERCENT) {
+            value == CENTER_BATTERY_PERCENT ||
+            value == CENTER_SECONDS) {
           s_settings.center_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
           layout_changed = true;
@@ -3313,7 +3361,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) {
+        if (value >= SLOT_WEATHER && value <= SLOT_SECONDS) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -3323,7 +3371,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_SECONDS) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -3331,7 +3379,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         if ((value >= SLOT_WEATHER && value <= SLOT_MONTH &&
              value != SLOT_STEPS) ||
             value == SLOT_BATTERY_ICON ||
-            value == SLOT_BATTERY_PERCENT) {
+            value == SLOT_BATTERY_PERCENT ||
+            value == SLOT_SECONDS) {
           s_settings.top_center_slot = (uint8_t)value;
           layout_changed = true;
         }
@@ -3339,7 +3388,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_TIME_ZONE) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_SECONDS) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -3555,6 +3604,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_FLASH_COLON: {
+        bool enabled = tuple_to_int32(t, s_flash_colon ? 1 : 0) != 0;
+        s_flash_colon = enabled;
+        persist_write_int(FLASH_COLON_PERSIST_KEY, enabled ? 1 : 0);
+        update_tick_service();
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Flashing colon -> %d", enabled ? 1 : 0);
+        break;
+      }
+
       case KEY_BACKGROUND_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
           new_background_hex = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
@@ -3702,6 +3761,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     update_stepbar_layout();
     update_bar_input_services();
     update_raise_wake_service();
+    update_tick_service();
     apply_bar_visibility();
 
     // Time-format changes should be visible immediately instead of waiting for
@@ -3718,6 +3778,30 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
+static bool seconds_display_is_used(void) {
+  return s_settings.top_left_slot == SLOT_SECONDS ||
+         s_settings.top_center_slot == SLOT_SECONDS ||
+         s_settings.top_right_slot == SLOT_SECONDS ||
+         s_settings.left_slot == SLOT_SECONDS ||
+         s_settings.center_slot == CENTER_SECONDS ||
+         s_settings.right_slot == SLOT_SECONDS;
+}
+
+static bool second_ticks_are_needed(void) {
+  return (s_pro_unlocked && s_flash_colon) || seconds_display_is_used();
+}
+
+static void update_tick_service(void) {
+  bool need_seconds = second_ticks_are_needed();
+  if (need_seconds == s_second_tick_mode) return;
+  tick_timer_service_unsubscribe();
+  tick_timer_service_subscribe(
+      need_seconds ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
+  s_second_tick_mode = need_seconds;
+  APP_LOG(APP_LOG_LEVEL_INFO, "Tick cadence -> %s",
+          need_seconds ? "SECOND" : "MINUTE");
+}
+
 static void update_time(struct tm *tick_time) {
   if (s_settings.time_format == TIME_FORMAT_24H) {
     s_hour = tick_time->tm_hour;
@@ -3726,6 +3810,7 @@ static void update_time(struct tm *tick_time) {
     if (s_hour == 0) s_hour = 12;
   }
   s_minute = tick_time->tm_min;
+  s_second = tick_time->tm_sec;
   layer_mark_dirty(s_clock_layer);
 
   const WatchTranslation *translation = watch_translation();
@@ -4043,7 +4128,9 @@ static void init(void) {
     .unload = window_unload,
   });
   window_stack_push(s_window, true);
-  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+  s_second_tick_mode = second_ticks_are_needed();
+  tick_timer_service_subscribe(
+      s_second_tick_mode ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
 
   // KiezelPay and Big Time both use AppMessage. pebble-events allows both
   // subscribers to coexist without one replacing the other's callbacks.

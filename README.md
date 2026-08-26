@@ -764,3 +764,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - With split colors enabled: Hour Color controls hour digits, Minute Color controls minute digits, and Clock Color controls the colon.
 - Split-color state and colors use separate persistence keys; WatchfaceSettings and SETTINGS_VERSION remain unchanged.
 - Existing user customizations therefore remain binary-compatible.
+
+## v3.2.1 DEV — Seconds options
+- Added Flashing Colon: the main clock colon alternates visible/hidden once per second.
+- Added Seconds as a label-free large 00–59 value in all six information positions.
+- Seconds is available in Top Left, Top Center, Top Right, Bottom Left, Bottom Center, and Bottom Right.
+- SECOND_UNIT ticks are used only while Flashing Colon or a Seconds slot is active; otherwise the original MINUTE_UNIT cadence is retained.
+- Flashing Colon is persisted separately, preserving WatchfaceSettings v16 compatibility.
+- KiezelPay development/test mode remains enabled.

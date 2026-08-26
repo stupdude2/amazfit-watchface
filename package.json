@@ -60,7 +60,8 @@
       "RIGHT_TIME_ZONE": 39,
       "HOUR_COLOR": 40,
       "MINUTE_COLOR": 41,
-      "SPLIT_CLOCK_COLORS": 42
+      "SPLIT_CLOCK_COLORS": 42,
+      "FLASH_COLON": 43
     },
     "projectType": "native",
     "resources": {
@@ -130,5 +131,5 @@
       "watchface": true
     }
   },
-  "version": "3.2.0"
+  "version": "3.2.1"
 }

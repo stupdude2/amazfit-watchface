@@ -7,6 +7,7 @@ var sideOptions = [
   { "label": "Battery Icon", "value": "13" },
   { "label": "Battery %", "value": "14" },
   { "label": "Time Zone", "value": "15" },
+  { "label": "Seconds", "value": "16" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Day of Week", "value": "5" },
@@ -64,6 +65,7 @@ var topCenterOptions = [
   { "label": "Battery (icon + %)", "value": "2" },
   { "label": "Battery Icon", "value": "13" },
   { "label": "Battery %", "value": "14" },
+  { "label": "Seconds", "value": "16" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Date", "value": "6" }
@@ -74,6 +76,7 @@ var centerOptions = [
   { "label": "Battery (icon + %)", "value": "1" },
   { "label": "Battery Icon", "value": "8" },
   { "label": "Battery %", "value": "9" },
+  { "label": "Seconds", "value": "10" },
   { "label": "Bluetooth", "value": "2" },
   { "label": "Weather", "value": "3" },
   { "label": "Date", "value": "6" }
@@ -244,6 +247,9 @@ if (edition.isPro) {
         "description": "Use independent colors for the hour and minute digits." },
       { "type": "color", "messageKey": "HOUR_COLOR", "defaultValue": "0xFFFFFF", "label": "Hour Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "MINUTE_COLOR", "defaultValue": "0xFFFFFF", "label": "Minute Color", "layout": "COLOR" },
+      { "type": "toggle", "messageKey": "FLASH_COLON", "defaultValue": false,
+        "label": "Flashing Colon",
+        "description": "Flash the main clock colon on and off once per second." },
       { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });
