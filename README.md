@@ -780,3 +780,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Existing square segment style remains the default.
 - Rounded Time is persisted separately; WatchfaceSettings v16 remains unchanged.
 - DEV/KiezelPay test mode remains enabled.
+
+## v3.2.3 DEV — Time Style dropdown
+- Replaced the Rounded Time toggle with a Time Style dropdown.
+- Square: original hard-corner seven-segment clock.
+- Rounded: fully rounded/capsule-style segments from v3.2.2.
+- Slightly Rounded: squared segments with a subtle 2 px corner radius.
+- Existing v3.2.2 Rounded Time persistence is compatible: old false=Square and true=Rounded.
+- WatchfaceSettings v16 remains unchanged and DEV/KiezelPay test mode remains enabled.

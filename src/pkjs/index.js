@@ -236,7 +236,7 @@ function customClay(minified) {
         setValue('HOUR_COLOR', '0xFFFFFF');
         setValue('MINUTE_COLOR', '0xFFFFFF');
         setValue('FLASH_COLON', false);
-        setValue('ROUNDED_TIME', false);
+        setValue('ROUNDED_TIME', '0');
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');

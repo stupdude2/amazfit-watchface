@@ -250,9 +250,14 @@ if (edition.isPro) {
       { "type": "toggle", "messageKey": "FLASH_COLON", "defaultValue": false,
         "label": "Seconds Colon",
         "description": "Flash the main clock colon on and off once per second to indicate seconds." },
-      { "type": "toggle", "messageKey": "ROUNDED_TIME", "defaultValue": false,
-        "label": "Rounded Time",
-        "description": "Round the corners and ends of the clock segments for a softer display style." },
+      { "type": "select", "messageKey": "ROUNDED_TIME", "defaultValue": "0",
+        "label": "Time Style",
+        "description": "Choose the shape of the main clock digits.",
+        "options": [
+          { "label": "Square", "value": "0" },
+          { "label": "Rounded", "value": "1" },
+          { "label": "Slightly Rounded", "value": "2" }
+        ] },
       { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });

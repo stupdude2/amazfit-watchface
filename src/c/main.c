@@ -1115,7 +1115,12 @@ static GColor s_hour_color;
 static GColor s_minute_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
-static bool s_rounded_time = false;
+typedef enum {
+  TIME_STYLE_SQUARE = 0,
+  TIME_STYLE_ROUNDED = 1,
+  TIME_STYLE_SOFT_SQUARE = 2
+} TimeStyle;
+static TimeStyle s_time_style = TIME_STYLE_SQUARE;
 static bool s_second_tick_mode = false;
 // Drawing helpers use this transient color so their geometry remains unchanged.
 static GColor s_clock_draw_color;
@@ -1147,9 +1152,18 @@ static void load_split_clock_colors(void) {
   s_flash_colon =
       persist_exists(FLASH_COLON_PERSIST_KEY) &&
       persist_read_int(FLASH_COLON_PERSIST_KEY) != 0;
-  s_rounded_time =
-      persist_exists(ROUNDED_TIME_PERSIST_KEY) &&
-      persist_read_int(ROUNDED_TIME_PERSIST_KEY) != 0;
+  if (persist_exists(ROUNDED_TIME_PERSIST_KEY)) {
+    int saved_style = persist_read_int(ROUNDED_TIME_PERSIST_KEY);
+    // v3.2.2 stored this key as a bool, so 0/1 remain fully compatible.
+    if (saved_style >= TIME_STYLE_SQUARE &&
+        saved_style <= TIME_STYLE_SOFT_SQUARE) {
+      s_time_style = (TimeStyle)saved_style;
+    } else {
+      s_time_style = TIME_STYLE_SQUARE;
+    }
+  } else {
+    s_time_style = TIME_STYLE_SQUARE;
+  }
 }
 
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
@@ -1223,11 +1237,22 @@ static void to_upper(char *s) {
 
 // ── Segment drawing ───────────────────────────────────────────────────────────
 static int clock_segment_radius(int thickness) {
-  return s_rounded_time ? thickness / 2 : 0;
+  switch (s_time_style) {
+    case TIME_STYLE_ROUNDED:
+      // Capsule-like ends, matching the rounded style introduced in v3.2.2.
+      return thickness / 2;
+    case TIME_STYLE_SOFT_SQUARE:
+      // Preserve the squared seven-segment character while just softening
+      // each corner. A small fixed radius keeps the effect subtle.
+      return 2;
+    case TIME_STYLE_SQUARE:
+    default:
+      return 0;
+  }
 }
 
 static GCornerMask clock_segment_corners(void) {
-  return s_rounded_time ? GCornersAll : GCornerNone;
+  return s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll;
 }
 
 static void draw_h(GContext *ctx, int ox, int oy) {
@@ -1276,8 +1301,14 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
   int upper_y = oy + DIGIT_HEIGHT / 3 - COLON_DOT / 2;
   int lower_y = oy + (DIGIT_HEIGHT * 2) / 3 - COLON_DOT / 2;
-  int radius = s_rounded_time ? COLON_DOT / 2 : 0;
-  GCornerMask corners = s_rounded_time ? GCornersAll : GCornerNone;
+  int radius = 0;
+  if (s_time_style == TIME_STYLE_ROUNDED) {
+    radius = COLON_DOT / 2;
+  } else if (s_time_style == TIME_STYLE_SOFT_SQUARE) {
+    radius = 2;
+  }
+  GCornerMask corners =
+      s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll;
   graphics_fill_rect(ctx, GRect(cx, upper_y, COLON_DOT, COLON_DOT),
                      radius, corners);
   graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT),
@@ -3636,12 +3667,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
 
       case KEY_ROUNDED_TIME: {
-        bool enabled = tuple_to_int32(t, s_rounded_time ? 1 : 0) != 0;
-        s_rounded_time = enabled;
-        persist_write_int(ROUNDED_TIME_PERSIST_KEY, enabled ? 1 : 0);
+        int value = tuple_to_int32(t, (int)s_time_style);
+        if (value < TIME_STYLE_SQUARE || value > TIME_STYLE_SOFT_SQUARE) {
+          value = TIME_STYLE_SQUARE;
+        }
+        s_time_style = (TimeStyle)value;
+        persist_write_int(ROUNDED_TIME_PERSIST_KEY, value);
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
-        APP_LOG(APP_LOG_LEVEL_INFO,
-                "Rounded time -> %d", enabled ? 1 : 0);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Time style -> %d", value);
         break;
       }
 
