@@ -788,3 +788,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Slightly Rounded: squared segments with a subtle 2 px corner radius.
 - Existing v3.2.2 Rounded Time persistence is compatible: old false=Square and true=Rounded.
 - WatchfaceSettings v16 remains unchanged and DEV/KiezelPay test mode remains enabled.
+
+## v3.2.4 DEV — Slightly Rounded refinement
+- Increased Slightly Rounded clock segment corner radius from 2 px to 3 px.
+- Slightly Rounded colon dots now use the matching 3 px corner radius.
+- Square and Rounded styles are unchanged.

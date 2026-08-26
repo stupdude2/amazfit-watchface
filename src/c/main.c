@@ -1242,9 +1242,9 @@ static int clock_segment_radius(int thickness) {
       // Capsule-like ends, matching the rounded style introduced in v3.2.2.
       return thickness / 2;
     case TIME_STYLE_SOFT_SQUARE:
-      // Preserve the squared seven-segment character while just softening
-      // each corner. A small fixed radius keeps the effect subtle.
-      return 2;
+      // Preserve the squared seven-segment character while softening
+      // each corner with a moderate 3 px radius.
+      return 3;
     case TIME_STYLE_SQUARE:
     default:
       return 0;
@@ -1305,7 +1305,7 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   if (s_time_style == TIME_STYLE_ROUNDED) {
     radius = COLON_DOT / 2;
   } else if (s_time_style == TIME_STYLE_SOFT_SQUARE) {
-    radius = 2;
+    radius = 3;
   }
   GCornerMask corners =
       s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll;
