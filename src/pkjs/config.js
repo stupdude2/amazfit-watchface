@@ -237,7 +237,13 @@ if (edition.isPro) {
     "items": [
       { "type": "heading", "defaultValue": "Appearance" },
       { "type": "color", "messageKey": "ACCENT_COLOR", "defaultValue": "0x0000AA", "label": "Accent Color", "layout": "COLOR" },
-      { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color", "layout": "COLOR" },
+      { "type": "color", "messageKey": "CLOCK_COLOR", "defaultValue": "0xFFFFFF", "label": "Clock Color / Colon Color", "layout": "COLOR",
+        "description": "Controls the entire clock unless separate hour/minute colors are enabled. When enabled, this color controls the colon." },
+      { "type": "toggle", "messageKey": "SPLIT_CLOCK_COLORS", "defaultValue": false,
+        "label": "Separate Hour / Minute Colors",
+        "description": "Use independent colors for the hour and minute digits." },
+      { "type": "color", "messageKey": "HOUR_COLOR", "defaultValue": "0xFFFFFF", "label": "Hour Color", "layout": "COLOR" },
+      { "type": "color", "messageKey": "MINUTE_COLOR", "defaultValue": "0xFFFFFF", "label": "Minute Color", "layout": "COLOR" },
       { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });

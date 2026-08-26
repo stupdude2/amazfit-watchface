@@ -1,0 +1,12 @@
+PASS: WatchfaceSettings unchanged
+PASS: SETTINGS_VERSION remains 16
+PASS: DEV KiezelPay test mode enabled
+PASS: DEV native logging enabled
+PASS: DEV JS logging enabled
+PASS: Split persisted separately
+PASS: 512-byte inbox retained
+
+Behavior:
+- Split colors OFF: existing s_settings.clock_color draws hour, colon, minute.
+- Split colors ON: separately persisted hour/minute colors draw digits; legacy Clock Color draws colon.
+- Existing WatchfaceSettings binary layout is unchanged.

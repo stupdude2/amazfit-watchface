@@ -125,6 +125,9 @@ static bool conditional_ui_is_visible(void);
 #define KEY_TOP_RIGHT_TIME_ZONE   37
 #define KEY_LEFT_TIME_ZONE        38
 #define KEY_RIGHT_TIME_ZONE       39
+#define KEY_HOUR_COLOR            40
+#define KEY_MINUTE_COLOR          41
+#define KEY_SPLIT_CLOCK_COLORS    42
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -495,6 +498,9 @@ static bool s_pro_unlocked = false;
 #define TZ_TOP_RIGHT_PERSIST_KEY  1102
 #define TZ_LEFT_PERSIST_KEY       1103
 #define TZ_RIGHT_PERSIST_KEY      1104
+#define HOUR_COLOR_PERSIST_KEY    1105
+#define MINUTE_COLOR_PERSIST_KEY  1106
+#define SPLIT_COLOR_PERSIST_KEY   1107
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -621,6 +627,9 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_TOP_RIGHT_TIME_ZONE:
     case KEY_LEFT_TIME_ZONE:
     case KEY_RIGHT_TIME_ZONE:
+    case KEY_HOUR_COLOR:
+    case KEY_MINUTE_COLOR:
+    case KEY_SPLIT_CLOCK_COLORS:
       return true;
     default:
       return false;
@@ -1091,6 +1100,11 @@ static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
 static int  s_heart_rate  = 0;
 static int  s_battery_percent = 0;
+static GColor s_hour_color;
+static GColor s_minute_color;
+static bool s_split_clock_colors = false;
+// Drawing helpers use this transient color so their geometry remains unchanged.
+static GColor s_clock_draw_color;
 static uint8_t s_top_left_time_zone = 0;
 static uint8_t s_top_right_time_zone = 0;
 static uint8_t s_left_time_zone = 0;
@@ -1099,6 +1113,25 @@ static char s_tz_top_left_buf[12];
 static char s_tz_top_right_buf[12];
 static char s_tz_left_buf[12];
 static char s_tz_right_buf[12];
+static void load_split_clock_colors(void) {
+  // Backward compatible default: existing Clock Color controls everything.
+  s_hour_color = s_settings.clock_color;
+  s_minute_color = s_settings.clock_color;
+  s_split_clock_colors = false;
+
+  if (persist_exists(HOUR_COLOR_PERSIST_KEY)) {
+    uint32_t hex = (uint32_t)persist_read_int(HOUR_COLOR_PERSIST_KEY) & 0xFFFFFF;
+    s_hour_color = GColorFromHEX(hex);
+  }
+  if (persist_exists(MINUTE_COLOR_PERSIST_KEY)) {
+    uint32_t hex = (uint32_t)persist_read_int(MINUTE_COLOR_PERSIST_KEY) & 0xFFFFFF;
+    s_minute_color = GColorFromHEX(hex);
+  }
+  if (persist_exists(SPLIT_COLOR_PERSIST_KEY)) {
+    s_split_clock_colors = persist_read_int(SPLIT_COLOR_PERSIST_KEY) != 0;
+  }
+}
+
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
   if (!persist_exists(persist_key)) return 0;
 
@@ -1177,7 +1210,7 @@ static void draw_v(GContext *ctx, int ox, int oy, int len) {
 static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
   if (digit < 0 || digit > 9) return;
   uint8_t s = DIGIT_SEGS[digit];
-  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int top_y = oy;
   int mid_y = oy + HALF_V - STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - STK;
@@ -1192,7 +1225,7 @@ static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
   if (s & SEG_BR) draw_v(ctx, rx, mid_y, bot_y - mid_y + STK);
 }
 static void draw_one_h1(GContext *ctx, int oy) {
-  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int ox    = H1_X + H1_ONE_X;
   int mid_y = oy + HALF_V - STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - STK;
@@ -1200,7 +1233,7 @@ static void draw_one_h1(GContext *ctx, int oy) {
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
 static void draw_one(GContext *ctx, int cell_x, int oy) {
-  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int ox    = cell_x + ONE_X_OFFSET;
   int mid_y = oy + HALF_V - STK / 2;
   int bot_y = oy + DIGIT_HEIGHT - STK;
@@ -1208,7 +1241,7 @@ static void draw_one(GContext *ctx, int cell_x, int oy) {
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
 static void draw_colon(GContext *ctx, int ox, int oy) {
-  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
   int upper_y = oy + DIGIT_HEIGHT / 3 - COLON_DOT / 2;
   int lower_y = oy + (DIGIT_HEIGHT * 2) / 3 - COLON_DOT / 2;
@@ -1219,7 +1252,7 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
 static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
   if (digit < 0 || digit > 9) return;
   uint8_t s = DIGIT_SEGS[digit];
-  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
 
   int top_y = oy;
   int mid_y = oy + HALF_V - H24_STK / 2;
@@ -1237,7 +1270,7 @@ static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
 }
 
 static void draw_one_24(GContext *ctx, int cell_x, int oy) {
-  graphics_context_set_fill_color(ctx, s_settings.clock_color);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
 
   // In 24-hour mode every "1" uses the same ONE_X_OFFSET (8px).
   // This keeps 01:11, 11:11, 21:11, etc. visually consistent.
@@ -1428,7 +1461,15 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   // Backlight-only modes reserve their step-bar space at all times so the clock
   // never jumps when the backlight turns the bar on or off.
   if (s_settings.stepbar_mode == STEPBAR_HIDDEN) sy -= 3;
+  GColor hour_color =
+      (s_pro_unlocked && s_split_clock_colors)
+        ? s_hour_color : s_settings.clock_color;
+  GColor minute_color =
+      (s_pro_unlocked && s_split_clock_colors)
+        ? s_minute_color : s_settings.clock_color;
+
   if (s_settings.time_format == TIME_FORMAT_24H) {
+    s_clock_draw_color = hour_color;
     // In 24-hour mode every numeral uses the same full-width seven-segment
     // geometry. In particular, "1" is no longer centered as a narrow special
     // case; its right-hand segments occupy the normal digit cell width.
@@ -1440,8 +1481,10 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     if (h2 == 1) draw_one_24(ctx, H24_H2_X, sy);
     else draw_digit_24(ctx, H24_H2_X, sy, h2, H24_DIGIT_WIDTH);
 
+    s_clock_draw_color = s_settings.clock_color;
     draw_colon(ctx, H24_COL_X, sy);
 
+    s_clock_draw_color = minute_color;
     if (m1 == 1) draw_one_24(ctx, H24_M1_X, sy);
     else draw_digit_24(ctx, H24_M1_X, sy, m1, H24_DIGIT_WIDTH);
 
@@ -1454,9 +1497,14 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
     const int m1_x = center_three_digit ? CENTER12_M1_X : M1_X;
     const int m2_x = center_three_digit ? CENTER12_M2_X : M2_X;
 
+    s_clock_draw_color = hour_color;
     if (h1 == 1) draw_one_h1(ctx, sy);
     if (h2 == 1) draw_one(ctx, h2_x, sy); else draw_digit(ctx, h2_x, sy, h2);
+
+    s_clock_draw_color = s_settings.clock_color;
     draw_colon(ctx, col_x, sy);
+
+    s_clock_draw_color = minute_color;
     if (m1 == 1) draw_one(ctx, m1_x, sy); else draw_digit(ctx, m1_x, sy, m1);
     if (m2 == 1) draw_one(ctx, m2_x, sy); else draw_digit(ctx, m2_x, sy, m2);
   }
@@ -3473,6 +3521,40 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
 
+      case KEY_HOUR_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          uint32_t value =
+              (uint32_t)tuple_to_int32(t, 0xFFFFFF) & 0xFFFFFF;
+          s_hour_color = GColorFromHEX(value);
+          persist_write_int(HOUR_COLOR_PERSIST_KEY, (int32_t)value);
+          if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Hour color -> 0x%06lX", (unsigned long)value);
+        }
+        break;
+
+      case KEY_MINUTE_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          uint32_t value =
+              (uint32_t)tuple_to_int32(t, 0xFFFFFF) & 0xFFFFFF;
+          s_minute_color = GColorFromHEX(value);
+          persist_write_int(MINUTE_COLOR_PERSIST_KEY, (int32_t)value);
+          if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Minute color -> 0x%06lX", (unsigned long)value);
+        }
+        break;
+
+      case KEY_SPLIT_CLOCK_COLORS: {
+        bool enabled = tuple_to_int32(t, s_split_clock_colors ? 1 : 0) != 0;
+        s_split_clock_colors = enabled;
+        persist_write_int(SPLIT_COLOR_PERSIST_KEY, enabled ? 1 : 0);
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Separate hour/minute colors -> %d", enabled ? 1 : 0);
+        break;
+      }
+
       case KEY_BACKGROUND_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
           new_background_hex = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
@@ -3912,6 +3994,7 @@ static void window_unload(Window *window) {
 
 static void init(void) {
   settings_load();
+  load_split_clock_colors();
   load_time_zone_presets();
   weather_cache_load();
 

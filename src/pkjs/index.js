@@ -10,7 +10,7 @@ var clayConfig = require('./config');
 
 // Official KiezelPay phone-side companion. Keep verbose logging enabled while
 // test purchases/trials are being validated; disable before store release.
-var KIEZELPAY_LOGGING = false;
+var KIEZELPAY_LOGGING = true;
 var KiezelPay = require('kiezelpay-core');
 var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
 
@@ -112,6 +112,28 @@ function customClay(minified) {
       'RIGHT_SLOT', 'RIGHT_HIDE_LABEL', false, false,
       'RIGHT_TIME_ZONE');
 
+    // Split clock colors are opt-in for backward compatibility. Existing users
+    // keep their single Clock Color until they explicitly enable this toggle.
+    var splitClockColors =
+        clayPage.getItemByMessageKey('SPLIT_CLOCK_COLORS');
+    var hourColor = clayPage.getItemByMessageKey('HOUR_COLOR');
+    var minuteColor = clayPage.getItemByMessageKey('MINUTE_COLOR');
+
+    if (splitClockColors && hourColor && minuteColor) {
+      function syncSplitClockColors() {
+        if (splitClockColors.get()) {
+          hourColor.show();
+          minuteColor.show();
+        } else {
+          hourColor.hide();
+          minuteColor.hide();
+        }
+      }
+      syncSplitClockColors();
+      splitClockColors.on('change', syncSplitClockColors);
+    }
+
+
     var resetButton = clayPage.getItemById('restore_defaults');
     if (!resetButton) return;
 
@@ -210,6 +232,9 @@ function customClay(minified) {
       restore.addEventListener('click', function() {
         setValue('ACCENT_COLOR', '0x0000AA');
         setValue('CLOCK_COLOR', '0xFFFFFF');
+        setValue('SPLIT_CLOCK_COLORS', false);
+        setValue('HOUR_COLOR', '0xFFFFFF');
+        setValue('MINUTE_COLOR', '0xFFFFFF');
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');

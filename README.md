@@ -756,3 +756,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Time Zone uses separate persistence keys and does not alter WatchfaceSettings or SETTINGS_VERSION.
 - AppMessage inbox remains 512 bytes to safely receive the expanded Clay settings payload.
 - Existing app UUID is preserved for in-place upgrades and settings continuity.
+
+## v3.2.0 DEV — Separate hour and minute colors
+- DEVELOPMENT BUILD: KiezelPay test mode and verbose logging enabled.
+- Added opt-in Separate Hour / Minute Colors.
+- Existing Clock Color remains the backward-compatible default and controls the whole clock when split colors are disabled.
+- With split colors enabled: Hour Color controls hour digits, Minute Color controls minute digits, and Clock Color controls the colon.
+- Split-color state and colors use separate persistence keys; WatchfaceSettings and SETTINGS_VERSION remain unchanged.
+- Existing user customizations therefore remain binary-compatible.
