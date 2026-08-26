@@ -8,6 +8,8 @@ var sideOptions = [
   { "label": "Battery %", "value": "14" },
   { "label": "Time Zone", "value": "15" },
   { "label": "Seconds", "value": "16" },
+  { "label": "Forecast", "value": "17" },
+  { "label": "Rain Chance", "value": "18" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Day of Week", "value": "5" },
@@ -66,6 +68,7 @@ var topCenterOptions = [
   { "label": "Battery Icon", "value": "13" },
   { "label": "Battery %", "value": "14" },
   { "label": "Seconds", "value": "16" },
+  { "label": "Rain Chance", "value": "18" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Date", "value": "6" }
@@ -77,6 +80,7 @@ var centerOptions = [
   { "label": "Battery Icon", "value": "8" },
   { "label": "Battery %", "value": "9" },
   { "label": "Seconds", "value": "10" },
+  { "label": "Rain Chance", "value": "11" },
   { "label": "Bluetooth", "value": "2" },
   { "label": "Weather", "value": "3" },
   { "label": "Date", "value": "6" }

@@ -62,7 +62,11 @@
       "MINUTE_COLOR": 41,
       "SPLIT_CLOCK_COLORS": 42,
       "FLASH_COLON": 43,
-      "ROUNDED_TIME": 44
+      "ROUNDED_TIME": 44,
+      "FORECAST_ICON": 45,
+      "FORECAST_HIGH_TEMP": 46,
+      "FORECAST_LOW_TEMP": 47,
+      "RAIN_CHANCE": 48
     },
     "projectType": "native",
     "resources": {
@@ -132,5 +136,5 @@
       "watchface": true
     }
   },
-  "version": "3.2.4"
+  "version": "3.2.5"
 }

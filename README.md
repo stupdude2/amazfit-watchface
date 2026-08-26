@@ -793,3 +793,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Increased Slightly Rounded clock segment corner radius from 2 px to 3 px.
 - Slightly Rounded colon dots now use the matching 3 px corner radius.
 - Square and Rounded styles are unchanged.
+
+## v3.2.5 DEV — Forecast + Rain Chance
+- Added Forecast to Top/Bottom Left and Right: tomorrow's condition icon plus high/low.
+- Added Rain Chance to all six information positions with optional RAIN label.
+- Rain Chance uses today's daily precipitation_probability_max from Open-Meteo.
+- Weather requests now retrieve two forecast days in the existing request and cache all values together phone-side.
+- New forecast/rain watch data is persisted in a separate extended cache so the existing current-weather cache remains upgrade-compatible.
+- Existing slot IDs were not renumbered; new IDs are appended.

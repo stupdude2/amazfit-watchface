@@ -52,17 +52,18 @@ function customClay(minified) {
       value = String(value);
       return value === '0' || value === '1' || value === '3' ||
              value === '8' || value === '9' || value === '10' ||
-             value === '11' || value === '12' || value === '15';
+             value === '11' || value === '12' || value === '15' ||
+             value === '17' || value === '18';
     }
 
     function centerSlotHasLabel(value, topCenter) {
       value = String(value);
       if (topCenter) {
         // Top-center uses SideSlotContent values: Weather=0, HR=3.
-        return value === '0' || value === '3';
+        return value === '0' || value === '3' || value === '18';
       }
-      // Bottom-center uses CenterSlotContent values: HR=0, Weather=3.
-      return value === '0' || value === '3';
+      // Bottom-center uses CenterSlotContent values: HR=0, Weather=3, Rain=11.
+      return value === '0' || value === '3' || value === '11';
     }
 
     function bindConditionalLabelToggle(
@@ -801,10 +802,10 @@ function fetchWeather(lat, lon) {
     + '?latitude=' + encodeURIComponent(lat)
     + '&longitude=' + encodeURIComponent(lon)
     + '&current=temperature_2m,weather_code'
-    + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset'
+    + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,weather_code,precipitation_probability_max'
     + '&temperature_unit=celsius'
     + '&timezone=auto'
-    + '&forecast_days=1';
+    + '&forecast_days=2';
 
   var xhr = new XMLHttpRequest();
 
@@ -840,6 +841,31 @@ function fetchWeather(lat, lon) {
             typeof data.daily.temperature_2m_min[0] === 'number') {
           payload.LOW_TEMP =
               Math.round(data.daily.temperature_2m_min[0] * 10);
+        }
+
+        // Rain Chance is today's whole-day maximum precipitation probability.
+        if (data.daily.precipitation_probability_max &&
+            typeof data.daily.precipitation_probability_max[0] === 'number') {
+          payload.RAIN_CHANCE =
+              Math.max(0, Math.min(100,
+                Math.round(data.daily.precipitation_probability_max[0])));
+        }
+
+        // Forecast is tomorrow: icon + high/low. Keep it in the same weather
+        // payload/cache so all weather-derived values refresh atomically.
+        if (data.daily.weather_code &&
+            typeof data.daily.weather_code[1] !== 'undefined') {
+          payload.FORECAST_ICON = iconFromOpenMeteo(data.daily.weather_code[1]);
+        }
+        if (data.daily.temperature_2m_max &&
+            typeof data.daily.temperature_2m_max[1] === 'number') {
+          payload.FORECAST_HIGH_TEMP =
+              Math.round(data.daily.temperature_2m_max[1] * 10);
+        }
+        if (data.daily.temperature_2m_min &&
+            typeof data.daily.temperature_2m_min[1] === 'number') {
+          payload.FORECAST_LOW_TEMP =
+              Math.round(data.daily.temperature_2m_min[1] * 10);
         }
 
         if (data.daily.sunrise && data.daily.sunrise[0]) {
