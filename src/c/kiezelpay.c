@@ -41,7 +41,7 @@
   
   Test purchases only, set to 0 before releasing or users can get your app for free!
 */
-#define KIEZELPAY_TEST_MODE 1
+#define KIEZELPAY_TEST_MODE 0
 
 /**
   Set to 1 to remove all code which has to do with the time based trial. This saves memory and code space in case you don't use it.
