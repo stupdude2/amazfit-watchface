@@ -858,3 +858,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Makes full Clay configuration dictionaries idempotent.
 - Prevents unchanged settings from repeatedly triggering persistence, layout, service, and redraw work.
 - Targets the reproducible first-save-works / second-save-hangs failure.
+
+## 1.3-dev-012 — Bluetooth Colon
+- Added optional Bluetooth Colon connectivity indicator.
+- Bottom colon dot is filled while connected and outlined while disconnected.
+- Indicator follows Square, Slightly Rounded, Rounded, and Seconds Colon behavior.
+- Repeat-save stability safeguards from dev-011 are retained.

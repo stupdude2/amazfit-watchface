@@ -69,7 +69,8 @@
       "RAIN_CHANCE": 48,
       "PROGRESS_TRACK_BATTERY": 49,
       "PLUS2_ICON": 50,
-      "PLUS2_TEMP": 51
+      "PLUS2_TEMP": 51,
+      "BLUETOOTH_COLON": 52
     },
     "projectType": "native",
     "resources": {

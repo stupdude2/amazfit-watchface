@@ -137,6 +137,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_PROGRESS_TRACK_BATTERY 49
 #define KEY_PLUS2_ICON             50
 #define KEY_PLUS2_TEMP             51
+#define KEY_BLUETOOTH_COLON        52
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -521,6 +522,7 @@ static bool s_pro_unlocked = false;
 #define WEATHER_EXT_CACHE_PERSIST_KEY 1110
 #define PROGRESS_TRACK_BATTERY_PERSIST_KEY 1111
 #define PLUS2_WEATHER_CACHE_PERSIST_KEY 1112
+#define BLUETOOTH_COLON_PERSIST_KEY 1113
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -651,6 +653,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_MINUTE_COLOR:
     case KEY_SPLIT_CLOCK_COLORS:
     case KEY_FLASH_COLON:
+    case KEY_BLUETOOTH_COLON:
     case KEY_ROUNDED_TIME:
     case KEY_PROGRESS_TRACK_BATTERY:
       return true;
@@ -1145,6 +1148,7 @@ static GColor s_hour_color;
 static GColor s_minute_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
+static bool s_bluetooth_colon = false;
 static bool s_progress_track_battery = false;
 typedef enum {
   TIME_STYLE_SQUARE = 0,
@@ -1183,6 +1187,9 @@ static void load_split_clock_colors(void) {
   s_flash_colon =
       persist_exists(FLASH_COLON_PERSIST_KEY) &&
       persist_read_int(FLASH_COLON_PERSIST_KEY) != 0;
+  s_bluetooth_colon =
+      persist_exists(BLUETOOTH_COLON_PERSIST_KEY) &&
+      persist_read_int(BLUETOOTH_COLON_PERSIST_KEY) != 0;
   if (persist_exists(ROUNDED_TIME_PERSIST_KEY)) {
     int saved_style = persist_read_int(ROUNDED_TIME_PERSIST_KEY);
     // v3.2.2 stored this key as a bool, so 0/1 remain fully compatible.
@@ -1369,10 +1376,47 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
   }
   GCornerMask corners =
       s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll;
+
+  // Top dot is always the normal colon shape.
   graphics_fill_rect(ctx, GRect(cx, upper_y, COLON_DOT, COLON_DOT),
                      radius, corners);
-  graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT),
-                     radius, corners);
+
+  const bool show_bt_disconnect =
+      s_bluetooth_colon && !s_bluetooth_connected;
+
+  if (!show_bt_disconnect) {
+    // Connected (or feature disabled): preserve the normal filled bottom dot.
+    graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT),
+                       radius, corners);
+    return;
+  }
+
+  // Disconnected: draw the same shape as an outline in the colon color.
+  // The inset is repainted with the watchface background, visually exposing
+  // the background through the center while remaining compatible with Pebble's
+  // simple rectangle drawing API.
+  const int outline = 2;
+  GRect outer = GRect(cx, lower_y, COLON_DOT, COLON_DOT);
+  graphics_context_set_fill_color(ctx, s_clock_draw_color);
+  graphics_fill_rect(ctx, outer, radius, corners);
+
+  int inner_size = COLON_DOT - (outline * 2);
+  if (inner_size > 0) {
+    int inner_radius = 0;
+    if (s_time_style == TIME_STYLE_ROUNDED) {
+      inner_radius = inner_size / 2;
+    } else if (s_time_style == TIME_STYLE_SOFT_SQUARE) {
+      inner_radius = 1;
+    }
+
+    graphics_context_set_fill_color(ctx, s_settings.background_color);
+    graphics_fill_rect(ctx,
+                       GRect(cx + outline, lower_y + outline,
+                             inner_size, inner_size),
+                       inner_radius,
+                       s_time_style == TIME_STYLE_SQUARE
+                           ? GCornerNone : GCornersAll);
+  }
 }
 
 static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
@@ -3218,9 +3262,14 @@ static void battery_handler(BatteryChargeState charge) {
 }
 
 static void connection_handler(bool connected) {
+  bool changed = s_bluetooth_connected != connected;
   s_bluetooth_connected = connected;
   update_footer_content();
   update_header_content();
+
+  if (changed && s_bluetooth_colon && s_clock_layer) {
+    layer_mark_dirty(s_clock_layer);
+  }
 }
 
 // ── Accent color helper ─────────────────────────────────────────────────────
@@ -3598,6 +3647,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   GColor minute_color_before = s_minute_color;
   bool split_colors_before = s_split_clock_colors;
   bool flash_colon_before = s_flash_colon;
+  bool bluetooth_colon_before = s_bluetooth_colon;
   TimeStyle time_style_before = s_time_style;
   bool progress_battery_before = s_progress_track_battery;
   uint8_t tz_top_left_before = s_top_left_time_zone;
@@ -4062,6 +4112,20 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_BLUETOOTH_COLON: {
+        bool enabled =
+            tuple_to_int32(t, s_bluetooth_colon ? 1 : 0) != 0;
+        if (enabled == s_bluetooth_colon) break;
+
+        s_bluetooth_colon = enabled;
+        persist_write_int(BLUETOOTH_COLON_PERSIST_KEY, enabled ? 1 : 0);
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Bluetooth Colon -> %d", enabled ? 1 : 0);
+        break;
+      }
+
       case KEY_ROUNDED_TIME: {
         int value = tuple_to_int32(t, (int)s_time_style);
         if (value < TIME_STYLE_SQUARE || value > TIME_STYLE_SOFT_SQUARE) {
@@ -4289,11 +4353,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Config separate deltas: hour=%d minute=%d split=%d colon=%d style=%d batterybar=%d tz=%d%d%d%d",
+          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d style=%d batterybar=%d tz=%d%d%d%d",
           hour_color_before.argb != s_hour_color.argb ? 1 : 0,
           minute_color_before.argb != s_minute_color.argb ? 1 : 0,
           split_colors_before != s_split_clock_colors ? 1 : 0,
           flash_colon_before != s_flash_colon ? 1 : 0,
+          bluetooth_colon_before != s_bluetooth_colon ? 1 : 0,
           time_style_before != s_time_style ? 1 : 0,
           progress_battery_before != s_progress_track_battery ? 1 : 0,
           tz_top_left_before != s_top_left_time_zone ? 1 : 0,
@@ -4664,6 +4729,11 @@ static void init(void) {
   settings_load();
   load_split_clock_colors();
   load_time_zone_presets();
+
+  // Seed Bluetooth state before the first clock frame so Bluetooth Colon does
+  // not briefly show the disconnected outline while the service callback is
+  // still pending.
+  s_bluetooth_connected = connection_service_peek_pebble_app_connection();
   weather_cache_load();
 
   // weather_cache_load() restores the raw Celsius value and availability flag.

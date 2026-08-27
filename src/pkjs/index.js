@@ -252,6 +252,7 @@ function customClay(minified) {
         setValue('HOUR_COLOR', '0xFFFFFF');
         setValue('MINUTE_COLOR', '0xFFFFFF');
         setValue('FLASH_COLON', false);
+        setValue('BLUETOOTH_COLON', false);
         setValue('PROGRESS_TRACK_BATTERY', false);
         setValue('ROUNDED_TIME', '0');
         setValue('TIME_FORMAT', '0');
