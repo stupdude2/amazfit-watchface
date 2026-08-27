@@ -1489,17 +1489,13 @@ static void tint_weather_bitmap(GBitmap *bitmap, GColor color) {
 }
 
 static void update_weather_icon(int icon_code) {
+  // Each weather family owns an independent bitmap. Never destroy the
+  // Tomorrow/+2 bitmaps while refreshing or re-tinting current weather:
+  // their BitmapLayers still reference those GBitmaps and doing so leaves the
+  // forecast layers blank/dangling until their updater runs again.
   if (s_weather_icon_bitmap) {
     gbitmap_destroy(s_weather_icon_bitmap);
     s_weather_icon_bitmap = NULL;
-  }
-  if (s_forecast_icon_bitmap) {
-    gbitmap_destroy(s_forecast_icon_bitmap);
-    s_forecast_icon_bitmap = NULL;
-  }
-  if (s_plus2_icon_bitmap) {
-    gbitmap_destroy(s_plus2_icon_bitmap);
-    s_plus2_icon_bitmap = NULL;
   }
 
   uint32_t resource_id;
@@ -3296,6 +3292,8 @@ static void update_background_contrast(void) {
 
   if (s_window) window_set_background_color(s_window, s_settings.background_color);
   update_weather_icon(s_weather_icon);
+  update_forecast_icon(s_have_forecast ? s_forecast_icon : -1);
+  update_plus2_icon(s_have_plus2_forecast ? s_plus2_icon : -1);
 
   if (s_header_layer) layer_mark_dirty(s_header_layer);
   if (s_clock_layer) layer_mark_dirty(s_clock_layer);

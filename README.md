@@ -864,3 +864,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Bottom colon dot is filled while connected and outlined while disconnected.
 - Indicator follows Square, Slightly Rounded, Rounded, and Seconds Colon behavior.
 - Repeat-save stability safeguards from dev-011 are retained.
+
+## 1.3-dev-013 — +2 forecast icon lifecycle
+- Current-weather icon updates no longer destroy forecast bitmaps owned by Tomorrow/+2 layers.
+- Background changes re-tint all weather icon families independently.
+- Fixes Forecast +2 Hours icon pop-in after returning from menus.
