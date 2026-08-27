@@ -833,3 +833,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Renamed selector items to Forecast Tomorrow and Forecast +2 Hours.
 - Fixed upgrade behavior where an older fresh weather cache could leave +2 Hours at `--`.
 - Raise to Wake now respects Pebble system Quiet Time.
+
+## 1.3-dev-007 — Forecast icon first-frame cache
+- Forecast Tomorrow and Forecast +2 Hours icons now restore directly from watch persistence on first frame.
+- Eliminates forecast-icon pop-in when returning from menus/settings.
+- Weather refresh timing is unchanged; cached icons remain visible until replaced by a successful refresh.

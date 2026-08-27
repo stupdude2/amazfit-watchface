@@ -4420,7 +4420,6 @@ static void window_load(Window *window) {
   s_forecast_icon_top_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
   s_forecast_icon_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
   s_forecast_icon_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
-  update_forecast_icon(s_forecast_icon);
   bitmap_layer_set_compositing_mode(s_forecast_icon_top_left_layer, GCompOpSet);
   bitmap_layer_set_compositing_mode(s_forecast_icon_top_right_layer, GCompOpSet);
   bitmap_layer_set_compositing_mode(s_forecast_icon_left_layer, GCompOpSet);
@@ -4434,11 +4433,22 @@ static void window_load(Window *window) {
   s_plus2_icon_top_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
   s_plus2_icon_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
   s_plus2_icon_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
-  update_plus2_icon(s_plus2_icon);
   bitmap_layer_set_compositing_mode(s_plus2_icon_top_left_layer, GCompOpSet);
   bitmap_layer_set_compositing_mode(s_plus2_icon_top_right_layer, GCompOpSet);
   bitmap_layer_set_compositing_mode(s_plus2_icon_left_layer, GCompOpSet);
   bitmap_layer_set_compositing_mode(s_plus2_icon_right_layer, GCompOpSet);
+
+  // FIRST-FRAME WEATHER ICON RESTORE
+  //
+  // Forecast icon codes are persisted on the watch. Rebuild their GBitmaps
+  // immediately after the layers exist so returning from a menu/settings does
+  // not wait for PebbleKit JS to resend weather before the icons appear.
+  //
+  // This is intentionally independent of the weather refresh interval: the
+  // cached icon stays visible until a successful weather update replaces it.
+  update_forecast_icon(s_have_forecast ? s_forecast_icon : -1);
+  update_plus2_icon(s_have_plus2_forecast ? s_plus2_icon : -1);
+
   layer_add_child(s_header_layer, bitmap_layer_get_layer(s_plus2_icon_top_left_layer));
   layer_add_child(s_header_layer, bitmap_layer_get_layer(s_plus2_icon_top_right_layer));
   layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_plus2_icon_left_layer));
