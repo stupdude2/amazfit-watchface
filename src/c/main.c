@@ -3114,16 +3114,23 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
           s_raise_last_wake_at == 0 || now_ms - s_raise_last_wake_at >= cooldown_ms;
 
       if (recent_motion && cooldown_done) {
-        // Request Pebble's normal backlight interaction. Conditional UI follows
-        // the actual system backlight state and has no independent timeout.
-        request_light_with_fallback();
+        // Respect Pebble's system Quiet Time. The custom raise gesture should
+        // never turn on the backlight while Quiet Time is active.
+        if (quiet_time_is_active()) {
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Raise wake suppressed by Quiet Time");
+        } else {
+          // Request Pebble's normal backlight interaction. Conditional UI
+          // follows the actual system backlight state.
+          request_light_with_fallback();
 
-        s_raise_last_wake_at = now_ms;
-        APP_LOG(APP_LOG_LEVEL_INFO,
-                "Raise wake: mode=%d x=%d y=%d z=%d light=%d",
-                (int)s_settings.raise_wake_mode,
-                (int)sample->x, (int)sample->y, (int)sample->z,
-                light_is_on() ? 1 : 0);
+          s_raise_last_wake_at = now_ms;
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Raise wake: mode=%d x=%d y=%d z=%d light=%d",
+                  (int)s_settings.raise_wake_mode,
+                  (int)sample->x, (int)sample->y, (int)sample->z,
+                  light_is_on() ? 1 : 0);
+        }
       }
 
       // Treat this as one entry into the pose whether it woke the light or not.

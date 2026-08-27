@@ -828,3 +828,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Uses the same Open-Meteo hourly response and normal weather refresh/cache path.
 - +2 Hours has a hideable label.
 - Existing slot/message IDs remain unchanged; new IDs are appended.
+
+## 1.3-dev-006 — Forecast cache fix + Quiet Time
+- Renamed selector items to Forecast Tomorrow and Forecast +2 Hours.
+- Fixed upgrade behavior where an older fresh weather cache could leave +2 Hours at `--`.
+- Raise to Wake now respects Pebble system Quiet Time.

@@ -751,6 +751,17 @@ function storeCachedWeather(payload) {
 }
 
 function weatherRefreshDue() {
+  var cached = readCachedWeather();
+
+  // A cache written by an older Big Time build can still be fresh while
+  // lacking newly-added forecast fields. Refresh immediately once so +2 Hours
+  // does not remain "--" until the user's normal interval expires.
+  if (!cached ||
+      typeof cached.PLUS2_ICON === 'undefined' ||
+      typeof cached.PLUS2_TEMP === 'undefined') {
+    return true;
+  }
+
   var timestamp = readCachedWeatherTime();
   return !timestamp || (Date.now() - timestamp) >= getWeatherRefreshMs();
 }
@@ -887,6 +898,10 @@ function fetchWeather(lat, lon) {
           // +2 Hours uses the forecast point two hourly buckets after the
           // current local forecast hour. It refreshes/caches with weather.
           var plus2Index = rainIndex >= 0 ? rainIndex + 2 : -1;
+          if (plus2Index < 0) {
+            console.log('Unable to match current hour for +2 Hours forecast: ' +
+                        currentTime);
+          }
           if (plus2Index >= 0 &&
               plus2Index < data.hourly.time.length) {
             if (data.hourly.weather_code &&
