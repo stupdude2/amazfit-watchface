@@ -1,14 +1,14 @@
 # Big Time 1.3 Development Build
 
 Public/Rebble version: 1.3.0
-Internal build: 1.3-dev-009
-Based on: 1.3-dev-008
+Internal build: 1.3-dev-010
+Based on: 1.3-dev-009
 
-Crash/hitch hardening:
-- Backlight/touch callbacks no longer call update_stepbar_layout() when only
-  Top/Bottom bars are backlight-dependent.
-- This prevents unnecessary full-clock redraws when hidden bars are revealed.
-- Backlight-only stepbar modes still update correctly.
-- update_stepbar_layout() now marks the clock dirty only if its frame actually
-  changed.
-- Time Style rendering itself is unchanged.
+Backlight/settings stability:
+- Returning from Settings/menu no longer calls request_light_with_fallback().
+- window_appear() now synchronizes hidden/backlight-only UI to the actual system
+  backlight state without generating a new light interaction.
+- focus_handler() does the same.
+- Only actual touch and Raise to Wake request the backlight.
+- Prevents overlapping focus/window/touch/backlight transitions immediately
+  after a settings save when top/bottom bars are backlight-only.

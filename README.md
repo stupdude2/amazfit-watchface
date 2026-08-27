@@ -847,3 +847,9 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Removed unnecessary clock relayout/redraw when revealing backlight-only top/bottom bars.
 - Stepbar layout now redraws the clock only when its frame actually changes.
 - Intended to eliminate hitch/crash behavior after switching Time Style and then tapping to reveal hidden bars.
+
+## 1.3-dev-010 — Settings/backlight race fix
+- Removed automatic backlight requests when returning from Settings or menus.
+- Window/focus callbacks now only synchronize conditional bar visibility to the real backlight state.
+- Touch and Raise to Wake remain the only custom paths that request the backlight.
+- Fix targets crashes/hitches after any Settings change with backlight-only top/bottom bars.

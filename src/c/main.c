@@ -3023,12 +3023,12 @@ static void focus_handler(bool in_focus) {
           "Focus returned: light=%d",
           light_is_on() ? 1 : 0);
 
-  if (light_is_on()) {
-    cancel_sunlight_fallback();
-    refresh_conditional_ui();
-  } else {
-    request_light_with_fallback();
-  }
+  // Returning from Settings/menu is not a user request to turn on the light.
+  // In backlight-only bar modes, synthesizing a light interaction here could
+  // race the window-appear and touch/backlight callbacks immediately after a
+  // configuration update. Just synchronize the UI to the real system state.
+  cancel_sunlight_fallback();
+  refresh_conditional_ui();
 }
 
 static void update_bar_input_services(void) {
@@ -4306,13 +4306,11 @@ static void window_appear(Window *window) {
           "Window appear: light=%d",
           light_is_on() ? 1 : 0);
 
-  if (light_is_on()) {
-    cancel_sunlight_fallback();
-    apply_bar_visibility();
-    update_stepbar_layout();
-  } else {
-    request_light_with_fallback();
-  }
+  // Do not turn on the backlight merely because the watchface became visible.
+  // A real tap or the Raise to Wake gesture owns light activation. This avoids
+  // duplicate light/fallback transitions when returning from Settings.
+  cancel_sunlight_fallback();
+  refresh_conditional_ui();
 }
 
 static void window_disappear(Window *window) {
