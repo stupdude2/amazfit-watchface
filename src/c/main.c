@@ -2645,8 +2645,21 @@ static void update_header_content(void) {
       right_calendar ? GTextAlignmentCenter : GTextAlignmentRight);
 
   const int forecast_icon_size = 25;
-  const int top_left_forecast_x = 4 + left_w - forecast_icon_size;
-  const int top_right_forecast_x = top_right_x;
+  // Labeled weather/forecast layouts get a little extra outer margin.
+  // Hidden-label layouts keep the wider positioning needed by large values.
+  const bool top_left_forecast_label_hidden =
+      (s_settings.top_left_slot == SLOT_FORECAST ||
+       s_settings.top_left_slot == SLOT_PLUS2_FORECAST) &&
+      s_settings.top_left_hide_label;
+  const bool top_right_forecast_label_hidden =
+      (s_settings.top_right_slot == SLOT_FORECAST ||
+       s_settings.top_right_slot == SLOT_PLUS2_FORECAST) &&
+      s_settings.top_right_hide_label;
+  const int top_left_forecast_x =
+      4 + left_w - forecast_icon_size -
+      (top_left_forecast_label_hidden ? 0 : 3);
+  const int top_right_forecast_x =
+      top_right_x + (top_right_forecast_label_hidden ? 0 : 3);
   const int top_forecast_y = 18;
   layer_set_frame(bitmap_layer_get_layer(s_forecast_icon_top_left_layer),
                   GRect(top_left_forecast_x, top_forecast_y,
@@ -2810,10 +2823,22 @@ static void update_footer_content(void) {
   const int weather_icon_y =
       any_side_weather_label_hidden ? ((FOOTER_H - weather_icon_size) / 2) : 18;
 
+  const bool left_weather_style_label_hidden =
+      ((s_settings.left_slot == SLOT_WEATHER ||
+        s_settings.left_slot == SLOT_FORECAST ||
+        s_settings.left_slot == SLOT_PLUS2_FORECAST) &&
+       left_label_hidden);
+  const bool right_weather_style_label_hidden =
+      ((s_settings.right_slot == SLOT_WEATHER ||
+        s_settings.right_slot == SLOT_FORECAST ||
+        s_settings.right_slot == SLOT_PLUS2_FORECAST) &&
+       right_label_hidden);
+
   const int left_weather_icon_x =
-      4 + left_w - weather_icon_size;
+      4 + left_w - weather_icon_size -
+      (left_weather_style_label_hidden ? 0 : 3);
   const int right_weather_icon_x =
-      right_x;
+      right_x + (right_weather_style_label_hidden ? 0 : 3);
 
   layer_set_frame(
       bitmap_layer_get_layer(s_weather_icon_left_layer),

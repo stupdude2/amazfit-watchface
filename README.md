@@ -838,3 +838,7 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Forecast Tomorrow and Forecast +2 Hours icons now restore directly from watch persistence on first frame.
 - Eliminates forecast-icon pop-in when returning from menus/settings.
 - Weather refresh timing is unchanged; cached icons remain visible until replaced by a successful refresh.
+
+## 1.3-dev-008 — Labeled weather icon margin
+- Added 3px more outer margin to labeled weather/forecast icons.
+- Hidden-label icon positioning is unchanged.
