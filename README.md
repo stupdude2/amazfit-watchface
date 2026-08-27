@@ -815,3 +815,16 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Adds tomorrow Forecast and daily Rain Chance.
 - Adds Battery as an alternate Progress Bar source.
 - Preserves WatchfaceSettings v16 and existing user customization compatibility.
+
+## 1.3-dev-004 — Tomorrow refinement
+- Renamed Forecast to Tomorrow.
+- Tomorrow now shows the condition icon plus tomorrow's high temperature only.
+- Tomorrow's low remains cached but is not displayed.
+- Hidden-label Tomorrow uses the normal large-value treatment.
+
+## 1.3-dev-005 — +2 Hours Forecast
+- Added +2 Hours to all four left/right information slots.
+- Displays the forecast weather icon and temperature two hours ahead.
+- Uses the same Open-Meteo hourly response and normal weather refresh/cache path.
+- +2 Hours has a hideable label.
+- Existing slot/message IDs remain unchanged; new IDs are appended.

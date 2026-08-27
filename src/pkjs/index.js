@@ -53,7 +53,7 @@ function customClay(minified) {
       return value === '0' || value === '1' || value === '3' ||
              value === '8' || value === '9' || value === '10' ||
              value === '11' || value === '12' || value === '15' ||
-             value === '17' || value === '18';
+             value === '17' || value === '18' || value === '19';
     }
 
     function centerSlotHasLabel(value, topCenter) {
@@ -818,7 +818,7 @@ function fetchWeather(lat, lon) {
     + '?latitude=' + encodeURIComponent(lat)
     + '&longitude=' + encodeURIComponent(lon)
     + '&current=temperature_2m,weather_code'
-    + '&hourly=precipitation_probability'
+    + '&hourly=precipitation_probability,temperature_2m,weather_code'
     + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,weather_code,precipitation_probability_max'
     + '&temperature_unit=celsius'
     + '&timezone=auto'
@@ -882,6 +882,23 @@ function fetchWeather(lat, lon) {
               typeof data.hourly.precipitation_probability[rainIndex] === 'number') {
             payload.RAIN_CHANCE = Math.max(0, Math.min(100,
                 Math.round(data.hourly.precipitation_probability[rainIndex])));
+          }
+
+          // +2 Hours uses the forecast point two hourly buckets after the
+          // current local forecast hour. It refreshes/caches with weather.
+          var plus2Index = rainIndex >= 0 ? rainIndex + 2 : -1;
+          if (plus2Index >= 0 &&
+              plus2Index < data.hourly.time.length) {
+            if (data.hourly.weather_code &&
+                typeof data.hourly.weather_code[plus2Index] !== 'undefined') {
+              payload.PLUS2_ICON =
+                  iconFromOpenMeteo(data.hourly.weather_code[plus2Index]);
+            }
+            if (data.hourly.temperature_2m &&
+                typeof data.hourly.temperature_2m[plus2Index] === 'number') {
+              payload.PLUS2_TEMP =
+                  Math.round(data.hourly.temperature_2m[plus2Index] * 10);
+            }
           }
         }
 

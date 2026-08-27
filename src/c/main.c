@@ -135,6 +135,8 @@ static bool conditional_ui_is_visible(void);
 #define KEY_FORECAST_LOW_TEMP     47
 #define KEY_RAIN_CHANCE           48
 #define KEY_PROGRESS_TRACK_BATTERY 49
+#define KEY_PLUS2_ICON             50
+#define KEY_PLUS2_TEMP             51
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -166,7 +168,8 @@ typedef enum {
   SLOT_TIME_ZONE = 15,
   SLOT_SECONDS = 16,
   SLOT_FORECAST = 17,
-  SLOT_RAIN_CHANCE = 18
+  SLOT_RAIN_CHANCE = 18,
+  SLOT_PLUS2_FORECAST = 19
 } SideSlotContent;
 
 typedef enum {
@@ -517,6 +520,7 @@ static bool s_pro_unlocked = false;
 #define ROUNDED_TIME_PERSIST_KEY  1109
 #define WEATHER_EXT_CACHE_PERSIST_KEY 1110
 #define PROGRESS_TRACK_BATTERY_PERSIST_KEY 1111
+#define PLUS2_WEATHER_CACHE_PERSIST_KEY 1112
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -658,22 +662,22 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_RAIN_CHANCE &&
+         settings->left_slot <= SLOT_PLUS2_FORECAST &&
          ((settings->center_slot <= CENTER_MONTH &&
            settings->center_slot != CENTER_STEPS) ||
           settings->center_slot == CENTER_BATTERY_ICON ||
           settings->center_slot == CENTER_BATTERY_PERCENT ||
           settings->center_slot == CENTER_SECONDS ||
           settings->center_slot == CENTER_RAIN_CHANCE) &&
-         settings->right_slot <= SLOT_RAIN_CHANCE &&
-         settings->top_left_slot <= SLOT_RAIN_CHANCE &&
+         settings->right_slot <= SLOT_PLUS2_FORECAST &&
+         settings->top_left_slot <= SLOT_PLUS2_FORECAST &&
          ((settings->top_center_slot <= SLOT_MONTH &&
            settings->top_center_slot != SLOT_STEPS) ||
           settings->top_center_slot == SLOT_BATTERY_ICON ||
           settings->top_center_slot == SLOT_BATTERY_PERCENT ||
           settings->top_center_slot == SLOT_SECONDS ||
           settings->top_center_slot == SLOT_RAIN_CHANCE) &&
-         settings->top_right_slot <= SLOT_RAIN_CHANCE &&
+         settings->top_right_slot <= SLOT_PLUS2_FORECAST &&
          settings->footer_mode <= BAR_HIDDEN &&
          settings->header_mode <= BAR_HIDDEN &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1101,8 +1105,13 @@ static BitmapLayer *s_forecast_icon_top_left_layer;
 static BitmapLayer *s_forecast_icon_top_right_layer;
 static BitmapLayer *s_forecast_icon_left_layer;
 static BitmapLayer *s_forecast_icon_right_layer;
+static BitmapLayer *s_plus2_icon_top_left_layer;
+static BitmapLayer *s_plus2_icon_top_right_layer;
+static BitmapLayer *s_plus2_icon_left_layer;
+static BitmapLayer *s_plus2_icon_right_layer;
 static GBitmap     *s_weather_icon_bitmap;
 static GBitmap     *s_forecast_icon_bitmap;
+static GBitmap     *s_plus2_icon_bitmap;
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 static GFont s_font_header;
@@ -1125,6 +1134,7 @@ static char s_sunrise_buf[12];
 static char s_sunset_buf[12];
 static char s_high_low_buf[16];
 static char s_forecast_buf[16];
+static char s_plus2_buf[12];
 static char s_rain_buf[8];
 static int  s_step_count  = 0;
 static int  s_active_kcal = 0;
@@ -1224,6 +1234,9 @@ static int  s_forecast_low_c_x10 = 0;
 static int  s_rain_chance = -1;
 static bool s_have_forecast = false;
 static bool s_have_rain_chance = false;
+static int  s_plus2_icon = -1;
+static int  s_plus2_temp_c_x10 = 0;
+static bool s_have_plus2_forecast = false;
 
 typedef struct {
   int32_t temperature_c_x10;
@@ -1244,6 +1257,13 @@ typedef struct {
   uint8_t have_forecast;
   uint8_t have_rain_chance;
 } WeatherExtendedCache;
+
+typedef struct {
+  int32_t icon;
+  int32_t temperature_c_x10;
+  uint8_t have_forecast;
+} Plus2WeatherCache;
+
 static bool s_backlight_subscribed = false;
 
 // Conditional bars/step bar normally follow Pebble's actual system backlight.
@@ -1433,6 +1453,10 @@ static void update_weather_icon(int icon_code) {
     gbitmap_destroy(s_forecast_icon_bitmap);
     s_forecast_icon_bitmap = NULL;
   }
+  if (s_plus2_icon_bitmap) {
+    gbitmap_destroy(s_plus2_icon_bitmap);
+    s_plus2_icon_bitmap = NULL;
+  }
 
   uint32_t resource_id;
   switch (icon_code) {
@@ -1478,6 +1502,25 @@ static void update_forecast_icon(int icon_code) {
     bitmap_layer_set_bitmap(s_forecast_icon_right_layer, s_forecast_icon_bitmap);
 }
 
+static void update_plus2_icon(int icon_code) {
+  if (s_plus2_icon_bitmap) {
+    gbitmap_destroy(s_plus2_icon_bitmap);
+    s_plus2_icon_bitmap = NULL;
+  }
+  s_plus2_icon_bitmap =
+      gbitmap_create_with_resource(weather_resource_for_code(icon_code));
+  tint_weather_bitmap(s_plus2_icon_bitmap,
+                      gcolor_legible_over(s_settings.background_color));
+  if (s_plus2_icon_top_left_layer)
+    bitmap_layer_set_bitmap(s_plus2_icon_top_left_layer, s_plus2_icon_bitmap);
+  if (s_plus2_icon_top_right_layer)
+    bitmap_layer_set_bitmap(s_plus2_icon_top_right_layer, s_plus2_icon_bitmap);
+  if (s_plus2_icon_left_layer)
+    bitmap_layer_set_bitmap(s_plus2_icon_left_layer, s_plus2_icon_bitmap);
+  if (s_plus2_icon_right_layer)
+    bitmap_layer_set_bitmap(s_plus2_icon_right_layer, s_plus2_icon_bitmap);
+}
+
 static int round_tenths_to_int(int value_x10) {
   return value_x10 >= 0 ? (value_x10 + 5) / 10 : (value_x10 - 5) / 10;
 }
@@ -1504,6 +1547,13 @@ static void weather_cache_save(void) {
     .have_rain_chance = s_have_rain_chance ? 1 : 0,
   };
   persist_write_data(WEATHER_EXT_CACHE_PERSIST_KEY, &extended, sizeof(extended));
+
+  Plus2WeatherCache plus2 = {
+    .icon = s_plus2_icon,
+    .temperature_c_x10 = s_plus2_temp_c_x10,
+    .have_forecast = s_have_plus2_forecast ? 1 : 0,
+  };
+  persist_write_data(PLUS2_WEATHER_CACHE_PERSIST_KEY, &plus2, sizeof(plus2));
 }
 
 static void weather_cache_load(void) {
@@ -1540,10 +1590,24 @@ static void weather_cache_load(void) {
     }
   }
 
+  if (persist_exists(PLUS2_WEATHER_CACHE_PERSIST_KEY) &&
+      persist_get_size(PLUS2_WEATHER_CACHE_PERSIST_KEY) ==
+          (int)sizeof(Plus2WeatherCache)) {
+    Plus2WeatherCache plus2;
+    if (persist_read_data(PLUS2_WEATHER_CACHE_PERSIST_KEY, &plus2,
+                          sizeof(plus2)) == (int)sizeof(plus2)) {
+      s_plus2_icon = plus2.icon;
+      s_plus2_temp_c_x10 = plus2.temperature_c_x10;
+      s_have_plus2_forecast = plus2.have_forecast != 0;
+    }
+  }
+
   APP_LOG(APP_LOG_LEVEL_INFO,
-          "Restored cached weather: temp=%ld icon=%ld forecast=%d rain=%d",
+          "Restored cached weather: temp=%ld icon=%ld forecast=%d rain=%d plus2=%d",
           (long)s_temperature_c_x10, (long)s_weather_icon,
-          s_have_forecast ? 1 : 0, s_have_rain_chance ? s_rain_chance : -1);
+          s_have_forecast ? 1 : 0,
+          s_have_rain_chance ? s_rain_chance : -1,
+          s_have_plus2_forecast ? 1 : 0);
 }
 
 static void update_temperature_text(void) {
@@ -1614,13 +1678,25 @@ static const char *high_low_text(void) {
 
 static const char *forecast_text(void) {
   if (!s_have_forecast) {
-    snprintf(s_forecast_buf, sizeof(s_forecast_buf), "--/--");
+    snprintf(s_forecast_buf, sizeof(s_forecast_buf), "--");
     return s_forecast_buf;
   }
+
+  // Tomorrow emphasizes the most useful glanceable value: the day's high.
+  // The low is still fetched/cached for future flexibility but isn't displayed.
   int high = display_temp_from_c_x10(s_forecast_high_c_x10);
-  int low = display_temp_from_c_x10(s_forecast_low_c_x10);
-  snprintf(s_forecast_buf, sizeof(s_forecast_buf), "%d/%d\xC2\xB0", high, low);
+  snprintf(s_forecast_buf, sizeof(s_forecast_buf), "%d\xC2\xB0", high);
   return s_forecast_buf;
+}
+
+static const char *plus2_forecast_text(void) {
+  if (!s_have_plus2_forecast) {
+    snprintf(s_plus2_buf, sizeof(s_plus2_buf), "--");
+    return s_plus2_buf;
+  }
+  int temp = display_temp_from_c_x10(s_plus2_temp_c_x10);
+  snprintf(s_plus2_buf, sizeof(s_plus2_buf), "%d\xC2\xB0", temp);
+  return s_plus2_buf;
 }
 
 static const char *rain_chance_text(void) {
@@ -2173,8 +2249,9 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_HIGH_LOW: return watch_text(TXT_HIGH_LOW);
     case SLOT_TIME_ZONE: return "TZ";
     case SLOT_SECONDS: return "";
-    case SLOT_FORECAST: return "FORECAST";
+    case SLOT_FORECAST: return "TOMORROW";
     case SLOT_RAIN_CHANCE: return "RAIN";
+    case SLOT_PLUS2_FORECAST: return "+2 HOURS";
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -2224,6 +2301,8 @@ static const char *side_slot_value(uint8_t slot) {
       return forecast_text();
     case SLOT_RAIN_CHANCE:
       return rain_chance_text();
+    case SLOT_PLUS2_FORECAST:
+      return plus2_forecast_text();
     case SLOT_BATTERY_ICON:
       return "";
     case SLOT_BATTERY_PERCENT:
@@ -2338,7 +2417,8 @@ static bool side_slot_has_optional_label(uint8_t slot) {
          slot == SLOT_HIGH_LOW ||
          slot == SLOT_TIME_ZONE ||
          slot == SLOT_FORECAST ||
-         slot == SLOT_RAIN_CHANCE;
+         slot == SLOT_RAIN_CHANCE ||
+         slot == SLOT_PLUS2_FORECAST;
 }
 
 static bool center_slot_has_optional_label(uint8_t slot) {
@@ -2371,10 +2451,13 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == SLOT_DISTANCE) return true;
   if (slot == SLOT_SUNRISE || slot == SLOT_SUNSET) return true;
   if (slot == SLOT_HIGH_LOW) return true;
-  if (slot == SLOT_FORECAST) return true;
   if (slot == SLOT_TIME_ZONE) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
+  if (slot == SLOT_PLUS2_FORECAST && s_have_plus2_forecast) {
+    int display_temp = display_temp_from_c_x10(s_plus2_temp_c_x10);
+    if (display_temp >= 100 || display_temp <= -10) return true;
+  }
   return false;
 }
 
@@ -2576,6 +2659,17 @@ static void update_header_content(void) {
   layer_set_hidden(bitmap_layer_get_layer(s_forecast_icon_top_right_layer),
                    s_settings.top_right_slot != SLOT_FORECAST);
 
+  layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_top_left_layer),
+                  GRect(top_left_forecast_x, top_forecast_y,
+                        forecast_icon_size, forecast_icon_size));
+  layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_top_right_layer),
+                  GRect(top_right_forecast_x, top_forecast_y,
+                        forecast_icon_size, forecast_icon_size));
+  layer_set_hidden(bitmap_layer_get_layer(s_plus2_icon_top_left_layer),
+                   s_settings.top_left_slot != SLOT_PLUS2_FORECAST);
+  layer_set_hidden(bitmap_layer_get_layer(s_plus2_icon_top_right_layer),
+                   s_settings.top_right_slot != SLOT_PLUS2_FORECAST);
+
   if (s_header_layer) layer_mark_dirty(s_header_layer);
 }
 
@@ -2769,6 +2863,17 @@ static void update_footer_content(void) {
                    s_settings.left_slot != SLOT_FORECAST);
   layer_set_hidden(bitmap_layer_get_layer(s_forecast_icon_right_layer),
                    s_settings.right_slot != SLOT_FORECAST);
+
+  layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_left_layer),
+                  GRect(left_weather_icon_x, 18,
+                        weather_icon_size, weather_icon_size));
+  layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_right_layer),
+                  GRect(right_weather_icon_x, 18,
+                        weather_icon_size, weather_icon_size));
+  layer_set_hidden(bitmap_layer_get_layer(s_plus2_icon_left_layer),
+                   s_settings.left_slot != SLOT_PLUS2_FORECAST);
+  layer_set_hidden(bitmap_layer_get_layer(s_plus2_icon_right_layer),
+                   s_settings.right_slot != SLOT_PLUS2_FORECAST);
 
   if (s_footer_layer) layer_mark_dirty(s_footer_layer);
 }
@@ -3584,6 +3689,21 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_PLUS2_ICON: {
+        int32_t icon = tuple_to_int32(t, s_plus2_icon);
+        if (icon >= 0 && icon <= 4) {
+          s_plus2_icon = (int)icon;
+          weather_changed = true;
+        }
+        break;
+      }
+
+      case KEY_PLUS2_TEMP:
+        s_plus2_temp_c_x10 = (int)tuple_to_int32(t, 0);
+        s_have_plus2_forecast = true;
+        weather_changed = true;
+        break;
+
 #if WATCHFACE_PRO
       case KEY_ACCENT_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
@@ -3594,7 +3714,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_RAIN_CHANCE) {
+        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -3619,7 +3739,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_RAIN_CHANCE) {
+        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -3629,7 +3749,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_RAIN_CHANCE) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -3647,7 +3767,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_RAIN_CHANCE) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -4003,6 +4123,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     weather_cache_save();
     update_weather_icon(s_weather_icon);
     update_forecast_icon(s_forecast_icon);
+    update_plus2_icon(s_plus2_icon);
     update_footer_content();
     update_header_content();
   }
@@ -4302,6 +4423,20 @@ static void window_load(Window *window) {
   layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_forecast_icon_left_layer));
   layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_forecast_icon_right_layer));
 
+  s_plus2_icon_top_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
+  s_plus2_icon_top_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
+  s_plus2_icon_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
+  s_plus2_icon_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
+  update_plus2_icon(s_plus2_icon);
+  bitmap_layer_set_compositing_mode(s_plus2_icon_top_left_layer, GCompOpSet);
+  bitmap_layer_set_compositing_mode(s_plus2_icon_top_right_layer, GCompOpSet);
+  bitmap_layer_set_compositing_mode(s_plus2_icon_left_layer, GCompOpSet);
+  bitmap_layer_set_compositing_mode(s_plus2_icon_right_layer, GCompOpSet);
+  layer_add_child(s_header_layer, bitmap_layer_get_layer(s_plus2_icon_top_left_layer));
+  layer_add_child(s_header_layer, bitmap_layer_get_layer(s_plus2_icon_top_right_layer));
+  layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_plus2_icon_left_layer));
+  layer_add_child(s_footer_layer, bitmap_layer_get_layer(s_plus2_icon_right_layer));
+
   // Do not reset s_weather_buf here. init() has already restored and
   // formatted the persisted weather cache before the window is created.
   // Resetting it to "--" caused cached temperature to disappear until the
@@ -4340,12 +4475,20 @@ static void window_unload(Window *window) {
   bitmap_layer_destroy(s_forecast_icon_top_right_layer);
   bitmap_layer_destroy(s_forecast_icon_left_layer);
   bitmap_layer_destroy(s_forecast_icon_right_layer);
+  bitmap_layer_destroy(s_plus2_icon_top_left_layer);
+  bitmap_layer_destroy(s_plus2_icon_top_right_layer);
+  bitmap_layer_destroy(s_plus2_icon_left_layer);
+  bitmap_layer_destroy(s_plus2_icon_right_layer);
   s_weather_icon_left_layer = NULL;
   s_weather_icon_right_layer = NULL;
   s_forecast_icon_top_left_layer = NULL;
   s_forecast_icon_top_right_layer = NULL;
   s_forecast_icon_left_layer = NULL;
   s_forecast_icon_right_layer = NULL;
+  s_plus2_icon_top_left_layer = NULL;
+  s_plus2_icon_top_right_layer = NULL;
+  s_plus2_icon_left_layer = NULL;
+  s_plus2_icon_right_layer = NULL;
 
   text_layer_destroy(s_left_label);
   text_layer_destroy(s_left_val);

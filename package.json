@@ -67,7 +67,9 @@
       "FORECAST_HIGH_TEMP": 46,
       "FORECAST_LOW_TEMP": 47,
       "RAIN_CHANCE": 48,
-      "PROGRESS_TRACK_BATTERY": 49
+      "PROGRESS_TRACK_BATTERY": 49,
+      "PLUS2_ICON": 50,
+      "PLUS2_TEMP": 51
     },
     "projectType": "native",
     "resources": {
