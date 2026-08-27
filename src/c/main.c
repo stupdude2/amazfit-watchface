@@ -1102,6 +1102,8 @@ static TextLayer *s_center_label;
 static TextLayer *s_center_val;
 static TextLayer *s_right_label;
 static TextLayer *s_right_val;
+static BitmapLayer *s_weather_icon_top_left_layer;
+static BitmapLayer *s_weather_icon_top_right_layer;
 static BitmapLayer *s_weather_icon_left_layer;
 static BitmapLayer *s_weather_icon_right_layer;
 static BitmapLayer *s_forecast_icon_top_left_layer;
@@ -1509,6 +1511,8 @@ static void update_weather_icon(int icon_code) {
   }
   s_weather_icon_bitmap = gbitmap_create_with_resource(resource_id);
   tint_weather_bitmap(s_weather_icon_bitmap, gcolor_legible_over(s_settings.background_color));
+  if (s_weather_icon_top_left_layer) bitmap_layer_set_bitmap(s_weather_icon_top_left_layer, s_weather_icon_bitmap);
+  if (s_weather_icon_top_right_layer) bitmap_layer_set_bitmap(s_weather_icon_top_right_layer, s_weather_icon_bitmap);
   if (s_weather_icon_left_layer) bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
   if (s_weather_icon_right_layer) bitmap_layer_set_bitmap(s_weather_icon_right_layer, s_weather_icon_bitmap);
 }
@@ -2694,24 +2698,40 @@ static void update_header_content(void) {
   // Labeled weather/forecast layouts get a little extra outer margin.
   // Hidden-label layouts keep the wider positioning needed by large values.
   const bool top_left_forecast_label_hidden =
-      (s_settings.top_left_slot == SLOT_FORECAST ||
+      (s_settings.top_left_slot == SLOT_WEATHER ||
+       s_settings.top_left_slot == SLOT_FORECAST ||
        s_settings.top_left_slot == SLOT_PLUS2_FORECAST) &&
-      s_settings.top_left_hide_label;
+      left_label_hidden;
   const bool top_right_forecast_label_hidden =
-      (s_settings.top_right_slot == SLOT_FORECAST ||
+      (s_settings.top_right_slot == SLOT_WEATHER ||
+       s_settings.top_right_slot == SLOT_FORECAST ||
        s_settings.top_right_slot == SLOT_PLUS2_FORECAST) &&
-      s_settings.top_right_hide_label;
+      right_label_hidden;
   const int top_left_forecast_x =
       4 + left_w - forecast_icon_size -
       (top_left_forecast_label_hidden ? 0 : 3);
   const int top_right_forecast_x =
       top_right_x + (top_right_forecast_label_hidden ? 0 : 3);
-  const int top_forecast_y = 18;
+  const int top_left_forecast_y =
+      top_left_forecast_label_hidden ? ((HEADER_H - forecast_icon_size) / 2) : 18;
+  const int top_right_forecast_y =
+      top_right_forecast_label_hidden ? ((HEADER_H - forecast_icon_size) / 2) : 18;
+  layer_set_frame(bitmap_layer_get_layer(s_weather_icon_top_left_layer),
+                  GRect(top_left_forecast_x, top_left_forecast_y,
+                        forecast_icon_size, forecast_icon_size));
+  layer_set_frame(bitmap_layer_get_layer(s_weather_icon_top_right_layer),
+                  GRect(top_right_forecast_x, top_right_forecast_y,
+                        forecast_icon_size, forecast_icon_size));
+  layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_top_left_layer),
+                   s_settings.top_left_slot != SLOT_WEATHER);
+  layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_top_right_layer),
+                   s_settings.top_right_slot != SLOT_WEATHER);
+
   layer_set_frame(bitmap_layer_get_layer(s_forecast_icon_top_left_layer),
-                  GRect(top_left_forecast_x, top_forecast_y,
+                  GRect(top_left_forecast_x, top_left_forecast_y,
                         forecast_icon_size, forecast_icon_size));
   layer_set_frame(bitmap_layer_get_layer(s_forecast_icon_top_right_layer),
-                  GRect(top_right_forecast_x, top_forecast_y,
+                  GRect(top_right_forecast_x, top_right_forecast_y,
                         forecast_icon_size, forecast_icon_size));
   layer_set_hidden(bitmap_layer_get_layer(s_forecast_icon_top_left_layer),
                    s_settings.top_left_slot != SLOT_FORECAST);
@@ -2719,10 +2739,10 @@ static void update_header_content(void) {
                    s_settings.top_right_slot != SLOT_FORECAST);
 
   layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_top_left_layer),
-                  GRect(top_left_forecast_x, top_forecast_y,
+                  GRect(top_left_forecast_x, top_left_forecast_y,
                         forecast_icon_size, forecast_icon_size));
   layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_top_right_layer),
-                  GRect(top_right_forecast_x, top_forecast_y,
+                  GRect(top_right_forecast_x, top_right_forecast_y,
                         forecast_icon_size, forecast_icon_size));
   layer_set_hidden(bitmap_layer_get_layer(s_plus2_icon_top_left_layer),
                    s_settings.top_left_slot != SLOT_PLUS2_FORECAST);
@@ -2864,8 +2884,12 @@ static void update_footer_content(void) {
   // are hidden, center the 25px icon against the full-height enlarged value.
   const int weather_icon_size = 25;
   const bool any_side_weather_label_hidden =
-      (s_settings.left_slot == SLOT_WEATHER && left_label_hidden) ||
-      (s_settings.right_slot == SLOT_WEATHER && right_label_hidden);
+      ((s_settings.left_slot == SLOT_WEATHER ||
+        s_settings.left_slot == SLOT_FORECAST ||
+        s_settings.left_slot == SLOT_PLUS2_FORECAST) && left_label_hidden) ||
+      ((s_settings.right_slot == SLOT_WEATHER ||
+        s_settings.right_slot == SLOT_FORECAST ||
+        s_settings.right_slot == SLOT_PLUS2_FORECAST) && right_label_hidden);
   const int weather_icon_y =
       any_side_weather_label_hidden ? ((FOOTER_H - weather_icon_size) / 2) : 18;
 
@@ -2927,19 +2951,19 @@ static void update_footer_content(void) {
       s_settings.right_slot != SLOT_WEATHER);
 
   layer_set_frame(bitmap_layer_get_layer(s_forecast_icon_left_layer),
-                  GRect(left_weather_icon_x, 18, weather_icon_size, weather_icon_size));
+                  GRect(left_weather_icon_x, weather_icon_y, weather_icon_size, weather_icon_size));
   layer_set_frame(bitmap_layer_get_layer(s_forecast_icon_right_layer),
-                  GRect(right_weather_icon_x, 18, weather_icon_size, weather_icon_size));
+                  GRect(right_weather_icon_x, weather_icon_y, weather_icon_size, weather_icon_size));
   layer_set_hidden(bitmap_layer_get_layer(s_forecast_icon_left_layer),
                    s_settings.left_slot != SLOT_FORECAST);
   layer_set_hidden(bitmap_layer_get_layer(s_forecast_icon_right_layer),
                    s_settings.right_slot != SLOT_FORECAST);
 
   layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_left_layer),
-                  GRect(left_weather_icon_x, 18,
+                  GRect(left_weather_icon_x, weather_icon_y,
                         weather_icon_size, weather_icon_size));
   layer_set_frame(bitmap_layer_get_layer(s_plus2_icon_right_layer),
-                  GRect(right_weather_icon_x, 18,
+                  GRect(right_weather_icon_x, weather_icon_y,
                         weather_icon_size, weather_icon_size));
   layer_set_hidden(bitmap_layer_get_layer(s_plus2_icon_left_layer),
                    s_settings.left_slot != SLOT_PLUS2_FORECAST);
@@ -4581,6 +4605,16 @@ static void window_load(Window *window) {
 
   s_weather_icon_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_NA);
   tint_weather_bitmap(s_weather_icon_bitmap, gcolor_legible_over(s_settings.background_color));
+  s_weather_icon_top_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
+  bitmap_layer_set_bitmap(s_weather_icon_top_left_layer, s_weather_icon_bitmap);
+  bitmap_layer_set_compositing_mode(s_weather_icon_top_left_layer, GCompOpSet);
+  layer_add_child(s_header_layer, bitmap_layer_get_layer(s_weather_icon_top_left_layer));
+
+  s_weather_icon_top_right_layer = bitmap_layer_create(GRect(SCREEN_W - 68, 18, 25, 25));
+  bitmap_layer_set_bitmap(s_weather_icon_top_right_layer, s_weather_icon_bitmap);
+  bitmap_layer_set_compositing_mode(s_weather_icon_top_right_layer, GCompOpSet);
+  layer_add_child(s_header_layer, bitmap_layer_get_layer(s_weather_icon_top_right_layer));
+
   s_weather_icon_left_layer = bitmap_layer_create(GRect(40, 18, 25, 25));
   bitmap_layer_set_bitmap(s_weather_icon_left_layer, s_weather_icon_bitmap);
   bitmap_layer_set_compositing_mode(s_weather_icon_left_layer, GCompOpSet);
@@ -4663,6 +4697,8 @@ static void window_load(Window *window) {
 static void window_unload(Window *window) {
   // Destroy child layers before their parent layers. Destroying a parent first
   // and then destroying its former children can fault on Pebble.
+  bitmap_layer_destroy(s_weather_icon_top_left_layer);
+  bitmap_layer_destroy(s_weather_icon_top_right_layer);
   bitmap_layer_destroy(s_weather_icon_left_layer);
   bitmap_layer_destroy(s_weather_icon_right_layer);
   bitmap_layer_destroy(s_forecast_icon_top_left_layer);
