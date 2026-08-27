@@ -818,6 +818,7 @@ function fetchWeather(lat, lon) {
     + '?latitude=' + encodeURIComponent(lat)
     + '&longitude=' + encodeURIComponent(lon)
     + '&current=temperature_2m,weather_code'
+    + '&hourly=precipitation_probability'
     + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,weather_code,precipitation_probability_max'
     + '&temperature_unit=celsius'
     + '&timezone=auto'
@@ -859,12 +860,29 @@ function fetchWeather(lat, lon) {
               Math.round(data.daily.temperature_2m_min[0] * 10);
         }
 
-        // Rain Chance is today's whole-day maximum precipitation probability.
-        if (data.daily.precipitation_probability_max &&
-            typeof data.daily.precipitation_probability_max[0] === 'number') {
-          payload.RAIN_CHANCE =
-              Math.max(0, Math.min(100,
-                Math.round(data.daily.precipitation_probability_max[0])));
+        // Rain Chance is the probability for the current forecast hour.
+        // It updates on the normal weather refresh schedule and is cached with
+        // the rest of the weather data.
+        if (data.hourly && data.hourly.time &&
+            data.hourly.precipitation_probability) {
+          var currentTime = data.current && data.current.time;
+          var rainIndex = currentTime ? data.hourly.time.indexOf(currentTime) : -1;
+
+          if (rainIndex < 0 && currentTime) {
+            var currentHour = currentTime.substring(0, 13);
+            for (var ri = 0; ri < data.hourly.time.length; ri++) {
+              if (data.hourly.time[ri].substring(0, 13) === currentHour) {
+                rainIndex = ri;
+                break;
+              }
+            }
+          }
+
+          if (rainIndex >= 0 &&
+              typeof data.hourly.precipitation_probability[rainIndex] === 'number') {
+            payload.RAIN_CHANCE = Math.max(0, Math.min(100,
+                Math.round(data.hourly.precipitation_probability[rainIndex])));
+          }
         }
 
         // Forecast is tomorrow: icon + high/low. Keep it in the same weather

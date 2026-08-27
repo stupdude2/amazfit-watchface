@@ -1,0 +1,16 @@
+Big Time 1.3.0 Production Release Audit
+
+PASS: Same Pebble app UUID.
+PASS: WatchfaceSettings and v15 migration structures unchanged.
+PASS: SETTINGS_VERSION remains 16 and SETTINGS_PERSIST_KEY remains 1.
+PASS: Existing customization persistence remains upgrade-compatible.
+PASS: New message/slot IDs are appended rather than renumbered.
+PASS: New visual/preferences use separate persistence.
+PASS: Forecast/Rain use separate extended weather cache.
+PASS: KiezelPay test mode and verbose logging disabled.
+PASS: PebbleKit JS KiezelPay logging disabled.
+PASS: 512-byte AppMessage inbox retained.
+PASS: JS syntax checks passed.
+
+Production version: 1.3.0
+Development source: 1.3-dev-002

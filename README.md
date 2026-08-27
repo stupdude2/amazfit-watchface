@@ -807,3 +807,11 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Battery uses the existing progress styles and drains from full at 100% to empty at 0%.
 - Step Goal is disabled while battery tracking is selected, without deleting the saved goal.
 - The new preference is persisted separately; WatchfaceSettings v16 and package version 1.3.0 remain unchanged.
+
+## Big Time 1.3.0 — Production Release
+- Production KiezelPay mode enabled.
+- Adds separate hour/minute colors and three Time Styles.
+- Adds Seconds Colon and Seconds information slots.
+- Adds tomorrow Forecast and daily Rain Chance.
+- Adds Battery as an alternate Progress Bar source.
+- Preserves WatchfaceSettings v16 and existing user customization compatibility.
