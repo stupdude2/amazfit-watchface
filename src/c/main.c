@@ -1905,6 +1905,7 @@ static bool stepbar_is_left_to_right(void) {
 static void update_stepbar_layout(void) {
   if (!s_clock_layer || !s_stepbar_layer) return;
 
+  GRect old_clock_frame = layer_get_frame(s_clock_layer);
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
   const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
   const bool backlight_only = stepbar_is_backlight_only();
@@ -1933,8 +1934,13 @@ static void update_stepbar_layout(void) {
                     GRect(0, HEADER_H + available_h - STEPBAR_H, SCREEN_W, STEPBAR_H));
   }
 
-  layer_mark_dirty(s_clock_layer);
-  if (!layer_get_hidden(s_stepbar_layer)) layer_mark_dirty(s_stepbar_layer);
+  GRect new_clock_frame = layer_get_frame(s_clock_layer);
+  if (!grect_equal(&old_clock_frame, &new_clock_frame)) {
+    layer_mark_dirty(s_clock_layer);
+  }
+  if (!layer_get_hidden(s_stepbar_layer)) {
+    layer_mark_dirty(s_stepbar_layer);
+  }
 }
 
 // ── Footer icon helpers ──────────────────────────────────────────────────────
@@ -2930,12 +2936,22 @@ static void apply_bar_visibility(void) {
   }
 }
 
+// Backlight/touch callbacks can arrive back-to-back. Revealing only the header
+// or footer must not needlessly relayout/redraw the large clock. Rounded clock
+// rendering is significantly heavier than bar visibility changes, so only
+// involve stepbar/clock geometry when the stepbar itself is backlight-only.
+static void refresh_conditional_ui(void) {
+  apply_bar_visibility();
+  if (stepbar_is_backlight_only()) {
+    update_stepbar_layout();
+  }
+}
+
 static void sunlight_fallback_timeout(void *context) {
   s_sunlight_fallback_timer = NULL;
   s_sunlight_fallback_active = false;
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Sunlight fallback expired");
-  apply_bar_visibility();
-  update_stepbar_layout();
+  refresh_conditional_ui();
 }
 
 static void cancel_sunlight_fallback(void) {
@@ -2965,8 +2981,7 @@ static void start_sunlight_fallback(void) {
       app_timer_register(SUNLIGHT_FALLBACK_MS, sunlight_fallback_timeout, NULL);
 
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Sunlight fallback started");
-  apply_bar_visibility();
-  update_stepbar_layout();
+  refresh_conditional_ui();
 }
 
 static void request_light_with_fallback(void) {
@@ -2978,8 +2993,7 @@ static void request_light_with_fallback(void) {
     start_sunlight_fallback();
   } else {
     cancel_sunlight_fallback();
-    apply_bar_visibility();
-    update_stepbar_layout();
+    refresh_conditional_ui();
   }
 }
 
@@ -2999,8 +3013,7 @@ static void backlight_handler(bool on) {
           on ? "ON" : "OFF",
           s_sunlight_fallback_active ? 1 : 0);
 
-  apply_bar_visibility();
-  update_stepbar_layout();
+  refresh_conditional_ui();
 }
 
 static void focus_handler(bool in_focus) {
@@ -3012,8 +3025,7 @@ static void focus_handler(bool in_focus) {
 
   if (light_is_on()) {
     cancel_sunlight_fallback();
-    apply_bar_visibility();
-    update_stepbar_layout();
+    refresh_conditional_ui();
   } else {
     request_light_with_fallback();
   }
@@ -3043,9 +3055,9 @@ static void update_bar_input_services(void) {
     s_touch_subscribed = false;
   }
 
-  // Synchronize from the live system backlight state.
-  apply_bar_visibility();
-  update_stepbar_layout();
+  // Synchronize from the live system backlight state. Header/footer visibility
+  // alone does not require a full clock relayout/redraw.
+  refresh_conditional_ui();
 }
 
 static int16_t abs_i16(int16_t v) {

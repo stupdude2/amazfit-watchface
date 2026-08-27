@@ -842,3 +842,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 ## 1.3-dev-008 — Labeled weather icon margin
 - Added 3px more outer margin to labeled weather/forecast icons.
 - Hidden-label icon positioning is unchanged.
+
+## 1.3-dev-009 — Backlight/layout stability
+- Removed unnecessary clock relayout/redraw when revealing backlight-only top/bottom bars.
+- Stepbar layout now redraws the clock only when its frame actually changes.
+- Intended to eliminate hitch/crash behavior after switching Time Style and then tapping to reveal hidden bars.
