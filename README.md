@@ -853,3 +853,8 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Window/focus callbacks now only synchronize conditional bar visibility to the real backlight state.
 - Touch and Raise to Wake remain the only custom paths that request the backlight.
 - Fix targets crashes/hitches after any Settings change with backlight-only top/bottom bars.
+
+## 1.3-dev-011 — Repeat settings save stability
+- Makes full Clay configuration dictionaries idempotent.
+- Prevents unchanged settings from repeatedly triggering persistence, layout, service, and redraw work.
+- Targets the reproducible first-save-works / second-save-hangs failure.

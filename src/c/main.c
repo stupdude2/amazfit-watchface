@@ -3590,6 +3590,21 @@ void watchface_kiezelpay_set_licensed(bool licensed) {
 
 // ── AppMessage ────────────────────────────────────────────────────────────────
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
+  // Clay sends the complete configuration dictionary on every Save. Snapshot
+  // current state so repeated, unchanged fields cannot trigger another full
+  // UI/service refresh on the second and subsequent saves.
+  WatchfaceSettings settings_before = s_settings;
+  GColor hour_color_before = s_hour_color;
+  GColor minute_color_before = s_minute_color;
+  bool split_colors_before = s_split_clock_colors;
+  bool flash_colon_before = s_flash_colon;
+  TimeStyle time_style_before = s_time_style;
+  bool progress_battery_before = s_progress_track_battery;
+  uint8_t tz_top_left_before = s_top_left_time_zone;
+  uint8_t tz_top_right_before = s_top_right_time_zone;
+  uint8_t tz_left_before = s_left_time_zone;
+  uint8_t tz_right_before = s_right_time_zone;
+
   bool weather_changed = false;
   bool accent_changed = false;
   bool clock_color_changed = false;
@@ -3817,7 +3832,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_top_left_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT &&
+            value != s_top_left_time_zone) {
           s_top_left_time_zone = (uint8_t)value;
           persist_write_int(TZ_TOP_LEFT_PERSIST_KEY, value);
           layout_changed = true;
@@ -3827,7 +3843,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_RIGHT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_top_right_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT &&
+            value != s_top_right_time_zone) {
           s_top_right_time_zone = (uint8_t)value;
           persist_write_int(TZ_TOP_RIGHT_PERSIST_KEY, value);
           layout_changed = true;
@@ -3837,7 +3854,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_left_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT &&
+            value != s_left_time_zone) {
           s_left_time_zone = (uint8_t)value;
           persist_write_int(TZ_LEFT_PERSIST_KEY, value);
           layout_changed = true;
@@ -3847,7 +3865,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_TIME_ZONE: {
         int32_t value = tuple_to_int32(t, s_right_time_zone);
-        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT) {
+        if (value >= 0 && value < TIME_ZONE_PRESET_COUNT &&
+            value != s_right_time_zone) {
           s_right_time_zone = (uint8_t)value;
           persist_write_int(TZ_RIGHT_PERSIST_KEY, value);
           layout_changed = true;
@@ -3997,7 +4016,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
           uint32_t value =
               (uint32_t)tuple_to_int32(t, 0xFFFFFF) & 0xFFFFFF;
-          s_hour_color = GColorFromHEX(value);
+          GColor new_color = GColorFromHEX(value);
+          if (new_color.argb == s_hour_color.argb) break;
+          s_hour_color = new_color;
           persist_write_int(HOUR_COLOR_PERSIST_KEY, (int32_t)value);
           if (s_clock_layer) layer_mark_dirty(s_clock_layer);
           APP_LOG(APP_LOG_LEVEL_INFO,
@@ -4009,7 +4030,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
           uint32_t value =
               (uint32_t)tuple_to_int32(t, 0xFFFFFF) & 0xFFFFFF;
-          s_minute_color = GColorFromHEX(value);
+          GColor new_color = GColorFromHEX(value);
+          if (new_color.argb == s_minute_color.argb) break;
+          s_minute_color = new_color;
           persist_write_int(MINUTE_COLOR_PERSIST_KEY, (int32_t)value);
           if (s_clock_layer) layer_mark_dirty(s_clock_layer);
           APP_LOG(APP_LOG_LEVEL_INFO,
@@ -4019,6 +4042,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_SPLIT_CLOCK_COLORS: {
         bool enabled = tuple_to_int32(t, s_split_clock_colors ? 1 : 0) != 0;
+        if (enabled == s_split_clock_colors) break;
         s_split_clock_colors = enabled;
         persist_write_int(SPLIT_COLOR_PERSIST_KEY, enabled ? 1 : 0);
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
@@ -4029,6 +4053,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_FLASH_COLON: {
         bool enabled = tuple_to_int32(t, s_flash_colon ? 1 : 0) != 0;
+        if (enabled == s_flash_colon) break;
         s_flash_colon = enabled;
         persist_write_int(FLASH_COLON_PERSIST_KEY, enabled ? 1 : 0);
         update_tick_service();
@@ -4042,6 +4067,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         if (value < TIME_STYLE_SQUARE || value > TIME_STYLE_SOFT_SQUARE) {
           value = TIME_STYLE_SQUARE;
         }
+        if (value == (int)s_time_style) break;
         s_time_style = (TimeStyle)value;
         persist_write_int(ROUNDED_TIME_PERSIST_KEY, value);
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
@@ -4052,6 +4078,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       case KEY_PROGRESS_TRACK_BATTERY: {
         bool enabled =
             tuple_to_int32(t, s_progress_track_battery ? 1 : 0) != 0;
+        if (enabled == s_progress_track_battery) break;
         s_progress_track_battery = enabled;
         persist_write_int(PROGRESS_TRACK_BATTERY_PERSIST_KEY,
                           enabled ? 1 : 0);
@@ -4134,6 +4161,45 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
 
   // Only touch persistent storage and UI after DictionaryIterator is finished.
+  // Most Clay tuples are unchanged values resent on every Save. Recompute the
+  // expensive update flags from actual before/after state instead of trusting
+  // per-tuple "received" flags.
+  bool settings_record_changed =
+      memcmp(&settings_before, &s_settings, sizeof(s_settings)) != 0;
+
+  // If every WatchfaceSettings field is identical, none of those resent tuples
+  // should cause the layout/service pipeline to run again.
+  if (!settings_record_changed) {
+    layout_changed = false;
+    temperature_setting_changed = false;
+  } else {
+    temperature_setting_changed =
+        settings_before.temp_unit != s_settings.temp_unit;
+  }
+
+  if (accent_changed) {
+    accent_changed =
+        GColorFromHEX(new_accent_hex).argb != s_settings.accent_color.argb;
+  }
+  if (clock_color_changed) {
+    clock_color_changed =
+        GColorFromHEX(new_clock_hex).argb != s_settings.clock_color.argb;
+  }
+  if (background_changed) {
+    background_changed =
+        GColorFromHEX(new_background_hex).argb !=
+        s_settings.background_color.argb;
+  }
+
+  APP_LOG(APP_LOG_LEVEL_INFO,
+          "Config delta: settings=%d layout=%d accent=%d clock=%d bg=%d temp=%d",
+          settings_record_changed ? 1 : 0,
+          layout_changed ? 1 : 0,
+          accent_changed ? 1 : 0,
+          clock_color_changed ? 1 : 0,
+          background_changed ? 1 : 0,
+          temperature_setting_changed ? 1 : 0);
+
 #if WATCHFACE_PRO
   if (!settings_values_valid(&s_settings)) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid settings after config; restoring footer defaults");
@@ -4221,6 +4287,19 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (current) update_time(current);
   }
 #endif
+
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Config separate deltas: hour=%d minute=%d split=%d colon=%d style=%d batterybar=%d tz=%d%d%d%d",
+          hour_color_before.argb != s_hour_color.argb ? 1 : 0,
+          minute_color_before.argb != s_minute_color.argb ? 1 : 0,
+          split_colors_before != s_split_clock_colors ? 1 : 0,
+          flash_colon_before != s_flash_colon ? 1 : 0,
+          time_style_before != s_time_style ? 1 : 0,
+          progress_battery_before != s_progress_track_battery ? 1 : 0,
+          tz_top_left_before != s_top_left_time_zone ? 1 : 0,
+          tz_top_right_before != s_top_right_time_zone ? 1 : 0,
+          tz_left_before != s_left_time_zone ? 1 : 0,
+          tz_right_before != s_right_time_zone ? 1 : 0);
 }
 
 static void inbox_dropped_handler(AppMessageResult reason, void *context) {
