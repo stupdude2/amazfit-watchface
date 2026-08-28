@@ -166,7 +166,23 @@ function customClay(minified) {
     }
 
     syncClockColorControls();
-    if (splitClockColors) splitClockColors.on('change', syncClockColorControls);
+    if (splitClockColors) {
+      splitClockColors.on('change', function() {
+        // Turning separate colors off means the independent values should no
+        // longer remain stale behind the toggle. Copy the current Clock Color
+        // into both selectors so digital and analog modes share one canonical
+        // color until the user enables separation again.
+        if (!splitClockColors.get()) {
+          var clockColor = clayPage.getItemByMessageKey('CLOCK_COLOR');
+          if (clockColor) {
+            var unifiedColor = clockColor.get();
+            if (hourColor) hourColor.set(unifiedColor);
+            if (minuteColor) minuteColor.set(unifiedColor);
+          }
+        }
+        syncClockColorControls();
+      });
+    }
     if (clockFace) clockFace.on('change', syncClockColorControls);
 
 

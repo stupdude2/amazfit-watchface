@@ -1,3 +1,11 @@
+# Development Build
+
+Dev-25
+
+- When **Separate Hour / Minute Colors** is turned off, Hour Color and Minute Color are immediately reset to the current Clock Color in the settings UI.
+- The watch also enforces and persists the same reset on Save, so stale split colors cannot return later.
+- Existing analog layout and backlight behavior are unchanged.
+
 # Big Time v1.3.1 — Rectangular Analog Dev 24
 
 Reverted the experimental wrist-raise/backlight-only differentiation introduced after dev-18.

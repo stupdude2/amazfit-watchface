@@ -4777,6 +4777,34 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         s_settings.background_color.argb;
   }
 
+  // When Separate Hour / Minute Colors is switched off, collapse both stored
+  // independent colors to the current Clock Color. Do this after parsing the
+  // whole dictionary so a Clock Color changed in the same Save is respected
+  // regardless of tuple order. This also keeps the watch-side persisted values
+  // consistent if configuration is sent by anything other than our Clay page.
+  if (split_colors_before && !s_split_clock_colors) {
+    uint32_t unified_hex = clock_color_changed
+        ? new_clock_hex
+        : ((uint32_t)s_settings.clock_color.argb); // replaced below with helper-safe conversion
+    GColor unified_color = clock_color_changed
+        ? GColorFromHEX(new_clock_hex)
+        : s_settings.clock_color;
+    s_hour_color = unified_color;
+    s_minute_color = unified_color;
+    if (!clock_color_changed) {
+      // Pebble GColor stores RGB in ARGB8, so persist a palette-safe 24-bit
+      // value reconstructed from the channel values rather than raw argb.
+      unified_hex = ((uint32_t)(unified_color.r * 85) << 16) |
+                    ((uint32_t)(unified_color.g * 85) << 8) |
+                    (uint32_t)(unified_color.b * 85);
+    }
+    persist_write_int(HOUR_COLOR_PERSIST_KEY, (int32_t)unified_hex);
+    persist_write_int(MINUTE_COLOR_PERSIST_KEY, (int32_t)unified_hex);
+    if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+    APP_LOG(APP_LOG_LEVEL_INFO,
+            "Separate colors disabled; hour/minute reset to Clock Color");
+  }
+
   APP_LOG(APP_LOG_LEVEL_INFO,
           "Config delta: settings=%d layout=%d accent=%d clock=%d bg=%d temp=%d",
           settings_record_changed ? 1 : 0,
