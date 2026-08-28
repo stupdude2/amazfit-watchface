@@ -1827,16 +1827,22 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
 
 static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
                                                GColor marker_color) {
-  const int cy = bounds.size.h / 2 - 2;
+  // Keep the 3/9 markers exactly on the hand pivot's horizontal centerline.
+  // This makes a hand pointing at 3 or 9 visually pass through the middle of
+  // the dash rather than along its lower edge.
+  const int cy = bounds.size.h / 2;
   const int dash_len = 9;
   const int numeral_w = 34;
-  const int gap = 2;
+  const int side_outset = 4;
+  const int gap = 1;
 
-  // 9 is anchored at the left edge, so its marker belongs immediately to the
-  // right (inside) of the numeral. 3 mirrors this on the right side.
-  int left_x1 = numeral_w + gap;
+  // The side numerals are intentionally pushed a few pixels beyond the dial
+  // bounds. Place their dashes immediately inside them with only a 1 px gap.
+  int left_numeral_right = -side_outset + numeral_w;
+  int right_numeral_left = bounds.size.w - numeral_w + side_outset;
+  int left_x1 = left_numeral_right + gap;
   int left_x2 = left_x1 + dash_len;
-  int right_x2 = bounds.size.w - numeral_w - gap;
+  int right_x2 = right_numeral_left - gap;
   int right_x1 = right_x2 - dash_len;
 
   graphics_context_set_stroke_color(ctx, marker_color);
@@ -1866,11 +1872,13 @@ static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
                      GRect(cx - side_w / 2, bounds.size.h - font_h - 2,
                            side_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  const int side_outset = 4;
   graphics_draw_text(ctx, "9", s_font_header,
-                     GRect(-1, cy - font_h / 2 + numeral_y_adjust, side_w, font_h),
+                     GRect(-side_outset, cy - font_h / 2 + numeral_y_adjust,
+                           side_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, "3", s_font_header,
-                     GRect(bounds.size.w - side_w + 1,
+                     GRect(bounds.size.w - side_w + side_outset,
                            cy - font_h / 2 + numeral_y_adjust, side_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }

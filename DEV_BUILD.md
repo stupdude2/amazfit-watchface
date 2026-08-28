@@ -40,3 +40,9 @@ keys for migration safety.
 - Removed the cardinal markers at 12 and 6.
 - Moved the 3 and 9 cardinal dashes inward, between the center and numerals.
 - Shifted cardinal numerals upward and added bottom clearance for 6.
+
+## Side cardinal alignment refinement
+- Moved the 3 and 9 numerals 3 pixels farther toward the dial edges.
+- Pulled the 3 and 9 dashes inward to sit only 1 pixel from the numeral boxes.
+- Centered both side dashes exactly on the clock pivot's horizontal axis so a
+  hand pointing at 3 or 9 passes through the middle of the dash.
