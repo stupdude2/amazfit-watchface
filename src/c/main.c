@@ -2228,6 +2228,37 @@ static bool stepbar_is_left_to_right(void) {
 static bool conditional_ui_is_visible(void);
 static void update_analog_bar_layout(bool animated);
 
+// Keep the analog progress-bar layer synchronized with the same interaction
+// state that drives the header/footer. This is deliberately separate from the
+// analog clock-frame animation so a backlight event can reveal the step bar and
+// animate the clock into its reserved rectangle at the same time.
+static void update_analog_stepbar_layer(void) {
+  if (!s_stepbar_layer) return;
+
+  const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
+  const bool backlight_only = stepbar_is_backlight_only();
+  const bool interaction_visible = conditional_ui_is_visible();
+  const bool bar_visible =
+      !permanently_hidden && (!backlight_only || interaction_visible);
+
+  if (permanently_hidden) {
+    layer_set_hidden(s_stepbar_layer, true);
+  } else {
+    layer_set_hidden(s_stepbar_layer, !bar_visible);
+    if (stepbar_is_above()) {
+      layer_set_frame(s_stepbar_layer, GRect(0, HEADER_H - 5, SCREEN_W, STEPBAR_H));
+    } else {
+      layer_set_frame(s_stepbar_layer,
+                      GRect(0, HEADER_H + (SCREEN_H - HEADER_H - FOOTER_H) - STEPBAR_H,
+                            SCREEN_W, STEPBAR_H));
+    }
+  }
+
+  if (!layer_get_hidden(s_stepbar_layer)) {
+    layer_mark_dirty(s_stepbar_layer);
+  }
+}
+
 // With the step bar hidden (either permanently or while the backlight is off),
 // the clock gets the full space between header/footer and stays vertically centered.
 static void update_stepbar_layout(void) {
@@ -2237,26 +2268,8 @@ static void update_stepbar_layout(void) {
   // step-progress layer may still overlay that region, but it no longer keeps
   // the analog dial artificially confined to the old digital-time rectangle.
   if (s_pro_unlocked && s_analog_clock) {
-    const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
-    const bool backlight_only = stepbar_is_backlight_only();
-    const bool interaction_visible = conditional_ui_is_visible();
-    const bool bar_visible =
-        !permanently_hidden && (!backlight_only || interaction_visible);
-
-    if (permanently_hidden) {
-      layer_set_hidden(s_stepbar_layer, true);
-    } else {
-      layer_set_hidden(s_stepbar_layer, !bar_visible);
-      if (stepbar_is_above()) {
-        layer_set_frame(s_stepbar_layer, GRect(0, HEADER_H - 5, SCREEN_W, STEPBAR_H));
-      } else {
-        layer_set_frame(s_stepbar_layer,
-                        GRect(0, HEADER_H + (SCREEN_H - HEADER_H - FOOTER_H) - STEPBAR_H,
-                              SCREEN_W, STEPBAR_H));
-      }
-    }
+    update_analog_stepbar_layer();
     update_analog_bar_layout(false);
-    if (!layer_get_hidden(s_stepbar_layer)) layer_mark_dirty(s_stepbar_layer);
     return;
   }
 
@@ -3403,6 +3416,11 @@ static void apply_bar_visibility(void) {
 static void refresh_conditional_ui(void) {
   apply_bar_visibility();
   if (s_pro_unlocked && s_analog_clock) {
+    // The dev-7 path animated the analog frame here but never refreshed the
+    // backlight-only step layer. As a result, the clock contracted correctly
+    // while the progress bar remained hidden. Update the bar first, then start
+    // the matching frame animation so both react to the same backlight event.
+    update_analog_stepbar_layer();
     update_analog_bar_layout(true);
   } else if (stepbar_is_backlight_only()) {
     update_stepbar_layout();
