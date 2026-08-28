@@ -2248,11 +2248,13 @@ static void update_analog_stepbar_layer(void) {
   } else {
     layer_set_hidden(s_stepbar_layer, !bar_visible);
     if (stepbar_is_above()) {
-      // In analog mode the step bar follows the *effective* data-bar layout.
-      // If the top bar is hidden, keep the progress bar at the top edge of
-      // the remaining analog region instead of leaving a HEADER_H-sized gap.
+      // Match the original above-clock spacing: when the header is visible,
+      // tuck the step bar 5 px upward toward it instead of reserving a full
+      // STEPBAR_H strip below the header. This keeps the analog face from
+      // being pushed too far down. With no header, anchor the bar at y=0.
       const int16_t top_edge = header_is_effectively_visible() ? HEADER_H : 0;
-      layer_set_frame(s_stepbar_layer, GRect(0, top_edge, SCREEN_W, STEPBAR_H));
+      const int16_t bar_y = header_is_effectively_visible() ? top_edge - 5 : 0;
+      layer_set_frame(s_stepbar_layer, GRect(0, bar_y, SCREEN_W, STEPBAR_H));
     } else {
       // Likewise, when the bottom data bar is hidden, pin an enabled step bar
       // to the physical bottom of the display. The analog clock target frame
@@ -3349,21 +3351,25 @@ static GRect analog_target_clock_frame(void) {
   // there was no visible step bar to reserve space for.
   if (stepbar_visible) {
     if (stepbar_is_above()) {
-      top += STEPBAR_H;
+      // The legacy above-clock layout lifts the progress bar 5 px toward the
+      // header and leaves a 1 px gap before the clock. Reproduce that geometry
+      // here so analog mode has the same compact spacing instead of moving the
+      // entire dial down by the full 12 px step-bar height.
+      if (header_visible) {
+        top += STEPBAR_H - 4;  // HEADER_H + 8 for a 12 px step bar
+      } else {
+        top += STEPBAR_H + 1;  // bar at screen top, then a 1 px gap
+      }
     } else {
       bottom -= STEPBAR_H;
     }
   } else if (footer_visible && !stepbar_is_above()) {
-    // With the lower step bar hidden, keep the analog face centered in the
-    // space between the visible data bars instead of putting the entire legacy
-    // STEPBAR_H allowance below it. Split that allowance evenly so the visual
-    // margin above and below the analog clock matches. If the header is hidden,
-    // there is no upper data-bar margin to mirror, so only keep the small lower
-    // half-gap above the visible footer and let the clock expand upward.
+    // With the lower step bar hidden, preserve the small lower margin that
+    // visually matches the dial's normal top clearance, but do not add any
+    // extra inset below the header. The analog face should begin at the same
+    // top position as the normal clock while retaining the corrected breathing
+    // room above the visible footer.
     const int16_t half_gap = STEPBAR_H / 2;
-    if (header_visible) {
-      top += half_gap;
-    }
     bottom -= half_gap;
   }
 
