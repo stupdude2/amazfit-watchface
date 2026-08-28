@@ -14,3 +14,5 @@ Removed the extra upper half-gap when the lower step bar is hidden. The correcte
 ## Analog dev-14
 - Tightened spacing for an always/backlight-visible step bar positioned above the analog clock.
 - Restores the legacy 5 px upward step-bar tuck and 1 px clock gap when the header is visible, preventing the analog dial from being pushed too far down.
+
+- dev-15: Tightened spacing between an above-clock steps bar and the analog dial by allowing the analog frame to overlap the unused lower portion of the 12 px step-bar layer. This preserves the step graphic while making the visible top/bottom dial margins more even.

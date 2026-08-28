@@ -3356,9 +3356,13 @@ static GRect analog_target_clock_frame(void) {
       // here so analog mode has the same compact spacing instead of moving the
       // entire dial down by the full 12 px step-bar height.
       if (header_visible) {
-        top += STEPBAR_H - 4;  // HEADER_H + 8 for a 12 px step bar
+        // The progress graphic is centered inside its 12 px layer, leaving
+        // several transparent pixels below the visible line. Let the analog
+        // frame overlap that empty tail by 3 px so the *visible* gap between
+        // the upper steps line and the dial matches the dial's lower margin.
+        top += STEPBAR_H - 7;  // HEADER_H + 5 for a 12 px step bar
       } else {
-        top += STEPBAR_H + 1;  // bar at screen top, then a 1 px gap
+        top += STEPBAR_H - 2;  // same tighter visible gap at screen top
       }
     } else {
       bottom -= STEPBAR_H;
