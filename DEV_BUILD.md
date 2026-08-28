@@ -51,3 +51,8 @@ keys for migration safety.
 - Minute and second hands are capped to their exact 3/9 radial reach, eliminating diagonal over-stretch in the corners while retaining rectangular shortening toward 12/6.
 - Hour hand follows the minute-hand curve at a 64:88 proportion and is capped at its shortest (12/6) hour-hand length.
 - Dial markers and numerals are rendered before all hands; hour, minute, second, and pivot now sit above all dial furniture.
+
+## Rectangular analog dev 5
+- Tightened the 3/9 cardinal dash spacing.
+- Analog clock now expands into hidden header/footer space and reaches full 200x228 when both are hidden.
+- Conditional bar visibility changes animate the analog clock frame over 260 ms with ease-in/out geometry.

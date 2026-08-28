@@ -1102,6 +1102,12 @@ static TextLayer *s_top_right_val;
 static Layer     *s_clock_layer;
 static Layer     *s_stepbar_layer;
 static Layer     *s_footer_layer;
+
+// Analog clock frame morph animation. The analog face grows into any space
+// released by the top/bottom data bars, including the full 200x228 display
+// when both bars are hidden.
+static PropertyAnimation *s_analog_frame_animation;
+static const uint32_t ANALOG_FRAME_ANIMATION_MS = 260;
 static TextLayer *s_left_label;
 static TextLayer *s_left_val;
 static TextLayer *s_center_label;
@@ -1834,10 +1840,11 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   const int dash_len = 9;
   const int numeral_w = 34;
   const int side_outset = 4;
-  const int gap = 1;
+  const int gap = -2;
 
   // The side numerals are intentionally pushed a few pixels beyond the dial
-  // bounds. Place their dashes immediately inside them with only a 1 px gap.
+  // bounds. Tuck the dashes slightly into the numeral boxes so the visible
+  // glyph-to-dash gap is much tighter than the text layer bounds suggest.
   int left_numeral_right = -side_outset + numeral_w;
   int right_numeral_left = bounds.size.w - numeral_w + side_outset;
   int left_x1 = left_numeral_right + gap;
@@ -2218,10 +2225,40 @@ static bool stepbar_is_left_to_right(void) {
          s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
 }
 
+static bool conditional_ui_is_visible(void);
+static void update_analog_bar_layout(bool animated);
+
 // With the step bar hidden (either permanently or while the backlight is off),
 // the clock gets the full space between header/footer and stays vertically centered.
 static void update_stepbar_layout(void) {
   if (!s_clock_layer || !s_stepbar_layer) return;
+
+  // The analog face owns the full vertical region left by the data bars. The
+  // step-progress layer may still overlay that region, but it no longer keeps
+  // the analog dial artificially confined to the old digital-time rectangle.
+  if (s_pro_unlocked && s_analog_clock) {
+    const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
+    const bool backlight_only = stepbar_is_backlight_only();
+    const bool interaction_visible = conditional_ui_is_visible();
+    const bool bar_visible =
+        !permanently_hidden && (!backlight_only || interaction_visible);
+
+    if (permanently_hidden) {
+      layer_set_hidden(s_stepbar_layer, true);
+    } else {
+      layer_set_hidden(s_stepbar_layer, !bar_visible);
+      if (stepbar_is_above()) {
+        layer_set_frame(s_stepbar_layer, GRect(0, HEADER_H - 5, SCREEN_W, STEPBAR_H));
+      } else {
+        layer_set_frame(s_stepbar_layer,
+                        GRect(0, HEADER_H + (SCREEN_H - HEADER_H - FOOTER_H) - STEPBAR_H,
+                              SCREEN_W, STEPBAR_H));
+      }
+    }
+    update_analog_bar_layout(false);
+    if (!layer_get_hidden(s_stepbar_layer)) layer_mark_dirty(s_stepbar_layer);
+    return;
+  }
 
   GRect old_clock_frame = layer_get_frame(s_clock_layer);
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
@@ -3256,31 +3293,96 @@ static bool conditional_ui_is_visible(void) {
   return light_is_on() || s_sunlight_fallback_active;
 }
 
-static void apply_bar_visibility(void) {
-  const bool backlight_visible = conditional_ui_is_visible();
+static bool header_is_effectively_visible(void) {
+  const bool interaction_visible = conditional_ui_is_visible();
+  return (s_settings.header_mode == BAR_ALWAYS) ||
+         (s_settings.header_mode == BAR_BACKLIGHT && interaction_visible);
+}
 
-  if (s_header_layer) {
-    const bool header_visible =
-        (s_settings.header_mode == BAR_ALWAYS) ||
-        (s_settings.header_mode == BAR_BACKLIGHT && backlight_visible);
-    layer_set_hidden(s_header_layer, !header_visible);
-  }
+static bool footer_is_effectively_visible(void) {
+  const bool interaction_visible = conditional_ui_is_visible();
+  return (s_settings.footer_mode == BAR_ALWAYS) ||
+         (s_settings.footer_mode == BAR_BACKLIGHT && interaction_visible);
+}
 
-  if (s_footer_layer) {
-    const bool footer_visible =
-        (s_settings.footer_mode == BAR_ALWAYS) ||
-        (s_settings.footer_mode == BAR_BACKLIGHT && backlight_visible);
-    layer_set_hidden(s_footer_layer, !footer_visible);
+static GRect analog_target_clock_frame(void) {
+  const bool header_visible = header_is_effectively_visible();
+  const bool footer_visible = footer_is_effectively_visible();
+  const int16_t top = header_visible ? HEADER_H : 0;
+  const int16_t bottom = footer_visible ? FOOTER_Y : SCREEN_H;
+  int16_t height = bottom - top;
+  if (height < 1) height = 1;
+  return GRect(0, top, SCREEN_W, height);
+}
+
+static void analog_frame_animation_stopped(Animation *animation, bool finished,
+                                           void *context) {
+  if (s_analog_frame_animation &&
+      animation == property_animation_get_animation(s_analog_frame_animation)) {
+    property_animation_destroy(s_analog_frame_animation);
+    s_analog_frame_animation = NULL;
   }
 }
 
-// Backlight/touch callbacks can arrive back-to-back. Revealing only the header
-// or footer must not needlessly relayout/redraw the large clock. Rounded clock
-// rendering is significantly heavier than bar visibility changes, so only
-// involve stepbar/clock geometry when the stepbar itself is backlight-only.
+static void cancel_analog_frame_animation(void) {
+  if (!s_analog_frame_animation) return;
+  PropertyAnimation *property_animation = s_analog_frame_animation;
+  s_analog_frame_animation = NULL;
+  Animation *animation = property_animation_get_animation(property_animation);
+  animation_unschedule(animation);
+  property_animation_destroy(property_animation);
+}
+
+static void update_analog_bar_layout(bool animated) {
+  if (!s_clock_layer || !(s_pro_unlocked && s_analog_clock)) return;
+
+  GRect target = analog_target_clock_frame();
+  GRect current = layer_get_frame(s_clock_layer);
+  if (grect_equal(&current, &target)) return;
+
+  cancel_analog_frame_animation();
+
+  if (!animated) {
+    layer_set_frame(s_clock_layer, target);
+    layer_mark_dirty(s_clock_layer);
+    return;
+  }
+
+  s_analog_frame_animation =
+      property_animation_create_layer_frame(s_clock_layer, &current, &target);
+  if (!s_analog_frame_animation) {
+    layer_set_frame(s_clock_layer, target);
+    layer_mark_dirty(s_clock_layer);
+    return;
+  }
+
+  Animation *animation = property_animation_get_animation(s_analog_frame_animation);
+  animation_set_duration(animation, ANALOG_FRAME_ANIMATION_MS);
+  animation_set_curve(animation, AnimationCurveEaseInOut);
+  animation_set_handlers(animation, (AnimationHandlers) {
+    .stopped = analog_frame_animation_stopped
+  }, NULL);
+  animation_schedule(animation);
+}
+
+static void apply_bar_visibility(void) {
+  if (s_header_layer) {
+    layer_set_hidden(s_header_layer, !header_is_effectively_visible());
+  }
+
+  if (s_footer_layer) {
+    layer_set_hidden(s_footer_layer, !footer_is_effectively_visible());
+  }
+}
+
+// Backlight/touch callbacks can arrive back-to-back. In analog mode, the clock
+// morphs at the same moment the conditional bars appear/disappear, so the dial
+// smoothly expands into (or contracts out of) the newly available space.
 static void refresh_conditional_ui(void) {
   apply_bar_visibility();
-  if (stepbar_is_backlight_only()) {
+  if (s_pro_unlocked && s_analog_clock) {
+    update_analog_bar_layout(true);
+  } else if (stepbar_is_backlight_only()) {
     update_stepbar_layout();
   }
 }
@@ -5047,6 +5149,8 @@ static void window_unload(Window *window) {
   s_top_left_label = NULL; s_top_left_val = NULL;
   s_top_center_label = NULL; s_top_center_val = NULL;
   s_top_right_label = NULL; s_top_right_val = NULL;
+
+  cancel_analog_frame_animation();
 
   layer_destroy(s_header_layer);
   layer_destroy(s_clock_layer);
