@@ -13,3 +13,8 @@ Public package version remains **1.3.1** while analog development continues.
 - In analog mode, the visible steps/progress bar now follows the effective top/bottom bar layout.
 - When the bottom data bar is hidden and steps remain visible, the steps bar is pinned to the bottom edge and the expanded analog face ends directly above it.
 - When the top data bar is hidden with an above-clock steps mode, the same rule applies at the top edge.
+
+
+## Analog dev-10
+- Fixed CloudPebble compile failure introduced in dev-9 by adding forward declarations for `header_is_effectively_visible()` and `footer_is_effectively_visible()` before `update_analog_stepbar_layer()` uses them.
+- No behavioral/layout changes from dev-9.

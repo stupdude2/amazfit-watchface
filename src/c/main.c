@@ -2226,6 +2226,8 @@ static bool stepbar_is_left_to_right(void) {
 }
 
 static bool conditional_ui_is_visible(void);
+static bool header_is_effectively_visible(void);
+static bool footer_is_effectively_visible(void);
 static void update_analog_bar_layout(bool animated);
 
 // Keep the analog progress-bar layer synchronized with the same interaction
