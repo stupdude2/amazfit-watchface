@@ -3360,9 +3360,16 @@ static GRect analog_target_clock_frame(void) {
         // several transparent pixels below the visible line. Let the analog
         // frame overlap that empty tail by 3 px so the *visible* gap between
         // the upper steps line and the dial matches the dial's lower margin.
-        top += STEPBAR_H - 7;  // HEADER_H + 5 for a 12 px step bar
+        // dev-16: Give the analog dial the same visual breathing room it has
+        // when the steps bar is below it.  The dev-15 frame was a little too
+        // tall in the above-steps layout, making both the upper and lower
+        // margins look tighter.  Inset the dial by 2 px on each side while
+        // leaving the step-bar layer itself exactly where it is.
+        top += STEPBAR_H - 5;  // HEADER_H + 7 for a 12 px step bar
+        bottom -= 2;
       } else {
-        top += STEPBAR_H - 2;  // same tighter visible gap at screen top
+        top += STEPBAR_H;      // 2 px more clearance below the top-edge bar
+        bottom -= 2;
       }
     } else {
       bottom -= STEPBAR_H;
