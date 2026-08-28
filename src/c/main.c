@@ -3305,16 +3305,33 @@ static bool footer_is_effectively_visible(void) {
          (s_settings.footer_mode == BAR_BACKLIGHT && interaction_visible);
 }
 
+static bool stepbar_is_effectively_visible(void) {
+  if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return false;
+  if (!stepbar_is_backlight_only()) return true;
+  return conditional_ui_is_visible();
+}
+
 static GRect analog_target_clock_frame(void) {
   const bool header_visible = header_is_effectively_visible();
   const bool footer_visible = footer_is_effectively_visible();
-  const int16_t top = header_visible ? HEADER_H : 0;
-  // Preserve the original Big Time clock frame exactly while the bottom data
-  // area is visible. The 12 px step bar sits above the footer, so using
-  // FOOTER_Y here made the analog face 12 px taller than the legacy digital
-  // clock area and shifted its visual center downward. When the bottom area is
-  // hidden, the analog face can still expand all the way to the screen edge.
-  const int16_t bottom = footer_visible ? STEPBAR_Y : SCREEN_H;
+  const bool stepbar_visible = stepbar_is_effectively_visible();
+
+  int16_t top = header_visible ? HEADER_H : 0;
+  int16_t bottom = footer_visible ? FOOTER_Y : SCREEN_H;
+
+  // Preserve the exact legacy rectangular clock area whenever the progress
+  // bar is visible, while still allowing the analog face to reclaim that
+  // 12 px strip when the progress bar is actually hidden. This avoids the
+  // dev-6 regression where the clock always stopped at STEPBAR_Y even when
+  // there was no visible step bar to reserve space for.
+  if (stepbar_visible) {
+    if (stepbar_is_above()) {
+      top += STEPBAR_H;
+    } else {
+      bottom -= STEPBAR_H;
+    }
+  }
+
   int16_t height = bottom - top;
   if (height < 1) height = 1;
   return GRect(0, top, SCREEN_W, height);
