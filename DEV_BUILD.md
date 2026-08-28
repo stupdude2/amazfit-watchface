@@ -1,9 +1,9 @@
-# Big Time development build
+# Big Time development build 22
 
-Internal development build based on public version 1.3.1.
+This build replaces the experimental tap/backlight inference from dev-19 through dev-21 with Pebble SDK 4.33's dedicated touchscreen gesture recognizer.
 
-## dev-21
-- Fixes tap-to-reveal after a light-only wrist raise on Pebble Time 2 watchfaces.
-- Keeps the direct TouchService path when firmware delivers it.
-- Adds a BacklightService fallback: the first ON event belongs to the wrist raise; a later ON retrigger during that same light-only session is treated as the screen tap and reveals conditional data.
-- The reveal remains latched until the backlight turns off.
+- Wrist Raise: Backlight Only still turns on the system backlight without revealing conditional data.
+- A real touchscreen tap is captured by `tap_recognizer_create()` attached to the watchface window.
+- The tap explicitly reveals backlight-only header/footer/step data and requests normal backlight interaction whether the light was already on or off.
+- BacklightService no longer attempts to infer taps from repeated ON events, so normal system backlight behavior remains untouched.
+- The reveal remains latched only for the current backlight session and resets when the backlight turns off.

@@ -1319,7 +1319,7 @@ static bool s_backlight_subscribed = false;
 // Conditional bars/step bar normally follow Pebble's actual system backlight.
 // If an explicit interaction occurs while the OS keeps the LED off (for example
 // in bright sunlight), a single five-second fallback reveals the hidden UI.
-static bool s_touch_subscribed = false;
+static Recognizer *s_screen_tap_recognizer = NULL;
 static bool s_sunlight_fallback_active = false;
 // When enabled, a custom wrist raise may light the display without revealing
 // backlight-conditional data. A screen tap always clears this gate and reveals it.
@@ -1328,11 +1328,6 @@ static bool s_raise_light_only_active = false;
 // data revealed for the remainder of that backlight session. This prevents a
 // late/repeated raise sample from re-applying the light-only gate after the tap.
 static bool s_tap_data_reveal_active = false;
-// Some PT2 firmware does not deliver TouchService events to watchfaces, even
-// though a screen tap still re-triggers the system backlight. Track the first
-// backlight-ON event caused by our light-only wrist raise so a later ON event
-// in the same session can be treated as an explicit tap and reveal the data.
-static bool s_raise_light_only_backlight_seen = false;
 static AppTimer *s_sunlight_fallback_timer = NULL;
 #define SUNLIGHT_FALLBACK_MS 5000
 
@@ -3542,13 +3537,14 @@ static void request_light_with_fallback(void) {
   }
 }
 
-static void touch_handler(const TouchEvent *event, void *context) {
-  if (!event || event->type != TouchEvent_Touchdown) return;
+static void screen_tap_recognizer_handler(const Recognizer *recognizer,
+                                         RecognizerEvent event_type) {
+  if (event_type != RecognizerEvent_Completed) return;
 
-  // A tap is always an explicit request for both light and data, regardless of
-  // whether the wrist raise that preceded it was configured as light-only.
-  // Latch that intent for the rest of this backlight session so a delayed
-  // accelerometer/raise callback cannot hide the data again after the tap.
+  // A completed touchscreen tap is an explicit request for both light and data.
+  // Use Pebble's dedicated gesture-recognizer API rather than trying to infer a
+  // tap from BacklightService transitions. This keeps backlight behavior owned
+  // by the OS while giving the watchface a reliable, independent tap signal.
   s_tap_data_reveal_active = true;
   s_raise_light_only_active = false;
   request_light_with_fallback();
@@ -3556,34 +3552,15 @@ static void touch_handler(const TouchEvent *event, void *context) {
 }
 
 static void backlight_handler(bool on) {
-  // Once the light turns off, the next interaction starts clean. While it is
-  // on, preserve a light-only wrist raise until the user taps the screen.
+  // BacklightService is used only as a state signal for conditional UI. Do not
+  // attempt to distinguish a wrist raise from a touchscreen tap here.
   if (!on) {
     s_raise_light_only_active = false;
     s_tap_data_reveal_active = false;
-    s_raise_light_only_backlight_seen = false;
   }
 
-  // The real backlight supersedes the sunlight fallback.
   if (on) {
     cancel_sunlight_fallback();
-
-    // PT2 currently lets a screen tap re-trigger the backlight even when a
-    // watchface does not receive the corresponding TouchService callback.
-    // The first ON belongs to the wrist raise itself. A subsequent ON while
-    // that same light-only session is active is therefore the user's tap: show
-    // the conditional data and keep it revealed until the light turns off.
-    if (s_raise_wake_light_only && s_raise_light_only_active &&
-        !s_tap_data_reveal_active) {
-      if (s_raise_light_only_backlight_seen) {
-        s_tap_data_reveal_active = true;
-        s_raise_light_only_active = false;
-        APP_LOG(APP_LOG_LEVEL_INFO,
-                "Backlight retrigger revealed light-only data");
-      } else {
-        s_raise_light_only_backlight_seen = true;
-      }
-    }
   }
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
@@ -3622,18 +3599,6 @@ static void update_bar_input_services(void) {
   } else if (!want_backlight && s_backlight_subscribed) {
     backlight_service_unsubscribe();
     s_backlight_subscribed = false;
-  }
-
-  // On PT2, touchscreen intent is useful even when ambient light suppresses
-  // the physical LED. Subscribe only when some UI actually depends on it.
-  const bool want_touch = want_backlight || s_raise_wake_light_only;
-
-  if (want_touch && !s_touch_subscribed) {
-    touch_service_subscribe(touch_handler, NULL);
-    s_touch_subscribed = true;
-  } else if (!want_touch && s_touch_subscribed) {
-    touch_service_unsubscribe();
-    s_touch_subscribed = false;
   }
 
   // Synchronize from the live system backlight state. Header/footer visibility
@@ -3744,10 +3709,6 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
             // current light session, do not re-hide it until the light turns off.
             if (!s_tap_data_reveal_active) {
               s_raise_light_only_active = true;
-              // The next BacklightService ON is the one caused by this raise.
-              // A later ON in the same session can then be recognized as a
-              // touchscreen backlight retrigger even if TouchService is silent.
-              s_raise_light_only_backlight_seen = false;
             }
             cancel_sunlight_fallback();
             light_enable_interaction();
@@ -5076,6 +5037,16 @@ static void window_disappear(Window *window) {
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
 
+  // PT2 touchscreen: attach a real tap recognizer to the watchface window.
+  // The system still controls the backlight; the recognizer only tells us that
+  // the user explicitly tapped so backlight-only data can be revealed.
+  window_set_touch_bridge_disabled(window, true);
+  s_screen_tap_recognizer =
+      tap_recognizer_create(screen_tap_recognizer_handler, NULL);
+  if (s_screen_tap_recognizer) {
+    window_attach_recognizer(window, s_screen_tap_recognizer);
+  }
+
   s_font_header = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEADER_31));
   s_font_medium = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_font_label  = fonts_get_system_font(FONT_KEY_GOTHIC_14);
@@ -5461,7 +5432,6 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
-  if (s_touch_subscribed) touch_service_unsubscribe();
   if (s_sunlight_fallback_timer) {
     app_timer_cancel(s_sunlight_fallback_timer);
     s_sunlight_fallback_timer = NULL;
