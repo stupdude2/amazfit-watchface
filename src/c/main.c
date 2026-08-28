@@ -3354,13 +3354,17 @@ static GRect analog_target_clock_frame(void) {
       bottom -= STEPBAR_H;
     }
   } else if (footer_visible && !stepbar_is_above()) {
-    // Keep the same visual breathing room above a visible footer even when
-    // the lower progress bar itself is hidden. The legacy rectangular layout
-    // always left this STEPBAR_H strip between the clock and footer, and the
-    // analog face should preserve that spacing rather than growing right up
-    // against the bottom data bar. When the footer is hidden too, this space
-    // is reclaimed so the analog face can still expand to the screen edge.
-    bottom -= STEPBAR_H;
+    // With the lower step bar hidden, keep the analog face centered in the
+    // space between the visible data bars instead of putting the entire legacy
+    // STEPBAR_H allowance below it. Split that allowance evenly so the visual
+    // margin above and below the analog clock matches. If the header is hidden,
+    // there is no upper data-bar margin to mirror, so only keep the small lower
+    // half-gap above the visible footer and let the clock expand upward.
+    const int16_t half_gap = STEPBAR_H / 2;
+    if (header_visible) {
+      top += half_gap;
+    }
+    bottom -= half_gap;
   }
 
   int16_t height = bottom - top;
