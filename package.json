@@ -70,7 +70,9 @@
       "PROGRESS_TRACK_BATTERY": 49,
       "PLUS2_ICON": 50,
       "PLUS2_TEMP": 51,
-      "BLUETOOTH_COLON": 52
+      "BLUETOOTH_COLON": 52,
+      "CLOCK_FACE": 53,
+      "ANALOG_SECOND_HAND": 54
     },
     "projectType": "native",
     "resources": {

@@ -138,6 +138,8 @@ static bool conditional_ui_is_visible(void);
 #define KEY_PLUS2_ICON             50
 #define KEY_PLUS2_TEMP             51
 #define KEY_BLUETOOTH_COLON        52
+#define KEY_CLOCK_FACE              53
+#define KEY_ANALOG_SECOND_HAND      54
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -523,6 +525,8 @@ static bool s_pro_unlocked = false;
 #define PROGRESS_TRACK_BATTERY_PERSIST_KEY 1111
 #define PLUS2_WEATHER_CACHE_PERSIST_KEY 1112
 #define BLUETOOTH_COLON_PERSIST_KEY 1113
+#define CLOCK_FACE_PERSIST_KEY       1114
+#define ANALOG_SECOND_PERSIST_KEY    1115
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -655,6 +659,8 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_FLASH_COLON:
     case KEY_BLUETOOTH_COLON:
     case KEY_ROUNDED_TIME:
+    case KEY_CLOCK_FACE:
+    case KEY_ANALOG_SECOND_HAND:
     case KEY_PROGRESS_TRACK_BATTERY:
       return true;
     default:
@@ -1151,6 +1157,12 @@ static GColor s_minute_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
 static bool s_bluetooth_colon = false;
+// Analog face is intentionally stored outside WatchfaceSettings so this first
+// implementation remains migration-safe. Its geometry is derived entirely
+// from the clock layer bounds, allowing the same renderer to expand cleanly
+// when the layer is later promoted to full-screen.
+static bool s_analog_clock = false;
+static bool s_analog_second_hand = false;
 static bool s_progress_track_battery = false;
 typedef enum {
   TIME_STYLE_SQUARE = 0,
@@ -1192,6 +1204,12 @@ static void load_split_clock_colors(void) {
   s_bluetooth_colon =
       persist_exists(BLUETOOTH_COLON_PERSIST_KEY) &&
       persist_read_int(BLUETOOTH_COLON_PERSIST_KEY) != 0;
+  s_analog_clock =
+      persist_exists(CLOCK_FACE_PERSIST_KEY) &&
+      persist_read_int(CLOCK_FACE_PERSIST_KEY) != 0;
+  s_analog_second_hand =
+      persist_exists(ANALOG_SECOND_PERSIST_KEY) &&
+      persist_read_int(ANALOG_SECOND_PERSIST_KEY) != 0;
   if (persist_exists(ROUNDED_TIME_PERSIST_KEY)) {
     int saved_style = persist_read_int(ROUNDED_TIME_PERSIST_KEY);
     // v3.2.2 stored this key as a bool, so 0/1 remain fully compatible.
@@ -1752,11 +1770,152 @@ static const char *rain_chance_text(void) {
   return s_rain_buf;
 }
 
+// ── Rectangular analog clock ──────────────────────────────────────────────────
+// The dial is laid out against a rectangle rather than a circle. Every radial
+// element intersects an inset rectangle, so hands naturally grow toward 3/9
+// and shorten toward 12/6. This makes the renderer independent of a particular
+// frame size and ready for a later 200x228 full-screen clock layer.
+static int32_t analog_abs32(int32_t v) {
+  return v < 0 ? -v : v;
+}
+
+static GPoint analog_ray_point(GRect bounds, int32_t angle,
+                               int inset_x, int inset_y,
+                               int scale_percent) {
+  GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
+  int32_t dx = sin_lookup(angle);       // +right
+  int32_t dy = -cos_lookup(angle);      // +down on-screen
+  int32_t adx = analog_abs32(dx);
+  int32_t ady = analog_abs32(dy);
+  int32_t half_w = bounds.size.w / 2 - inset_x;
+  int32_t half_h = bounds.size.h / 2 - inset_y;
+  if (half_w < 1) half_w = 1;
+  if (half_h < 1) half_h = 1;
+
+  // t is kept in TRIG_MAX_RATIO units. Pick whichever rectangle edge the ray
+  // reaches first, then apply a percentage so hour/minute/second hands can use
+  // the same rectangular projection with different lengths.
+  int64_t tx = adx ? ((int64_t)half_w * TRIG_MAX_RATIO) / adx : INT32_MAX;
+  int64_t ty = ady ? ((int64_t)half_h * TRIG_MAX_RATIO) / ady : INT32_MAX;
+  int64_t t = tx < ty ? tx : ty;
+  t = (t * scale_percent) / 100;
+
+  int32_t x = c.x + (int32_t)(((int64_t)dx * t) / TRIG_MAX_RATIO);
+  int32_t y = c.y + (int32_t)(((int64_t)dy * t) / TRIG_MAX_RATIO);
+  return GPoint((int16_t)x, (int16_t)y);
+}
+
+static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
+                               GColor marker_color) {
+  int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
+  bool hour_mark = (minute_index % 5) == 0;
+  int inner_scale = hour_mark ? 86 : 93;
+  GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
+  GPoint inner = analog_ray_point(bounds, angle, 6, 6, inner_scale);
+
+  // Leave a little visual breathing room at the cardinal numerals. Shorter
+  // marks preserve the Kienzle-inspired number/tick relationship without
+  // drawing a bar directly through 12, 3, 6 or 9.
+  if (hour_mark && (minute_index % 15) == 0) {
+    inner = analog_ray_point(bounds, angle, 6, 6, 94);
+  }
+
+  graphics_context_set_stroke_color(ctx, marker_color);
+  graphics_context_set_stroke_width(ctx, hour_mark ? 4 : 1);
+  graphics_draw_line(ctx, inner, outer);
+}
+
+static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
+  graphics_context_set_text_color(ctx, color);
+  const int font_h = 32;
+  const int side_w = 34;
+  const int top_w = 46;
+  const int cx = bounds.size.w / 2;
+  const int cy = bounds.size.h / 2;
+
+  // Narrow, tall custom font already bundled with Big Time gives the cardinal
+  // numerals the same industrial clock character as the visual reference.
+  graphics_draw_text(ctx, "12", s_font_header,
+                     GRect(cx - top_w / 2, -2, top_w, font_h),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, "6", s_font_header,
+                     GRect(cx - side_w / 2, bounds.size.h - font_h + 3,
+                           side_w, font_h),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, "9", s_font_header,
+                     GRect(-1, cy - font_h / 2, side_w, font_h),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, "3", s_font_header,
+                     GRect(bounds.size.w - side_w + 1, cy - font_h / 2,
+                           side_w, font_h),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
+
+static void analog_draw_hand(GContext *ctx, GRect bounds, int32_t angle,
+                             int length_percent, int width, GColor color) {
+  GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
+  GPoint end = analog_ray_point(bounds, angle, 18, 14, length_percent);
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, width);
+  graphics_draw_line(ctx, c, end);
+}
+
+static void draw_analog_clock(GContext *ctx, GRect bounds) {
+  GColor marker_color = s_settings.clock_color;
+  GColor hour_color = (s_pro_unlocked && s_split_clock_colors)
+                        ? s_hour_color : s_settings.accent_color;
+  GColor minute_color = (s_pro_unlocked && s_split_clock_colors)
+                          ? s_minute_color : s_settings.accent_color;
+
+  for (int i = 0; i < 60; ++i) {
+    analog_draw_marker(ctx, bounds, i, marker_color);
+  }
+
+  int hour12 = s_hour % 12;
+  int32_t hour_angle = (TRIG_MAX_ANGLE * (hour12 * 60 + s_minute)) / (12 * 60);
+  int32_t minute_angle = (TRIG_MAX_ANGLE * (s_minute * 60 + s_second)) / (60 * 60);
+  int32_t second_angle = (TRIG_MAX_ANGLE * s_second) / 60;
+
+  // Constant percentages applied after rectangular ray projection retain normal
+  // analog angles while making the apparent hand length adapt to the frame.
+  analog_draw_hand(ctx, bounds, hour_angle, 64, 7, hour_color);
+  analog_draw_hand(ctx, bounds, minute_angle, 88, 4, minute_color);
+
+  if (s_pro_unlocked && s_analog_second_hand) {
+    // Subtle shaft plus accent tip echoes the reference without competing with
+    // the heavier hour/minute hands.
+    GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
+    GPoint end = analog_ray_point(bounds, second_angle, 18, 14, 92);
+    GPoint tip_start = analog_ray_point(bounds, second_angle, 18, 14, 80);
+    graphics_context_set_stroke_color(ctx, marker_color);
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, c, end);
+    graphics_context_set_stroke_color(ctx, s_settings.accent_color);
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_line(ctx, tip_start, end);
+  }
+
+  // Compact pivot only — deliberately no large circle on the hour hand.
+  graphics_context_set_fill_color(ctx, marker_color);
+  graphics_fill_circle(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2), 5);
+  graphics_context_set_fill_color(ctx, s_settings.accent_color);
+  graphics_fill_circle(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2), 2);
+
+  // Numerals render last so hands can pass behind them instead of obscuring them.
+  analog_draw_numerals(ctx, bounds, marker_color);
+}
+
 // ── Clock ─────────────────────────────────────────────────────────────────────
 static void clock_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  if (s_pro_unlocked && s_analog_clock) {
+    draw_analog_clock(ctx, b);
+    return;
+  }
+
   int h1 = s_hour / 10;
   int h2 = s_hour % 10;
   int m1 = s_minute / 10;
@@ -3670,6 +3829,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool split_colors_before = s_split_clock_colors;
   bool flash_colon_before = s_flash_colon;
   bool bluetooth_colon_before = s_bluetooth_colon;
+  bool analog_clock_before = s_analog_clock;
+  bool analog_second_before = s_analog_second_hand;
   TimeStyle time_style_before = s_time_style;
   bool progress_battery_before = s_progress_track_battery;
   uint8_t tz_top_left_before = s_top_left_time_zone;
@@ -4161,6 +4322,31 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_CLOCK_FACE: {
+        bool enabled = tuple_to_int32(t, s_analog_clock ? 1 : 0) != 0;
+        if (enabled == s_analog_clock) break;
+        s_analog_clock = enabled;
+        persist_write_int(CLOCK_FACE_PERSIST_KEY, enabled ? 1 : 0);
+        update_tick_service();
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Clock face -> %s",
+                enabled ? "ANALOG" : "DIGITAL");
+        break;
+      }
+
+      case KEY_ANALOG_SECOND_HAND: {
+        bool enabled =
+            tuple_to_int32(t, s_analog_second_hand ? 1 : 0) != 0;
+        if (enabled == s_analog_second_hand) break;
+        s_analog_second_hand = enabled;
+        persist_write_int(ANALOG_SECOND_PERSIST_KEY, enabled ? 1 : 0);
+        update_tick_service();
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Analog second hand -> %d",
+                enabled ? 1 : 0);
+        break;
+      }
+
       case KEY_PROGRESS_TRACK_BATTERY: {
         bool enabled =
             tuple_to_int32(t, s_progress_track_battery ? 1 : 0) != 0;
@@ -4375,12 +4561,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d style=%d batterybar=%d tz=%d%d%d%d",
+          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d analog=%d asecond=%d style=%d batterybar=%d tz=%d%d%d%d",
           hour_color_before.argb != s_hour_color.argb ? 1 : 0,
           minute_color_before.argb != s_minute_color.argb ? 1 : 0,
           split_colors_before != s_split_clock_colors ? 1 : 0,
           flash_colon_before != s_flash_colon ? 1 : 0,
           bluetooth_colon_before != s_bluetooth_colon ? 1 : 0,
+          analog_clock_before != s_analog_clock ? 1 : 0,
+          analog_second_before != s_analog_second_hand ? 1 : 0,
           time_style_before != s_time_style ? 1 : 0,
           progress_battery_before != s_progress_track_battery ? 1 : 0,
           tz_top_left_before != s_top_left_time_zone ? 1 : 0,
@@ -4404,7 +4592,9 @@ static bool seconds_display_is_used(void) {
 }
 
 static bool second_ticks_are_needed(void) {
-  return (s_pro_unlocked && s_flash_colon) || seconds_display_is_used();
+  return (s_pro_unlocked && s_flash_colon) ||
+         (s_pro_unlocked && s_analog_clock && s_analog_second_hand) ||
+         seconds_display_is_used();
 }
 
 static void update_tick_service(void) {

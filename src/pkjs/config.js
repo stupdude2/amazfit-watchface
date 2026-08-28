@@ -258,6 +258,16 @@ if (edition.isPro) {
       { "type": "toggle", "messageKey": "BLUETOOTH_COLON", "defaultValue": false,
         "label": "Bluetooth Colon",
         "description": "Use the bottom colon dot as a Bluetooth indicator. Filled when connected; outlined when disconnected." },
+      { "type": "select", "messageKey": "CLOCK_FACE", "defaultValue": "0",
+        "label": "Clock Face",
+        "description": "Choose Big Time's original digital display or the rectangular analog face.",
+        "options": [
+          { "label": "Digital", "value": "0" },
+          { "label": "Analog", "value": "1" }
+        ] },
+      { "type": "toggle", "messageKey": "ANALOG_SECOND_HAND", "defaultValue": false,
+        "label": "Analog Second Hand",
+        "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." },
       { "type": "select", "messageKey": "ROUNDED_TIME", "defaultValue": "0",
         "label": "Time Style",
         "description": "Choose the shape of the main clock digits.",
