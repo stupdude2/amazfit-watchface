@@ -1324,6 +1324,10 @@ static bool s_sunlight_fallback_active = false;
 // When enabled, a custom wrist raise may light the display without revealing
 // backlight-conditional data. A screen tap always clears this gate and reveals it.
 static bool s_raise_light_only_active = false;
+// Once the user explicitly taps during a light-only raise, keep conditional
+// data revealed for the remainder of that backlight session. This prevents a
+// late/repeated raise sample from re-applying the light-only gate after the tap.
+static bool s_tap_data_reveal_active = false;
 static AppTimer *s_sunlight_fallback_timer = NULL;
 #define SUNLIGHT_FALLBACK_MS 5000
 
@@ -3330,7 +3334,8 @@ static void apply_bar_visibility(void);
 static bool conditional_ui_is_visible(void) {
   // Never cache physical backlight state. The only synthetic state is the
   // bounded sunlight fallback.
-  return (light_is_on() && !s_raise_light_only_active) ||
+  return (light_is_on() &&
+          (!s_raise_light_only_active || s_tap_data_reveal_active)) ||
          s_sunlight_fallback_active;
 }
 
@@ -3537,8 +3542,12 @@ static void touch_handler(const TouchEvent *event, void *context) {
 
   // A tap is always an explicit request for both light and data, regardless of
   // whether the wrist raise that preceded it was configured as light-only.
+  // Latch that intent for the rest of this backlight session so a delayed
+  // accelerometer/raise callback cannot hide the data again after the tap.
+  s_tap_data_reveal_active = true;
   s_raise_light_only_active = false;
   request_light_with_fallback();
+  refresh_conditional_ui();
 }
 
 static void backlight_handler(bool on) {
@@ -3546,6 +3555,7 @@ static void backlight_handler(bool on) {
   // on, preserve a light-only wrist raise until the user taps the screen.
   if (!on) {
     s_raise_light_only_active = false;
+    s_tap_data_reveal_active = false;
   }
 
   // The real backlight supersedes the sunlight fallback.
@@ -3707,8 +3717,11 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
         } else {
           if (s_raise_wake_light_only) {
             // Light the display but deliberately keep backlight-conditional
-            // bars hidden. A subsequent screen tap reveals them immediately.
-            s_raise_light_only_active = true;
+            // bars hidden. Once a tap has explicitly revealed data for the
+            // current light session, do not re-hide it until the light turns off.
+            if (!s_tap_data_reveal_active) {
+              s_raise_light_only_active = true;
+            }
             cancel_sunlight_fallback();
             light_enable_interaction();
             refresh_conditional_ui();
