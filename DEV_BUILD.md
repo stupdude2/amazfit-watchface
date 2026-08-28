@@ -16,3 +16,11 @@ Removed the extra upper half-gap when the lower step bar is hidden. The correcte
 - Restores the legacy 5 px upward step-bar tuck and 1 px clock gap when the header is visible, preventing the analog dial from being pushed too far down.
 
 - dev-15: Tightened spacing between an above-clock steps bar and the analog dial by allowing the analog frame to overlap the unused lower portion of the 12 px step-bar layer. This preserves the step graphic while making the visible top/bottom dial margins more even.
+## dev-17 — Analog hand colors
+- Analog hour and minute hands now use the existing Hour Color and Minute Color selectors directly.
+- Hour/Minute color controls are shown whenever Analog is selected, even when digital split colors are disabled.
+- Added a Second Hand Color selector (default white), shown only for the Analog face.
+- Analog second-hand visibility remains independently toggleable.
+- Removed the accent-colored second-hand tip; the full second hand is now one continuous selected color.
+- Analog hand defaults are white.
+

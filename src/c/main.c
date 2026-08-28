@@ -140,6 +140,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_BLUETOOTH_COLON        52
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
+#define KEY_SECOND_HAND_COLOR        55
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -527,6 +528,7 @@ static bool s_pro_unlocked = false;
 #define BLUETOOTH_COLON_PERSIST_KEY 1113
 #define CLOCK_FACE_PERSIST_KEY       1114
 #define ANALOG_SECOND_PERSIST_KEY    1115
+#define SECOND_HAND_COLOR_PERSIST_KEY 1116
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -661,6 +663,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_ROUNDED_TIME:
     case KEY_CLOCK_FACE:
     case KEY_ANALOG_SECOND_HAND:
+    case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
       return true;
     default:
@@ -1160,6 +1163,7 @@ static int  s_heart_rate  = 0;
 static int  s_battery_percent = 0;
 static GColor s_hour_color;
 static GColor s_minute_color;
+static GColor s_second_hand_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
 static bool s_bluetooth_colon = false;
@@ -1191,6 +1195,7 @@ static void load_split_clock_colors(void) {
   // Backward compatible default: existing Clock Color controls everything.
   s_hour_color = s_settings.clock_color;
   s_minute_color = s_settings.clock_color;
+  s_second_hand_color = GColorWhite;
   s_split_clock_colors = false;
 
   if (persist_exists(HOUR_COLOR_PERSIST_KEY)) {
@@ -1200,6 +1205,10 @@ static void load_split_clock_colors(void) {
   if (persist_exists(MINUTE_COLOR_PERSIST_KEY)) {
     uint32_t hex = (uint32_t)persist_read_int(MINUTE_COLOR_PERSIST_KEY) & 0xFFFFFF;
     s_minute_color = GColorFromHEX(hex);
+  }
+  if (persist_exists(SECOND_HAND_COLOR_PERSIST_KEY)) {
+    uint32_t hex = (uint32_t)persist_read_int(SECOND_HAND_COLOR_PERSIST_KEY) & 0xFFFFFF;
+    s_second_hand_color = GColorFromHEX(hex);
   }
   if (persist_exists(SPLIT_COLOR_PERSIST_KEY)) {
     s_split_clock_colors = persist_read_int(SPLIT_COLOR_PERSIST_KEY) != 0;
@@ -1960,10 +1969,11 @@ static void analog_draw_hand_to_length(GContext *ctx, GRect bounds,
 
 static void draw_analog_clock(GContext *ctx, GRect bounds) {
   GColor marker_color = s_settings.clock_color;
-  GColor hour_color = (s_pro_unlocked && s_split_clock_colors)
-                        ? s_hour_color : s_settings.accent_color;
-  GColor minute_color = (s_pro_unlocked && s_split_clock_colors)
-                          ? s_minute_color : s_settings.accent_color;
+  // Analog hands always use their dedicated hand-color settings. These default
+  // to white, independently of Accent Color and the digital split-color toggle.
+  GColor hour_color = s_hour_color;
+  GColor minute_color = s_minute_color;
+  GColor second_color = s_second_hand_color;
 
   // Dial furniture is drawn first. Every hand is deliberately layered above
   // markers and numerals so a hand can never disappear behind 12/3/6/9.
@@ -2005,19 +2015,10 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
                              4, minute_color);
 
   if (s_pro_unlocked && s_analog_second_hand) {
-    // Keep the accent tip proportional to the final capped hand length, rather
-    // than computing it from the old uncapped rectangular projection.
-    GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
-    GPoint end = analog_point_at_length(bounds, second_angle, second_length);
-    int tip_start_length = (second_length * 87) / 100;
-    GPoint tip_start =
-        analog_point_at_length(bounds, second_angle, tip_start_length);
-    graphics_context_set_stroke_color(ctx, marker_color);
-    graphics_context_set_stroke_width(ctx, 1);
-    graphics_draw_line(ctx, c, end);
-    graphics_context_set_stroke_color(ctx, s_settings.accent_color);
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx, tip_start, end);
+    // The second hand is now one continuous custom color from pivot to tip.
+    // No accent/highlight segment is layered on the end.
+    analog_draw_hand_to_length(ctx, bounds, second_angle, second_length,
+                               2, second_color);
   }
 
   // Pivot is topmost of all — deliberately compact, with no oversized circle.
@@ -4629,6 +4630,20 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
                 enabled ? "ANALOG" : "DIGITAL");
         break;
       }
+
+      case KEY_SECOND_HAND_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          uint32_t value =
+              (uint32_t)tuple_to_int32(t, 0xFFFFFF) & 0xFFFFFF;
+          GColor new_color = GColorFromHEX(value);
+          if (new_color.argb == s_second_hand_color.argb) break;
+          s_second_hand_color = new_color;
+          persist_write_int(SECOND_HAND_COLOR_PERSIST_KEY, (int32_t)value);
+          if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+          APP_LOG(APP_LOG_LEVEL_INFO,
+                  "Second hand color -> 0x%06lX", (unsigned long)value);
+        }
+        break;
 
       case KEY_ANALOG_SECOND_HAND: {
         bool enabled =

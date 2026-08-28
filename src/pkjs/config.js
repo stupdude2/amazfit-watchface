@@ -268,6 +268,8 @@ if (edition.isPro) {
       { "type": "toggle", "messageKey": "ANALOG_SECOND_HAND", "defaultValue": false,
         "label": "Analog Second Hand",
         "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." },
+      { "type": "color", "messageKey": "SECOND_HAND_COLOR", "defaultValue": "0xFFFFFF",
+        "label": "Second Hand Color", "layout": "COLOR" },
       { "type": "select", "messageKey": "ROUNDED_TIME", "defaultValue": "0",
         "label": "Time Style",
         "description": "Choose the shape of the main clock digits.",

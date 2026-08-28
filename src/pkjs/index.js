@@ -134,10 +134,19 @@ function customClay(minified) {
         clayPage.getItemByMessageKey('SPLIT_CLOCK_COLORS');
     var hourColor = clayPage.getItemByMessageKey('HOUR_COLOR');
     var minuteColor = clayPage.getItemByMessageKey('MINUTE_COLOR');
+    var clockFace = clayPage.getItemByMessageKey('CLOCK_FACE');
+    var analogSecondHand = clayPage.getItemByMessageKey('ANALOG_SECOND_HAND');
+    var secondHandColor = clayPage.getItemByMessageKey('SECOND_HAND_COLOR');
 
-    if (splitClockColors && hourColor && minuteColor) {
-      function syncSplitClockColors() {
-        if (splitClockColors.get()) {
+    // In digital mode, Hour/Minute Color remain governed by the existing split
+    // toggle. In analog mode they are the actual hand colors, so always expose
+    // them. Second-hand controls only belong to the analog face.
+    function syncClockColorControls() {
+      var analog = clockFace && String(clockFace.get()) === '1';
+      var split = splitClockColors && !!splitClockColors.get();
+
+      if (hourColor && minuteColor) {
+        if (analog || split) {
           hourColor.show();
           minuteColor.show();
         } else {
@@ -145,9 +154,20 @@ function customClay(minified) {
           minuteColor.hide();
         }
       }
-      syncSplitClockColors();
-      splitClockColors.on('change', syncSplitClockColors);
+
+      if (analogSecondHand) {
+        if (analog) analogSecondHand.show();
+        else analogSecondHand.hide();
+      }
+      if (secondHandColor) {
+        if (analog) secondHandColor.show();
+        else secondHandColor.hide();
+      }
     }
+
+    syncClockColorControls();
+    if (splitClockColors) splitClockColors.on('change', syncClockColorControls);
+    if (clockFace) clockFace.on('change', syncClockColorControls);
 
 
     var resetButton = clayPage.getItemById('restore_defaults');
@@ -251,6 +271,7 @@ function customClay(minified) {
         setValue('SPLIT_CLOCK_COLORS', false);
         setValue('HOUR_COLOR', '0xFFFFFF');
         setValue('MINUTE_COLOR', '0xFFFFFF');
+        setValue('SECOND_HAND_COLOR', '0xFFFFFF');
         setValue('FLASH_COLON', false);
         setValue('BLUETOOTH_COLON', false);
         setValue('CLOCK_FACE', '0');

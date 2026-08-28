@@ -72,7 +72,8 @@
       "PLUS2_TEMP": 51,
       "BLUETOOTH_COLON": 52,
       "CLOCK_FACE": 53,
-      "ANALOG_SECOND_HAND": 54
+      "ANALOG_SECOND_HAND": 54,
+      "SECOND_HAND_COLOR": 55
     },
     "projectType": "native",
     "resources": {
