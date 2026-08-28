@@ -24,3 +24,5 @@ Removed the extra upper half-gap when the lower step bar is hidden. The correcte
 - Removed the accent-colored second-hand tip; the full second hand is now one continuous selected color.
 - Analog hand defaults are white.
 
+
+- dev-18: Analog numerals and hour-marker dashes now use the existing background contrast rule (white on dark backgrounds, black on sufficiently light backgrounds).

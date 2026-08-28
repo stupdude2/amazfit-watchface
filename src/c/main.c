@@ -1968,7 +1968,10 @@ static void analog_draw_hand_to_length(GContext *ctx, GRect bounds,
 }
 
 static void draw_analog_clock(GContext *ctx, GRect bounds) {
-  GColor marker_color = s_settings.clock_color;
+  // Keep the analog dial furniture readable against the selected background.
+  // Use the same contrast rule as the rest of Big Time: white on dark
+  // backgrounds and black once the background is light enough.
+  GColor marker_color = gcolor_legible_over(s_settings.background_color);
   // Analog hands always use their dedicated hand-color settings. These default
   // to white, independently of Accent Color and the digital split-color toggle.
   GColor hour_color = s_hour_color;
