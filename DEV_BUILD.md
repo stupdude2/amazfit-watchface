@@ -1,13 +1,9 @@
-# Big Time dev-19
+# Big Time development build
 
-- Added **Wrist Raise: Backlight Only** toggle.
-- When enabled, the custom wrist-raise gesture lights the screen without revealing data configured for backlight-only display.
-- A screen tap always turns on the backlight and reveals backlight-only data, whether the light was previously on or off.
-- The light-only gate resets when the backlight turns off.
-- Existing wrist-raise Off / Normal / Sensitive sensitivity control remains unchanged.
+Internal development build based on public version 1.3.1.
 
-## dev-20
-- Fixed the wrist-raise light-only flow when the display is already lit.
-- A screen tap now latches an explicit data-reveal state for the remainder of the current backlight session.
-- This prevents a delayed/repeated raise sample from re-hiding conditional bars/steps after the tap.
-- The reveal latch resets when the backlight turns off.
+## dev-21
+- Fixes tap-to-reveal after a light-only wrist raise on Pebble Time 2 watchfaces.
+- Keeps the direct TouchService path when firmware delivers it.
+- Adds a BacklightService fallback: the first ON event belongs to the wrist raise; a later ON retrigger during that same light-only session is treated as the screen tap and reveals conditional data.
+- The reveal remains latched until the backlight turns off.

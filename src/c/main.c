@@ -1328,6 +1328,11 @@ static bool s_raise_light_only_active = false;
 // data revealed for the remainder of that backlight session. This prevents a
 // late/repeated raise sample from re-applying the light-only gate after the tap.
 static bool s_tap_data_reveal_active = false;
+// Some PT2 firmware does not deliver TouchService events to watchfaces, even
+// though a screen tap still re-triggers the system backlight. Track the first
+// backlight-ON event caused by our light-only wrist raise so a later ON event
+// in the same session can be treated as an explicit tap and reveal the data.
+static bool s_raise_light_only_backlight_seen = false;
 static AppTimer *s_sunlight_fallback_timer = NULL;
 #define SUNLIGHT_FALLBACK_MS 5000
 
@@ -3556,11 +3561,29 @@ static void backlight_handler(bool on) {
   if (!on) {
     s_raise_light_only_active = false;
     s_tap_data_reveal_active = false;
+    s_raise_light_only_backlight_seen = false;
   }
 
   // The real backlight supersedes the sunlight fallback.
   if (on) {
     cancel_sunlight_fallback();
+
+    // PT2 currently lets a screen tap re-trigger the backlight even when a
+    // watchface does not receive the corresponding TouchService callback.
+    // The first ON belongs to the wrist raise itself. A subsequent ON while
+    // that same light-only session is active is therefore the user's tap: show
+    // the conditional data and keep it revealed until the light turns off.
+    if (s_raise_wake_light_only && s_raise_light_only_active &&
+        !s_tap_data_reveal_active) {
+      if (s_raise_light_only_backlight_seen) {
+        s_tap_data_reveal_active = true;
+        s_raise_light_only_active = false;
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Backlight retrigger revealed light-only data");
+      } else {
+        s_raise_light_only_backlight_seen = true;
+      }
+    }
   }
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
@@ -3721,6 +3744,10 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
             // current light session, do not re-hide it until the light turns off.
             if (!s_tap_data_reveal_active) {
               s_raise_light_only_active = true;
+              // The next BacklightService ON is the one caused by this raise.
+              // A later ON in the same session can then be recognized as a
+              // touchscreen backlight retrigger even if TouchService is silent.
+              s_raise_light_only_backlight_seen = false;
             }
             cancel_sunlight_fallback();
             light_enable_interaction();
