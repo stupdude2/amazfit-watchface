@@ -34,3 +34,9 @@ keeping the public Pebble package version at 1.3.1.
 KiezelPay production mode remains enabled. The existing WatchfaceSettings binary
 schema/version is unchanged; the two analog preferences use separate persistent
 keys for migration safety.
+
+## Rectangular analog dial refinement
+- Hid individual minute dashes; hour markers remain.
+- Removed the cardinal markers at 12 and 6.
+- Moved the 3 and 9 cardinal dashes inward, between the center and numerals.
+- Shifted cardinal numerals upward and added bottom clearance for 6.

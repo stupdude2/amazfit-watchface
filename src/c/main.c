@@ -1807,22 +1807,42 @@ static GPoint analog_ray_point(GRect bounds, int32_t angle,
 
 static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
                                GColor marker_color) {
-  int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
-  bool hour_mark = (minute_index % 5) == 0;
-  int inner_scale = hour_mark ? 86 : 93;
-  GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
-  GPoint inner = analog_ray_point(bounds, angle, 6, 6, inner_scale);
+  // For this development pass, keep the dial intentionally sparse: only the
+  // eleven/five-minute hour markers are visible. The individual minute dashes
+  // are suppressed so we can tune the core Kienzle-inspired layout first.
+  if ((minute_index % 5) != 0) return;
 
-  // Leave a little visual breathing room at the cardinal numerals. Shorter
-  // marks preserve the Kienzle-inspired number/tick relationship without
-  // drawing a bar directly through 12, 3, 6 or 9.
-  if (hour_mark && (minute_index % 15) == 0) {
-    inner = analog_ray_point(bounds, angle, 6, 6, 94);
-  }
+  // Cardinal markers are handled separately. There is intentionally no dash at
+  // 12 or 6, while the 3/9 dashes sit just inside their numerals.
+  if ((minute_index % 15) == 0) return;
+
+  int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
+  GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
+  GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
 
   graphics_context_set_stroke_color(ctx, marker_color);
-  graphics_context_set_stroke_width(ctx, hour_mark ? 4 : 1);
+  graphics_context_set_stroke_width(ctx, 4);
   graphics_draw_line(ctx, inner, outer);
+}
+
+static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
+                                               GColor marker_color) {
+  const int cy = bounds.size.h / 2 - 2;
+  const int dash_len = 9;
+  const int numeral_w = 34;
+  const int gap = 2;
+
+  // 9 is anchored at the left edge, so its marker belongs immediately to the
+  // right (inside) of the numeral. 3 mirrors this on the right side.
+  int left_x1 = numeral_w + gap;
+  int left_x2 = left_x1 + dash_len;
+  int right_x2 = bounds.size.w - numeral_w - gap;
+  int right_x1 = right_x2 - dash_len;
+
+  graphics_context_set_stroke_color(ctx, marker_color);
+  graphics_context_set_stroke_width(ctx, 4);
+  graphics_draw_line(ctx, GPoint(left_x1, cy), GPoint(left_x2, cy));
+  graphics_draw_line(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy));
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
@@ -1835,19 +1855,23 @@ static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
 
   // Narrow, tall custom font already bundled with Big Time gives the cardinal
   // numerals the same industrial clock character as the visual reference.
+  // Pebble's text baseline makes this font read a few pixels low, so all four
+  // cardinal numerals are nudged upward together. The 6 gets extra bottom
+  // clearance so its glyph never clips against the clock layer edge.
+  const int numeral_y_adjust = -3;
   graphics_draw_text(ctx, "12", s_font_header,
-                     GRect(cx - top_w / 2, -2, top_w, font_h),
+                     GRect(cx - top_w / 2, -2 + numeral_y_adjust, top_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, "6", s_font_header,
-                     GRect(cx - side_w / 2, bounds.size.h - font_h + 3,
+                     GRect(cx - side_w / 2, bounds.size.h - font_h - 2,
                            side_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, "9", s_font_header,
-                     GRect(-1, cy - font_h / 2, side_w, font_h),
+                     GRect(-1, cy - font_h / 2 + numeral_y_adjust, side_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, "3", s_font_header,
-                     GRect(bounds.size.w - side_w + 1, cy - font_h / 2,
-                           side_w, font_h),
+                     GRect(bounds.size.w - side_w + 1,
+                           cy - font_h / 2 + numeral_y_adjust, side_w, font_h),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
@@ -1870,6 +1894,7 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   for (int i = 0; i < 60; ++i) {
     analog_draw_marker(ctx, bounds, i, marker_color);
   }
+  analog_draw_side_cardinal_markers(ctx, bounds, marker_color);
 
   int hour12 = s_hour % 12;
   int32_t hour_angle = (TRIG_MAX_ANGLE * (hour12 * 60 + s_minute)) / (12 * 60);
