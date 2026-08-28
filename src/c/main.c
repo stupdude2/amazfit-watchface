@@ -2246,11 +2246,19 @@ static void update_analog_stepbar_layer(void) {
   } else {
     layer_set_hidden(s_stepbar_layer, !bar_visible);
     if (stepbar_is_above()) {
-      layer_set_frame(s_stepbar_layer, GRect(0, HEADER_H - 5, SCREEN_W, STEPBAR_H));
+      // In analog mode the step bar follows the *effective* data-bar layout.
+      // If the top bar is hidden, keep the progress bar at the top edge of
+      // the remaining analog region instead of leaving a HEADER_H-sized gap.
+      const int16_t top_edge = header_is_effectively_visible() ? HEADER_H : 0;
+      layer_set_frame(s_stepbar_layer, GRect(0, top_edge, SCREEN_W, STEPBAR_H));
     } else {
+      // Likewise, when the bottom data bar is hidden, pin an enabled step bar
+      // to the physical bottom of the display. The analog clock target frame
+      // reserves STEPBAR_H above it, so the expanded face ends immediately
+      // above the progress bar instead of leaving the bar at its legacy y.
+      const int16_t bottom_edge = footer_is_effectively_visible() ? FOOTER_Y : SCREEN_H;
       layer_set_frame(s_stepbar_layer,
-                      GRect(0, HEADER_H + (SCREEN_H - HEADER_H - FOOTER_H) - STEPBAR_H,
-                            SCREEN_W, STEPBAR_H));
+                      GRect(0, bottom_edge - STEPBAR_H, SCREEN_W, STEPBAR_H));
     }
   }
 
