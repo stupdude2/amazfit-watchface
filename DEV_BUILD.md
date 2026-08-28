@@ -46,3 +46,8 @@ keys for migration safety.
 - Pulled the 3 and 9 dashes inward to sit only 1 pixel from the numeral boxes.
 - Centered both side dashes exactly on the clock pivot's horizontal axis so a
   hand pointing at 3 or 9 passes through the middle of the dash.
+
+## Rectangular analog hand geometry refinement
+- Minute and second hands are capped to their exact 3/9 radial reach, eliminating diagonal over-stretch in the corners while retaining rectangular shortening toward 12/6.
+- Hour hand follows the minute-hand curve at a 64:88 proportion and is capped at its shortest (12/6) hour-hand length.
+- Dial markers and numerals are rendered before all hands; hour, minute, second, and pivot now sit above all dial furniture.

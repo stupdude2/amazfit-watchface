@@ -1883,10 +1883,69 @@ static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
-static void analog_draw_hand(GContext *ctx, GRect bounds, int32_t angle,
-                             int length_percent, int width, GColor color) {
+static uint32_t analog_isqrt64(uint64_t value) {
+  // Small integer square-root helper so hand lengths can be capped by true
+  // radial distance without pulling in floating-point math on the watch.
+  uint64_t bit = (uint64_t)1 << 62;
+  uint64_t result = 0;
+  while (bit > value) bit >>= 2;
+  while (bit != 0) {
+    if (value >= result + bit) {
+      value -= result + bit;
+      result = (result >> 1) + bit;
+    } else {
+      result >>= 1;
+    }
+    bit >>= 2;
+  }
+  return (uint32_t)result;
+}
+
+static int analog_point_distance(GPoint a, GPoint b) {
+  int32_t dx = (int32_t)b.x - a.x;
+  int32_t dy = (int32_t)b.y - a.y;
+  return (int)analog_isqrt64((uint64_t)(dx * dx) + (uint64_t)(dy * dy));
+}
+
+static GPoint analog_point_at_length(GRect bounds, int32_t angle, int length) {
   GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
-  GPoint end = analog_ray_point(bounds, angle, 18, 14, length_percent);
+  int32_t dx = sin_lookup(angle);
+  int32_t dy = -cos_lookup(angle);
+  int32_t x = c.x + (int32_t)(((int64_t)dx * length) / TRIG_MAX_RATIO);
+  int32_t y = c.y + (int32_t)(((int64_t)dy * length) / TRIG_MAX_RATIO);
+  return GPoint((int16_t)x, (int16_t)y);
+}
+
+static int analog_rect_hand_length(GRect bounds, int32_t angle,
+                                   int length_percent) {
+  GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
+  GPoint rectangular_end =
+      analog_ray_point(bounds, angle, 18, 14, length_percent);
+  return analog_point_distance(c, rectangular_end);
+}
+
+static int analog_horizontal_hand_length(GRect bounds, int length_percent) {
+  // 3/9 is the desired maximum reach. Near the corners the rectangular ray
+  // would otherwise become longer as a diagonal, so cap the radial length at
+  // exactly the horizontal reach. The min() transition creates a smooth,
+  // natural curve as the hand sweeps from an edge into a corner.
+  int half_w = bounds.size.w / 2 - 18;
+  if (half_w < 1) half_w = 1;
+  return (half_w * length_percent) / 100;
+}
+
+static int analog_capped_hand_length(GRect bounds, int32_t angle,
+                                     int length_percent, int max_length) {
+  int length = analog_rect_hand_length(bounds, angle, length_percent);
+  if (length > max_length) length = max_length;
+  return length;
+}
+
+static void analog_draw_hand_to_length(GContext *ctx, GRect bounds,
+                                       int32_t angle, int length, int width,
+                                       GColor color) {
+  GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
+  GPoint end = analog_point_at_length(bounds, angle, length);
   graphics_context_set_stroke_color(ctx, color);
   graphics_context_set_stroke_width(ctx, width);
   graphics_draw_line(ctx, c, end);
@@ -1899,27 +1958,53 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   GColor minute_color = (s_pro_unlocked && s_split_clock_colors)
                           ? s_minute_color : s_settings.accent_color;
 
+  // Dial furniture is drawn first. Every hand is deliberately layered above
+  // markers and numerals so a hand can never disappear behind 12/3/6/9.
   for (int i = 0; i < 60; ++i) {
     analog_draw_marker(ctx, bounds, i, marker_color);
   }
   analog_draw_side_cardinal_markers(ctx, bounds, marker_color);
+  analog_draw_numerals(ctx, bounds, marker_color);
 
   int hour12 = s_hour % 12;
   int32_t hour_angle = (TRIG_MAX_ANGLE * (hour12 * 60 + s_minute)) / (12 * 60);
   int32_t minute_angle = (TRIG_MAX_ANGLE * (s_minute * 60 + s_second)) / (60 * 60);
   int32_t second_angle = (TRIG_MAX_ANGLE * s_second) / 60;
 
-  // Constant percentages applied after rectangular ray projection retain normal
-  // analog angles while making the apparent hand length adapt to the frame.
-  analog_draw_hand(ctx, bounds, hour_angle, 64, 7, hour_color);
-  analog_draw_hand(ctx, bounds, minute_angle, 88, 4, minute_color);
+  // Minute and second hands keep the rectangular behavior near 12/6, but their
+  // true radial length is capped at their 3/9 reach. This removes the unnatural
+  // diagonal stretching in the corners while preserving a smooth transition.
+  const int minute_max = analog_horizontal_hand_length(bounds, 88);
+  const int second_max = analog_horizontal_hand_length(bounds, 92);
+  const int minute_length =
+      analog_capped_hand_length(bounds, minute_angle, 88, minute_max);
+  const int second_length =
+      analog_capped_hand_length(bounds, second_angle, 92, second_max);
+
+  // The hour hand follows the same shape as the minute hand at its own angle,
+  // scaled by the established 64:88 hour/minute proportion. Its absolute cap is
+  // the hour hand's shortest rectangular reach (straight up/down), so it never
+  // grows longer in the corners or at 3/9 than that deliberately compact size.
+  int proportional_hour_length =
+      (analog_capped_hand_length(bounds, hour_angle, 88, minute_max) * 64) / 88;
+  int hour_shortest = analog_rect_hand_length(bounds, 0, 64);
+  if (proportional_hour_length > hour_shortest) {
+    proportional_hour_length = hour_shortest;
+  }
+
+  analog_draw_hand_to_length(ctx, bounds, hour_angle, proportional_hour_length,
+                             7, hour_color);
+  analog_draw_hand_to_length(ctx, bounds, minute_angle, minute_length,
+                             4, minute_color);
 
   if (s_pro_unlocked && s_analog_second_hand) {
-    // Subtle shaft plus accent tip echoes the reference without competing with
-    // the heavier hour/minute hands.
+    // Keep the accent tip proportional to the final capped hand length, rather
+    // than computing it from the old uncapped rectangular projection.
     GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
-    GPoint end = analog_ray_point(bounds, second_angle, 18, 14, 92);
-    GPoint tip_start = analog_ray_point(bounds, second_angle, 18, 14, 80);
+    GPoint end = analog_point_at_length(bounds, second_angle, second_length);
+    int tip_start_length = (second_length * 87) / 100;
+    GPoint tip_start =
+        analog_point_at_length(bounds, second_angle, tip_start_length);
     graphics_context_set_stroke_color(ctx, marker_color);
     graphics_context_set_stroke_width(ctx, 1);
     graphics_draw_line(ctx, c, end);
@@ -1928,14 +2013,11 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
     graphics_draw_line(ctx, tip_start, end);
   }
 
-  // Compact pivot only — deliberately no large circle on the hour hand.
+  // Pivot is topmost of all — deliberately compact, with no oversized circle.
   graphics_context_set_fill_color(ctx, marker_color);
   graphics_fill_circle(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2), 5);
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_circle(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2), 2);
-
-  // Numerals render last so hands can pass behind them instead of obscuring them.
-  analog_draw_numerals(ctx, bounds, marker_color);
 }
 
 // ── Clock ─────────────────────────────────────────────────────────────────────
