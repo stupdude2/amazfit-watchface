@@ -3309,7 +3309,12 @@ static GRect analog_target_clock_frame(void) {
   const bool header_visible = header_is_effectively_visible();
   const bool footer_visible = footer_is_effectively_visible();
   const int16_t top = header_visible ? HEADER_H : 0;
-  const int16_t bottom = footer_visible ? FOOTER_Y : SCREEN_H;
+  // Preserve the original Big Time clock frame exactly while the bottom data
+  // area is visible. The 12 px step bar sits above the footer, so using
+  // FOOTER_Y here made the analog face 12 px taller than the legacy digital
+  // clock area and shifted its visual center downward. When the bottom area is
+  // hidden, the analog face can still expand all the way to the screen edge.
+  const int16_t bottom = footer_visible ? STEPBAR_Y : SCREEN_H;
   int16_t height = bottom - top;
   if (height < 1) height = 1;
   return GRect(0, top, SCREEN_W, height);
