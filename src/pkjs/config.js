@@ -297,6 +297,13 @@ if (edition.isPro) {
           { "label": "Normal", "value": "1" },
           { "label": "Sensitive", "value": "2" }
         ]
+      },
+      {
+        "type": "toggle",
+        "messageKey": "RAISE_WAKE_LIGHT_ONLY",
+        "defaultValue": false,
+        "label": "Wrist Raise: Backlight Only",
+        "description": "When enabled, a wrist raise only turns on the backlight. Tap the screen at any time to turn on the backlight and reveal data configured to show with the backlight."
       }
     ]
   });

@@ -141,6 +141,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
+#define KEY_RAISE_WAKE_LIGHT_ONLY    56
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -529,6 +530,7 @@ static bool s_pro_unlocked = false;
 #define CLOCK_FACE_PERSIST_KEY       1114
 #define ANALOG_SECOND_PERSIST_KEY    1115
 #define SECOND_HAND_COLOR_PERSIST_KEY 1116
+#define RAISE_WAKE_LIGHT_ONLY_PERSIST_KEY 1117
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -664,6 +666,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_CLOCK_FACE:
     case KEY_ANALOG_SECOND_HAND:
     case KEY_SECOND_HAND_COLOR:
+    case KEY_RAISE_WAKE_LIGHT_ONLY:
     case KEY_PROGRESS_TRACK_BATTERY:
       return true;
     default:
@@ -1164,6 +1167,7 @@ static int  s_battery_percent = 0;
 static GColor s_hour_color;
 static GColor s_minute_color;
 static GColor s_second_hand_color;
+static bool s_raise_wake_light_only = false;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
 static bool s_bluetooth_colon = false;
@@ -1196,6 +1200,7 @@ static void load_split_clock_colors(void) {
   s_hour_color = s_settings.clock_color;
   s_minute_color = s_settings.clock_color;
   s_second_hand_color = GColorWhite;
+  s_raise_wake_light_only = false;
   s_split_clock_colors = false;
 
   if (persist_exists(HOUR_COLOR_PERSIST_KEY)) {
@@ -1210,6 +1215,9 @@ static void load_split_clock_colors(void) {
     uint32_t hex = (uint32_t)persist_read_int(SECOND_HAND_COLOR_PERSIST_KEY) & 0xFFFFFF;
     s_second_hand_color = GColorFromHEX(hex);
   }
+  s_raise_wake_light_only =
+      persist_exists(RAISE_WAKE_LIGHT_ONLY_PERSIST_KEY) &&
+      persist_read_int(RAISE_WAKE_LIGHT_ONLY_PERSIST_KEY) != 0;
   if (persist_exists(SPLIT_COLOR_PERSIST_KEY)) {
     s_split_clock_colors = persist_read_int(SPLIT_COLOR_PERSIST_KEY) != 0;
   }
@@ -1313,6 +1321,9 @@ static bool s_backlight_subscribed = false;
 // in bright sunlight), a single five-second fallback reveals the hidden UI.
 static bool s_touch_subscribed = false;
 static bool s_sunlight_fallback_active = false;
+// When enabled, a custom wrist raise may light the display without revealing
+// backlight-conditional data. A screen tap always clears this gate and reveals it.
+static bool s_raise_light_only_active = false;
 static AppTimer *s_sunlight_fallback_timer = NULL;
 #define SUNLIGHT_FALLBACK_MS 5000
 
@@ -3319,7 +3330,8 @@ static void apply_bar_visibility(void);
 static bool conditional_ui_is_visible(void) {
   // Never cache physical backlight state. The only synthetic state is the
   // bounded sunlight fallback.
-  return light_is_on() || s_sunlight_fallback_active;
+  return (light_is_on() && !s_raise_light_only_active) ||
+         s_sunlight_fallback_active;
 }
 
 static bool header_is_effectively_visible(void) {
@@ -3522,10 +3534,20 @@ static void request_light_with_fallback(void) {
 
 static void touch_handler(const TouchEvent *event, void *context) {
   if (!event || event->type != TouchEvent_Touchdown) return;
+
+  // A tap is always an explicit request for both light and data, regardless of
+  // whether the wrist raise that preceded it was configured as light-only.
+  s_raise_light_only_active = false;
   request_light_with_fallback();
 }
 
 static void backlight_handler(bool on) {
+  // Once the light turns off, the next interaction starts clean. While it is
+  // on, preserve a light-only wrist raise until the user taps the screen.
+  if (!on) {
+    s_raise_light_only_active = false;
+  }
+
   // The real backlight supersedes the sunlight fallback.
   if (on) {
     cancel_sunlight_fallback();
@@ -3558,7 +3580,8 @@ static void update_bar_input_services(void) {
   const bool want_backlight =
       s_settings.footer_mode == BAR_BACKLIGHT ||
       s_settings.header_mode == BAR_BACKLIGHT ||
-      stepbar_is_backlight_only();
+      stepbar_is_backlight_only() ||
+      s_raise_wake_light_only;
 
   if (want_backlight && !s_backlight_subscribed) {
     backlight_service_subscribe(backlight_handler);
@@ -3570,10 +3593,12 @@ static void update_bar_input_services(void) {
 
   // On PT2, touchscreen intent is useful even when ambient light suppresses
   // the physical LED. Subscribe only when some UI actually depends on it.
-  if (want_backlight && !s_touch_subscribed) {
+  const bool want_touch = want_backlight || s_raise_wake_light_only;
+
+  if (want_touch && !s_touch_subscribed) {
     touch_service_subscribe(touch_handler, NULL);
     s_touch_subscribed = true;
-  } else if (!want_backlight && s_touch_subscribed) {
+  } else if (!want_touch && s_touch_subscribed) {
     touch_service_unsubscribe();
     s_touch_subscribed = false;
   }
@@ -3680,9 +3705,19 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
           APP_LOG(APP_LOG_LEVEL_INFO,
                   "Raise wake suppressed by Quiet Time");
         } else {
-          // Request Pebble's normal backlight interaction. Conditional UI
-          // follows the actual system backlight state.
-          request_light_with_fallback();
+          if (s_raise_wake_light_only) {
+            // Light the display but deliberately keep backlight-conditional
+            // bars hidden. A subsequent screen tap reveals them immediately.
+            s_raise_light_only_active = true;
+            cancel_sunlight_fallback();
+            light_enable_interaction();
+            refresh_conditional_ui();
+          } else {
+            // Normal behavior: raising the wrist lights the display and reveals
+            // any UI configured to appear with the backlight.
+            s_raise_light_only_active = false;
+            request_light_with_fallback();
+          }
 
           s_raise_last_wake_at = now_ms;
           APP_LOG(APP_LOG_LEVEL_INFO,
@@ -4484,6 +4519,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
           APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake mode -> %ld", (long)value);
           layout_changed = true;
         }
+        break;
+      }
+
+      case KEY_RAISE_WAKE_LIGHT_ONLY: {
+        bool enabled = tuple_to_int32(t, s_raise_wake_light_only ? 1 : 0) != 0;
+        s_raise_wake_light_only = enabled;
+        persist_write_int(RAISE_WAKE_LIGHT_ONLY_PERSIST_KEY, enabled ? 1 : 0);
+        if (!enabled) s_raise_light_only_active = false;
+        APP_LOG(APP_LOG_LEVEL_INFO, "Raise wake light-only -> %d", enabled ? 1 : 0);
+        layout_changed = true;
         break;
       }
 

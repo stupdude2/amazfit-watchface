@@ -281,6 +281,7 @@ function customClay(minified) {
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');
+        setValue('RAISE_WAKE_LIGHT_ONLY', false);
         setValue('BACKGROUND_COLOR', '0x000000');
         setValue('TEMP_UNIT', '0');
         setValue('LANGUAGE', '0');
