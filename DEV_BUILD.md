@@ -1,11 +1,9 @@
-# Big Time development build
+# Development Build — dev-35
 
-Development iteration: rectangular analog dev-34
-Public/package version remains 1.3.1.
+Based on the pre-parallelogram dev-34 baseline.
 
-Reverted the analog hour-marker design to the last build before parallelogram markers were introduced (dev-25 baseline).
-
-- Restored the original pre-parallelogram analog tick marks.
-- Removed all later parallelogram-specific geometry, thickness, scaling-state, and positioning experiments.
-- Preserved every feature and fix that existed through dev-25, including rectangular analog mode, dynamic bar-aware resizing, analog hand colors, second-hand color, automatic dial contrast, and the Separate Hour / Minute Colors reset behavior.
-- Wrist gesture/backlight behavior remains the normal known-good behavior restored before this baseline.
+- Replaced analog hour-marker stroke lines with filled tapered rectangular markers.
+- Markers are 4 px thick on their inner edge and 6 px thick on their outer edge.
+- Preserved the existing marker positions, lengths, scaling behavior, and automatic dial contrast colors.
+- 3/9 use the same subtle outward flare while remaining centered on the horizontal axis.
+- No parallelogram geometry from dev-26+ was reintroduced.

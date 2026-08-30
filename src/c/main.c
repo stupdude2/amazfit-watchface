@@ -1820,6 +1820,46 @@ static GPoint analog_ray_point(GRect bounds, int32_t angle,
   return GPoint((int16_t)x, (int16_t)y);
 }
 
+static int analog_point_distance(GPoint a, GPoint b);
+
+static void analog_draw_tapered_marker(GContext *ctx, GPoint inner, GPoint outer,
+                                        GColor marker_color) {
+  // Draw each hour tick as a small filled radial rectangle with a subtle flare
+  // toward the outside of the dial. This preserves the simple dash-like look
+  // while giving the markers more visual weight and a slightly vintage feel.
+  const int inner_half_width = 2;  // 4 px at the inside edge
+  const int outer_half_width = 3;  // 6 px at the outside edge
+
+  int32_t dx = outer.x - inner.x;
+  int32_t dy = outer.y - inner.y;
+  int length = analog_point_distance(inner, outer);
+  if (length < 1) return;
+
+  // Unit perpendicular to the radial marker direction, scaled by each half
+  // width. Integer math keeps this inexpensive on Pebble hardware.
+  int16_t in_px = (int16_t)((-dy * inner_half_width) / length);
+  int16_t in_py = (int16_t)(( dx * inner_half_width) / length);
+  int16_t out_px = (int16_t)((-dy * outer_half_width) / length);
+  int16_t out_py = (int16_t)(( dx * outer_half_width) / length);
+
+  GPoint points[] = {
+    GPoint(inner.x + in_px, inner.y + in_py),
+    GPoint(outer.x + out_px, outer.y + out_py),
+    GPoint(outer.x - out_px, outer.y - out_py),
+    GPoint(inner.x - in_px, inner.y - in_py),
+  };
+  GPathInfo path_info = {
+    .num_points = 4,
+    .points = points,
+  };
+  GPath *path = gpath_create(&path_info);
+  if (!path) return;
+
+  graphics_context_set_fill_color(ctx, marker_color);
+  gpath_draw_filled(ctx, path);
+  gpath_destroy(path);
+}
+
 static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
                                GColor marker_color) {
   // For this development pass, keep the dial intentionally sparse: only the
@@ -1828,16 +1868,13 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   if ((minute_index % 5) != 0) return;
 
   // Cardinal markers are handled separately. There is intentionally no dash at
-  // 12 or 6, while the 3/9 dashes sit just inside their numerals.
+  // 12 or 6, while the 3/9 markers sit just inside their numerals.
   if ((minute_index % 15) == 0) return;
 
   int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
   GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
   GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
-
-  graphics_context_set_stroke_color(ctx, marker_color);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_line(ctx, inner, outer);
+  analog_draw_tapered_marker(ctx, inner, outer, marker_color);
 }
 
 static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
@@ -1861,10 +1898,12 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   int right_x2 = right_numeral_left - gap;
   int right_x1 = right_x2 - dash_len;
 
-  graphics_context_set_stroke_color(ctx, marker_color);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_line(ctx, GPoint(left_x1, cy), GPoint(left_x2, cy));
-  graphics_draw_line(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy));
+  // The 3/9 markers stay horizontal, but use the same subtle outside flare as
+  // the other hour ticks. For 9 the outer edge is left; for 3 it is right.
+  analog_draw_tapered_marker(ctx, GPoint(left_x2, cy), GPoint(left_x1, cy),
+                             marker_color);
+  analog_draw_tapered_marker(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy),
+                             marker_color);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
