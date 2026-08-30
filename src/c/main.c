@@ -1849,7 +1849,7 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
   GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
   GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
-  const int half_thickness = 3;
+  const int half_thickness = 5;
 
   // 11, 1, 5 and 7 use horizontal inner/outer edges. The two side edges then
   // lean with the rectangular dial geometry to form a parallelogram.
@@ -1900,8 +1900,8 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   // 9 and 3 are deliberately rectangular rather than skewed. Keeping their
   // vertical end edges makes the horizontal centerline feel mechanically crisp.
   graphics_context_set_fill_color(ctx, marker_color);
-  graphics_fill_rect(ctx, GRect(left_x1, cy - 3, dash_len, 6), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(right_x1, cy - 3, dash_len, 6), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(left_x1, cy - 5, dash_len, 10), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(right_x1, cy - 5, dash_len, 10), 0, GCornerNone);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
