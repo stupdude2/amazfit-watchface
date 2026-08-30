@@ -1820,24 +1820,60 @@ static GPoint analog_ray_point(GRect bounds, int32_t angle,
   return GPoint((int16_t)x, (int16_t)y);
 }
 
+static void analog_fill_quad(GContext *ctx, GPoint p0, GPoint p1,
+                             GPoint p2, GPoint p3, GColor color) {
+  GPoint points[] = {p0, p1, p2, p3};
+  GPathInfo path_info = {
+    .num_points = 4,
+    .points = points
+  };
+  GPath *path = gpath_create(&path_info);
+  if (!path) return;
+
+  graphics_context_set_fill_color(ctx, color);
+  gpath_draw_filled(ctx, path);
+  gpath_destroy(path);
+}
+
 static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
                                GColor marker_color) {
-  // For this development pass, keep the dial intentionally sparse: only the
-  // eleven/five-minute hour markers are visible. The individual minute dashes
-  // are suppressed so we can tune the core Kienzle-inspired layout first.
+  // Keep the dial intentionally sparse: only hour-position markers are shown.
+  // The non-cardinal markers are filled geometric ticks inspired by vintage
+  // automotive clocks rather than simple stroked lines.
   if ((minute_index % 5) != 0) return;
 
-  // Cardinal markers are handled separately. There is intentionally no dash at
-  // 12 or 6, while the 3/9 dashes sit just inside their numerals.
+  // Cardinal markers are handled separately. There is intentionally no marker
+  // at 12 or 6, while 3/9 are clean horizontal rectangles near their numerals.
   if ((minute_index % 15) == 0) return;
 
   int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
   GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
   GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
+  const int half_thickness = 2;
 
-  graphics_context_set_stroke_color(ctx, marker_color);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_line(ctx, inner, outer);
+  // 11, 1, 5 and 7 use horizontal inner/outer edges. The two side edges then
+  // lean with the rectangular dial geometry to form a parallelogram.
+  bool horizontal_ends =
+      minute_index == 5 || minute_index == 25 ||
+      minute_index == 35 || minute_index == 55;
+
+  if (horizontal_ends) {
+    analog_fill_quad(ctx,
+                     GPoint(inner.x - half_thickness, inner.y),
+                     GPoint(inner.x + half_thickness, inner.y),
+                     GPoint(outer.x + half_thickness, outer.y),
+                     GPoint(outer.x - half_thickness, outer.y),
+                     marker_color);
+  } else {
+    // 10, 2, 4 and 8 use vertical inner/outer edges, producing the complementary
+    // parallelogram orientation on the left and right halves of the dial.
+    analog_fill_quad(ctx,
+                     GPoint(inner.x, inner.y - half_thickness),
+                     GPoint(outer.x, outer.y - half_thickness),
+                     GPoint(outer.x, outer.y + half_thickness),
+                     GPoint(inner.x, inner.y + half_thickness),
+                     marker_color);
+  }
 }
 
 static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
@@ -1861,10 +1897,11 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   int right_x2 = right_numeral_left - gap;
   int right_x1 = right_x2 - dash_len;
 
-  graphics_context_set_stroke_color(ctx, marker_color);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_line(ctx, GPoint(left_x1, cy), GPoint(left_x2, cy));
-  graphics_draw_line(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy));
+  // 9 and 3 are deliberately rectangular rather than skewed. Keeping their
+  // vertical end edges makes the horizontal centerline feel mechanically crisp.
+  graphics_context_set_fill_color(ctx, marker_color);
+  graphics_fill_rect(ctx, GRect(left_x1, cy - 2, dash_len, 4), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(right_x1, cy - 2, dash_len, 4), 0, GCornerNone);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {

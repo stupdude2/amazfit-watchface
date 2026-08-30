@@ -1,19 +1,12 @@
-# Development Build
+# Big Time development build
 
-Dev-25
+Development iteration: rectangular analog dev-26
+Public/package version remains 1.3.1.
 
-- When **Separate Hour / Minute Colors** is turned off, Hour Color and Minute Color are immediately reset to the current Clock Color in the settings UI.
-- The watch also enforces and persists the same reset on Save, so stale split colors cannot return later.
-- Existing analog layout and backlight behavior are unchanged.
-
-# Big Time v1.3.1 — Rectangular Analog Dev 24
-
-Reverted the experimental wrist-raise/backlight-only differentiation introduced after dev-18.
-
-- Removed the "Wrist Raise: Backlight Only" setting and persisted key.
-- Removed tap/accelerometer reveal handling and associated state.
-- Wrist raise once again uses the normal interaction-light path.
-- Any top bar, bottom bar, or step bar configured for "With Backlight" is revealed whenever the wrist gesture activates the backlight.
-- Preserves all analog clock work through dev-18, including custom hand colors and automatic contrast for analog numerals/markers.
-
-Public package version remains 1.3.1.
+Changes in dev-26:
+- Replaced the analog clock's non-cardinal stroked hour ticks with filled vintage-style parallelogram markers.
+- 11, 1, 5, and 7 markers use horizontal inner/outer edges.
+- 10, 2, 4, and 8 markers use vertical inner/outer edges.
+- 9 and 3 markers are now crisp filled rectangles centered on the hand pivot line.
+- 12 and 6 remain numeral-only with no tick.
+- Existing background-contrast coloring for dial markers/numerals is preserved.
