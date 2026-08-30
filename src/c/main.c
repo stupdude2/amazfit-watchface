@@ -1851,11 +1851,22 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
   const int half_thickness = 5;
 
-  // 11, 1, 5 and 7 use horizontal inner/outer edges. The two side edges then
-  // lean with the rectangular dial geometry to form a parallelogram.
+  // 11, 1, 5 and 7 always use horizontal inner/outer edges. In the compact
+  // rectangular state (both top and bottom data bars visible), 10, 2, 4 and 8
+  // switch to the same horizontal-ended construction. This gives those four
+  // markers the wider vintage-car-clock profile requested for the compressed
+  // dial. As soon as either data bar hides and the analog clock expands, they
+  // return to their vertical-ended parallelogram geometry.
+  const bool compact_rectangular_state =
+      s_header_layer && s_footer_layer &&
+      !layer_get_hidden(s_header_layer) && !layer_get_hidden(s_footer_layer);
+  const bool diagonal_side_marker =
+      minute_index == 10 || minute_index == 20 ||
+      minute_index == 40 || minute_index == 50;
   bool horizontal_ends =
       minute_index == 5 || minute_index == 25 ||
-      minute_index == 35 || minute_index == 55;
+      minute_index == 35 || minute_index == 55 ||
+      (compact_rectangular_state && diagonal_side_marker);
 
   if (horizontal_ends) {
     analog_fill_quad(ctx,
@@ -1865,8 +1876,9 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
                      GPoint(outer.x - half_thickness, outer.y),
                      marker_color);
   } else {
-    // 10, 2, 4 and 8 use vertical inner/outer edges, producing the complementary
-    // parallelogram orientation on the left and right halves of the dial.
+    // In expanded layouts, 10, 2, 4 and 8 use vertical inner/outer edges,
+    // producing the complementary parallelogram orientation on the left and
+    // right halves of the larger dial.
     analog_fill_quad(ctx,
                      GPoint(inner.x, inner.y - half_thickness),
                      GPoint(outer.x, outer.y - half_thickness),
