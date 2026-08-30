@@ -1,14 +1,6 @@
-# Big Time development build
+# Development Build — Analog dev-30
 
-Development iteration: rectangular analog dev-28
-Public/package version remains 1.3.1.
-
-Changes in dev-28:
-- Increased analog hour-marker thickness from 6 px to 10 px.
-- Thickened both parallelogram markers and the rectangular 3/9 markers consistently.
-- Preserved marker lengths, positions, slant/orientation, and automatic contrast coloring.
-
-## dev-29
-- Compact analog dial: 2/4/8/10 markers now use horizontal-ended parallelograms when both top and bottom data bars are visible.
-- Expanded analog dial: those markers automatically return to vertical-ended parallelograms when either data bar hides and the clock grows.
-- Preserves the 10 px marker thickness from dev-28.
+- Thickened the 2, 4, 8, and 10 analog hour markers from 10 px to 14 px apparent geometry.
+- Kept 11, 1, 5, and 7 markers at 10 px.
+- Preserved compact-vs-expanded marker orientation swapping introduced in dev-29.
+- No image assets or unrelated behavior changed.
