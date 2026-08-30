@@ -1847,16 +1847,19 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   if ((minute_index % 15) == 0) return;
 
   int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
-  GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
-  GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
 
-  // The steep 2/4/8/10 markers lose apparent visual weight because of their
-  // angle, especially in the compressed rectangular dial. Give those four a
-  // heavier 14 px profile while keeping 11/1/5/7 at the established 10 px.
   const bool diagonal_side_marker =
       minute_index == 10 || minute_index == 20 ||
       minute_index == 40 || minute_index == 50;
-  const int half_thickness = diagonal_side_marker ? 7 : 5;
+
+  // Pull 2/4/8/10 inward from the left/right display edges while keeping each
+  // marker perfectly radial to the center pivot. Their outer point now lands
+  // roughly above/below the visual center of the 9/3 numerals rather than
+  // crowding the bezel. Both endpoints are projected along the same ray, so
+  // the marker angle still points exactly at the center dot.
+  const int marker_inset_x = diagonal_side_marker ? 13 : 6;
+  GPoint outer = analog_ray_point(bounds, angle, marker_inset_x, 6, 100);
+  GPoint inner = analog_ray_point(bounds, angle, marker_inset_x, 6, 86);
 
   // 11, 1, 5 and 7 always use horizontal inner/outer edges. In the compact
   // rectangular state (both top and bottom data bars visible), 10, 2, 4 and 8
@@ -1867,6 +1870,12 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   const bool compact_rectangular_state =
       s_header_layer && s_footer_layer &&
       !layer_get_hidden(s_header_layer) && !layer_get_hidden(s_footer_layer);
+
+  // The sharp horizontal-ended 2/4/8/10 ticks need extra visual weight in the
+  // compact dial, so keep them at 14 px there. In the expanded dial their
+  // vertical-ended shape reads naturally at the standard 10 px thickness.
+  const int half_thickness =
+      (diagonal_side_marker && compact_rectangular_state) ? 7 : 5;
   bool horizontal_ends =
       minute_index == 5 || minute_index == 25 ||
       minute_index == 35 || minute_index == 55 ||
