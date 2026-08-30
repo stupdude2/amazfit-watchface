@@ -1827,8 +1827,8 @@ static void analog_draw_tapered_marker(GContext *ctx, GPoint inner, GPoint outer
   // Draw each hour tick as a small filled radial rectangle with a subtle flare
   // toward the outside of the dial. This preserves the simple dash-like look
   // while giving the markers more visual weight and a slightly vintage feel.
-  const int inner_half_width = 2;  // 4 px at the inside edge
-  const int outer_half_width = 3;  // 6 px at the outside edge
+  const int inner_half_width = 3;  // 6 px at the inside edge
+  const int outer_half_width = 4;  // 8 px at the outside edge
 
   int32_t dx = outer.x - inner.x;
   int32_t dy = outer.y - inner.y;

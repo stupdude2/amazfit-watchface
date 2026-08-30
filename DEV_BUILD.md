@@ -7,3 +7,7 @@ Based on the pre-parallelogram dev-34 baseline.
 - Preserved the existing marker positions, lengths, scaling behavior, and automatic dial contrast colors.
 - 3/9 use the same subtle outward flare while remaining centered on the horizontal axis.
 - No parallelogram geometry from dev-26+ was reintroduced.
+
+
+## dev-36
+- Increased tapered analog hour markers from 4/6 px to 6/8 px (inner/outer).
