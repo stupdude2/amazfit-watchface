@@ -1849,7 +1849,10 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
   GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
   GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
-  const int half_thickness = 2;
+  // Base markers are 10 px thick. The sharper 10/2/4/8 parallelograms get
+  // a small optical-weight boost to 12 px so they read as equally bold.
+  const int standard_half_thickness = 5;
+  const int diagonal_half_thickness = 6;
 
   // 11, 1, 5 and 7 use horizontal inner/outer edges. The two side edges then
   // lean with the rectangular dial geometry to form a parallelogram.
@@ -1858,6 +1861,7 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
       minute_index == 35 || minute_index == 55;
 
   if (horizontal_ends) {
+    const int half_thickness = standard_half_thickness;
     analog_fill_quad(ctx,
                      GPoint(inner.x - half_thickness, inner.y),
                      GPoint(inner.x + half_thickness, inner.y),
@@ -1867,6 +1871,7 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   } else {
     // 10, 2, 4 and 8 use vertical inner/outer edges, producing the complementary
     // parallelogram orientation on the left and right halves of the dial.
+    const int half_thickness = diagonal_half_thickness;
     analog_fill_quad(ctx,
                      GPoint(inner.x, inner.y - half_thickness),
                      GPoint(outer.x, outer.y - half_thickness),
@@ -1900,8 +1905,8 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   // 9 and 3 are deliberately rectangular rather than skewed. Keeping their
   // vertical end edges makes the horizontal centerline feel mechanically crisp.
   graphics_context_set_fill_color(ctx, marker_color);
-  graphics_fill_rect(ctx, GRect(left_x1, cy - 2, dash_len, 4), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(right_x1, cy - 2, dash_len, 4), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(left_x1, cy - 5, dash_len, 10), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(right_x1, cy - 5, dash_len, 10), 0, GCornerNone);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
