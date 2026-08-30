@@ -1,7 +1,14 @@
-# Big Time dev-31
+# Big Time development build
 
-Development build based on public package version 1.3.1.
+Development iteration: rectangular analog dev-26
+Public/package version remains 1.3.1.
 
-- Compact rectangular 2/4/8/10 markers remain 14 px thick with horizontal ends.
-- Expanded 2/4/8/10 markers return to 10 px thick with vertical ends.
-- 2/4/8/10 marker rays are inset farther from the left/right bezel while remaining perfectly radial to the center pivot.
+Changes in dev-26:
+- Replaced the analog clock's non-cardinal stroked hour ticks with filled vintage-style parallelogram markers.
+- 11, 1, 5, and 7 markers use horizontal inner/outer edges.
+- 10, 2, 4, and 8 markers use vertical inner/outer edges.
+- 9 and 3 markers are now crisp filled rectangles centered on the hand pivot line.
+- 12 and 6 remain numeral-only with no tick.
+- Existing background-contrast coloring for dial markers/numerals is preserved.
+
+Revert build: restored to dev-26, the first implementation of parallelogram analog hour markers.

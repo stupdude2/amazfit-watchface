@@ -1847,39 +1847,15 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
   if ((minute_index % 15) == 0) return;
 
   int32_t angle = (TRIG_MAX_ANGLE * minute_index) / 60;
+  GPoint outer = analog_ray_point(bounds, angle, 6, 6, 100);
+  GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
+  const int half_thickness = 2;
 
-  const bool diagonal_side_marker =
-      minute_index == 10 || minute_index == 20 ||
-      minute_index == 40 || minute_index == 50;
-
-  // Pull 2/4/8/10 inward from the left/right display edges while keeping each
-  // marker perfectly radial to the center pivot. Their outer point now lands
-  // roughly above/below the visual center of the 9/3 numerals rather than
-  // crowding the bezel. Both endpoints are projected along the same ray, so
-  // the marker angle still points exactly at the center dot.
-  const int marker_inset_x = diagonal_side_marker ? 13 : 6;
-  GPoint outer = analog_ray_point(bounds, angle, marker_inset_x, 6, 100);
-  GPoint inner = analog_ray_point(bounds, angle, marker_inset_x, 6, 86);
-
-  // 11, 1, 5 and 7 always use horizontal inner/outer edges. In the compact
-  // rectangular state (both top and bottom data bars visible), 10, 2, 4 and 8
-  // switch to the same horizontal-ended construction. This gives those four
-  // markers the wider vintage-car-clock profile requested for the compressed
-  // dial. As soon as either data bar hides and the analog clock expands, they
-  // return to their vertical-ended parallelogram geometry.
-  const bool compact_rectangular_state =
-      s_header_layer && s_footer_layer &&
-      !layer_get_hidden(s_header_layer) && !layer_get_hidden(s_footer_layer);
-
-  // The sharp horizontal-ended 2/4/8/10 ticks need extra visual weight in the
-  // compact dial, so keep them at 14 px there. In the expanded dial their
-  // vertical-ended shape reads naturally at the standard 10 px thickness.
-  const int half_thickness =
-      (diagonal_side_marker && compact_rectangular_state) ? 7 : 5;
+  // 11, 1, 5 and 7 use horizontal inner/outer edges. The two side edges then
+  // lean with the rectangular dial geometry to form a parallelogram.
   bool horizontal_ends =
       minute_index == 5 || minute_index == 25 ||
-      minute_index == 35 || minute_index == 55 ||
-      (compact_rectangular_state && diagonal_side_marker);
+      minute_index == 35 || minute_index == 55;
 
   if (horizontal_ends) {
     analog_fill_quad(ctx,
@@ -1889,9 +1865,8 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
                      GPoint(outer.x - half_thickness, outer.y),
                      marker_color);
   } else {
-    // In expanded layouts, 10, 2, 4 and 8 use vertical inner/outer edges,
-    // producing the complementary parallelogram orientation on the left and
-    // right halves of the larger dial.
+    // 10, 2, 4 and 8 use vertical inner/outer edges, producing the complementary
+    // parallelogram orientation on the left and right halves of the dial.
     analog_fill_quad(ctx,
                      GPoint(inner.x, inner.y - half_thickness),
                      GPoint(outer.x, outer.y - half_thickness),
@@ -1925,8 +1900,8 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   // 9 and 3 are deliberately rectangular rather than skewed. Keeping their
   // vertical end edges makes the horizontal centerline feel mechanically crisp.
   graphics_context_set_fill_color(ctx, marker_color);
-  graphics_fill_rect(ctx, GRect(left_x1, cy - 5, dash_len, 10), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(right_x1, cy - 5, dash_len, 10), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(left_x1, cy - 2, dash_len, 4), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(right_x1, cy - 2, dash_len, 4), 0, GCornerNone);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
