@@ -1,8 +1,11 @@
-# Development Build
+# Big Time development build
 
-Big Time v1.3.1 rectangular analog dev-33
+Development iteration: rectangular analog dev-34
+Public/package version remains 1.3.1.
 
-- Restores the original dev-26 parallelogram geometry.
-- Sets the standard analog hour-marker thickness to 10 px.
-- Gives the sharper 2/4/8/10 markers a slight optical boost to 12 px.
-- Sets the 3/9 rectangular markers to 10 px thick as well.
+Reverted the analog hour-marker design to the last build before parallelogram markers were introduced (dev-25 baseline).
+
+- Restored the original pre-parallelogram analog tick marks.
+- Removed all later parallelogram-specific geometry, thickness, scaling-state, and positioning experiments.
+- Preserved every feature and fix that existed through dev-25, including rectangular analog mode, dynamic bar-aware resizing, analog hand colors, second-hand color, automatic dial contrast, and the Separate Hour / Minute Colors reset behavior.
+- Wrist gesture/backlight behavior remains the normal known-good behavior restored before this baseline.
