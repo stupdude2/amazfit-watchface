@@ -1,0 +1,16 @@
+Big Time v1.4.1 Production Release Package
+
+PASS: Based on the supplied v1.4.0 config-test-fixed3 source.
+PASS: Analog clock face is available without a Pro entitlement.
+PASS: Free analog hour/minute hand colors are configurable.
+PASS: Free analog second hand and second-hand color are configurable.
+PASS: Advanced Pro layout/data customization remains entitlement-gated on-watch.
+PASS: CONFIG_TEST_MODE disabled in src/pkjs/index.js.
+PASS: CONFIG_TEST_MODE disabled in src/c/main.c.
+PASS: Production KiezelPay initialization/deinitialization path restored.
+PASS: Pebble app UUID retained.
+PASS: Package publishing version set to 1.4.1.
+PASS: Internal development version documented as 3.3.1.
+
+Production version: 1.4.1
+Development version: 3.3.1

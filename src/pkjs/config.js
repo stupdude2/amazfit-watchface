@@ -208,6 +208,33 @@ if (!edition.isPro) {
   config.push({
     "type": "section",
     "items": [
+      { "type": "heading", "defaultValue": "Clock Face" },
+      {
+        "type": "select",
+        "messageKey": "CLOCK_FACE",
+        "defaultValue": "0",
+        "label": "Clock Face",
+        "description": "Choose Big Time's original digital display or the rectangular analog face.",
+        "options": [
+          { "label": "Digital", "value": "0" },
+          { "label": "Analog", "value": "1" }
+        ]
+      },
+      { "type": "color", "messageKey": "HOUR_COLOR", "defaultValue": "0xFFFFFF",
+        "label": "Hour Hand Color", "layout": "COLOR" },
+      { "type": "color", "messageKey": "MINUTE_COLOR", "defaultValue": "0xFFFFFF",
+        "label": "Minute Hand Color", "layout": "COLOR" },
+      { "type": "toggle", "messageKey": "ANALOG_SECOND_HAND", "defaultValue": false,
+        "label": "Analog Second Hand",
+        "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." },
+      { "type": "color", "messageKey": "SECOND_HAND_COLOR", "defaultValue": "0xFFFFFF",
+        "label": "Second Hand Color", "layout": "COLOR" }
+    ]
+  });
+
+  config.push({
+    "type": "section",
+    "items": [
       { "type": "heading", "defaultValue": "Upgrade to Pro" },
       {
         "type": "text",
@@ -233,7 +260,7 @@ if (!edition.isPro) {
       },
       {
         "type": "text",
-        "defaultValue": "Pro unlocks colors, layouts, custom step goals, advanced data placement, Raise to Wake, and all advanced customization."
+        "defaultValue": "Pro unlocks advanced appearance controls, custom backgrounds and accents, layouts, custom step goals, advanced data placement, Raise to Wake, and all advanced customization."
       }
     ])
   });

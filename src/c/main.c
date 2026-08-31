@@ -509,7 +509,7 @@ static bool s_saved_settings_valid = false;
 // Emulator/configuration test mode. Enable only in dedicated test builds.
 // Bypasses Pro entitlement enforcement so CloudPebble/RePebble can exercise
 // every setting end-to-end. Publishing builds must set this to 0.
-#define CONFIG_TEST_MODE 1
+#define CONFIG_TEST_MODE 0
 
 static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 
@@ -631,7 +631,12 @@ static bool key_is_free_customization(uint32_t key) {
   return key == KEY_TIME_FORMAT ||
          key == KEY_CENTER_12H ||
          key == KEY_TEMP_UNIT ||
-         key == KEY_LANGUAGE;
+         key == KEY_LANGUAGE ||
+         key == KEY_CLOCK_FACE ||
+         key == KEY_HOUR_COLOR ||
+         key == KEY_MINUTE_COLOR ||
+         key == KEY_ANALOG_SECOND_HAND ||
+         key == KEY_SECOND_HAND_COLOR;
 }
 
 static bool key_is_pro_customization(uint32_t key) {
@@ -660,15 +665,10 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_TOP_RIGHT_TIME_ZONE:
     case KEY_LEFT_TIME_ZONE:
     case KEY_RIGHT_TIME_ZONE:
-    case KEY_HOUR_COLOR:
-    case KEY_MINUTE_COLOR:
     case KEY_SPLIT_CLOCK_COLORS:
     case KEY_FLASH_COLON:
     case KEY_BLUETOOTH_COLON:
     case KEY_ROUNDED_TIME:
-    case KEY_CLOCK_FACE:
-    case KEY_ANALOG_SECOND_HAND:
-    case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
       return true;
     default:
@@ -2061,7 +2061,7 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   analog_draw_hand_to_length(ctx, bounds, minute_angle, minute_length,
                              4, minute_color);
 
-  if (s_pro_unlocked && s_analog_second_hand) {
+  if (s_analog_second_hand) {
     // The second hand is now one continuous custom color from pivot to tip.
     // No accent/highlight segment is layered on the end.
     analog_draw_hand_to_length(ctx, bounds, second_angle, second_length,
@@ -2081,7 +2081,7 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  if (s_pro_unlocked && s_analog_clock) {
+  if (s_analog_clock) {
     draw_analog_clock(ctx, b);
     return;
   }
@@ -2327,7 +2327,7 @@ static void update_stepbar_layout(void) {
   // The analog face owns the full vertical region left by the data bars. The
   // step-progress layer may still overlay that region, but it no longer keeps
   // the analog dial artificially confined to the old digital-time rectangle.
-  if (s_pro_unlocked && s_analog_clock) {
+  if (s_analog_clock) {
     update_analog_stepbar_layer();
     update_analog_bar_layout(false);
     return;
@@ -3456,7 +3456,7 @@ static void cancel_analog_frame_animation(void) {
 }
 
 static void update_analog_bar_layout(bool animated) {
-  if (!s_clock_layer || !(s_pro_unlocked && s_analog_clock)) return;
+  if (!s_clock_layer || !s_analog_clock) return;
 
   GRect target = analog_target_clock_frame();
   GRect current = layer_get_frame(s_clock_layer);
@@ -3502,7 +3502,7 @@ static void apply_bar_visibility(void) {
 // smoothly expands into (or contracts out of) the newly available space.
 static void refresh_conditional_ui(void) {
   apply_bar_visibility();
-  if (s_pro_unlocked && s_analog_clock) {
+  if (s_analog_clock) {
     // The dev-7 path animated the analog frame here but never refreshed the
     // backlight-only step layer. As a result, the clock contracted correctly
     // while the progress bar remained hidden. Update the bar first, then start
@@ -4986,7 +4986,7 @@ static bool seconds_display_is_used(void) {
 
 static bool second_ticks_are_needed(void) {
   return (s_pro_unlocked && s_flash_colon) ||
-         (s_pro_unlocked && s_analog_clock && s_analog_second_hand) ||
+         (s_analog_clock && s_analog_second_hand) ||
          seconds_display_is_used();
 }
 

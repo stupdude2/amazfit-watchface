@@ -757,6 +757,14 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - AppMessage inbox remains 512 bytes to safely receive the expanded Clay settings payload.
 - Existing app UUID is preserved for in-place upgrades and settings continuity.
 
+
+## v3.3.1 DEV / v1.4.1 RELEASE — Free analog clock
+- Analog clock face is now available in the Free edition.
+- Free analog users can choose hour, minute, and optional second-hand colors.
+- Analog rendering and second-hand timing work without Pro entitlement.
+- Advanced layout/data controls and premium appearance options remain Pro-only.
+- Production release disables configuration test mode.
+
 ## v3.2.0 DEV — Separate hour and minute colors
 - DEVELOPMENT BUILD: KiezelPay test mode and verbose logging enabled.
 - Added opt-in Separate Hour / Minute Colors.

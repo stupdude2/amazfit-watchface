@@ -1,14 +1,11 @@
-# Big Time 1.4.0 — CloudPebble Config Test Fix 2
+# Big Time 1.4.1 — Development 3.3.1
 
-- CONFIG_TEST_MODE remains enabled.
-- In emulator test mode, @rebble/clay now owns showConfiguration and webviewclosed automatically.
-- The production manual configuration handlers no longer open/send a second config path during emulator testing.
-- KiezelPay remains disabled in test mode.
-- KiezelPay deinit is now also skipped in test mode, preventing shutdown faults from deinitializing a library that was never initialized.
-- AppMessage inbox remains 1024 bytes.
-- Publishing version remains 1.4.0.
-
-## CloudPebble config test fix 3
-- Added `WEATHER_REFRESH` as AppMessage key 56 in `package.json`.
-- Clay automatic event handling serializes every config item with a `messageKey`; the phone-only `WEATHER_REFRESH` setting previously had no numeric AppMessage mapping, producing `Unknown message key 'NaN'` in the RePebble emulator and aborting the entire settings send.
-- The watch ignores key 56; weather refresh remains phone-side. This mapping exists only so Clay can serialize the complete settings response successfully in test mode.
+- Publishing version: 1.4.1.
+- Internal development version: 3.3.1.
+- Analog clock face is now available in Free mode.
+- Free analog users can customize hour-hand, minute-hand, and optional second-hand colors.
+- Free analog users can enable or disable the analog second hand.
+- Analog rendering, frame layout, and second-hand tick cadence no longer require a Pro entitlement.
+- Pro remains required for advanced layout/data customization, background/accent customization, Raise to Wake, and other premium controls.
+- CONFIG_TEST_MODE is disabled in both PebbleKit JS and native C for publishing.
+- KiezelPay production licensing is enabled.
