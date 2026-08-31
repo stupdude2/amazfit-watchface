@@ -633,10 +633,7 @@ static bool key_is_free_customization(uint32_t key) {
          key == KEY_TEMP_UNIT ||
          key == KEY_LANGUAGE ||
          key == KEY_CLOCK_FACE ||
-         key == KEY_HOUR_COLOR ||
-         key == KEY_MINUTE_COLOR ||
-         key == KEY_ANALOG_SECOND_HAND ||
-         key == KEY_SECOND_HAND_COLOR;
+         key == KEY_ANALOG_SECOND_HAND;
 }
 
 static bool key_is_pro_customization(uint32_t key) {
@@ -650,6 +647,9 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_HEADER_MODE:
     case KEY_STEP_GOAL:
     case KEY_CLOCK_COLOR:
+    case KEY_HOUR_COLOR:
+    case KEY_MINUTE_COLOR:
+    case KEY_SECOND_HAND_COLOR:
     case KEY_BACKGROUND_COLOR:
     case KEY_TOP_LEFT_SLOT:
     case KEY_TOP_CENTER_SLOT:
@@ -2016,11 +2016,12 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   // Use the same contrast rule as the rest of Big Time: white on dark
   // backgrounds and black once the background is light enough.
   GColor marker_color = gcolor_legible_over(s_settings.background_color);
-  // Analog hands always use their dedicated hand-color settings. These default
-  // to white, independently of Accent Color and the digital split-color toggle.
-  GColor hour_color = s_hour_color;
-  GColor minute_color = s_minute_color;
-  GColor second_color = s_second_hand_color;
+  // Analog hand colors are a Pro appearance control. Free analog keeps the
+  // standard white hands even if custom colors remain persisted from a prior
+  // trial/purchase; upgrading restores those saved custom colors.
+  GColor hour_color = s_pro_unlocked ? s_hour_color : GColorWhite;
+  GColor minute_color = s_pro_unlocked ? s_minute_color : GColorWhite;
+  GColor second_color = s_pro_unlocked ? s_second_hand_color : GColorWhite;
 
   // Dial furniture is drawn first. Every hand is deliberately layered above
   // markers and numerals so a hand can never disappear behind 12/3/6/9.

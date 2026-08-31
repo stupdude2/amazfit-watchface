@@ -14,3 +14,10 @@ PASS: Internal development version documented as 3.3.1.
 
 Production version: 1.4.1
 Development version: 3.3.1
+
+Revision: Free Analog Settings Adjustment
+- Free mode exposes Clock Face (Digital/Analog) and Analog Second Hand only.
+- Analog hour/minute/second hand color controls remain Pro-only.
+- Watch-side entitlement enforcement blocks HOUR_COLOR, MINUTE_COLOR, and SECOND_HAND_COLOR for Free users.
+- Free analog renders standard white hands even when custom Pro colors remain persisted.
+- CONFIG_TEST_MODE remains disabled in native C and PebbleKit JS.

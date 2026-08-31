@@ -220,15 +220,9 @@ if (!edition.isPro) {
           { "label": "Analog", "value": "1" }
         ]
       },
-      { "type": "color", "messageKey": "HOUR_COLOR", "defaultValue": "0xFFFFFF",
-        "label": "Hour Hand Color", "layout": "COLOR" },
-      { "type": "color", "messageKey": "MINUTE_COLOR", "defaultValue": "0xFFFFFF",
-        "label": "Minute Hand Color", "layout": "COLOR" },
       { "type": "toggle", "messageKey": "ANALOG_SECOND_HAND", "defaultValue": false,
         "label": "Analog Second Hand",
-        "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." },
-      { "type": "color", "messageKey": "SECOND_HAND_COLOR", "defaultValue": "0xFFFFFF",
-        "label": "Second Hand Color", "layout": "COLOR" }
+        "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." }
     ]
   });
 
