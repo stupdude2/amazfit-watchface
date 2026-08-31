@@ -5469,7 +5469,9 @@ static void deinit(void) {
     events_app_message_unsubscribe(s_appmsg_dropped_handle);
     s_appmsg_handlers_registered = false;
   }
+#if !CONFIG_TEST_MODE
   kiezelpay_deinit();
+#endif
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();

@@ -466,7 +466,13 @@ var sessionWatchLanguage = null;
 var pendingSavedLanguage = null;
 var pendingOpenSettings = false;
 
-var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
+// In CloudPebble/RePebble config-test mode, let Clay own the configuration
+// lifecycle end-to-end. pypkjs reliably supports Clay's built-in
+// showConfiguration/webviewclosed handlers, whereas our production manual
+// wrapper is designed around the phone app's lifecycle.
+var clay = new Clay(clayConfig, customClay, {
+  autoHandleEvents: CONFIG_TEST_MODE
+});
 
 // Explicitly own the configuration-page lifecycle instead of relying on
 // Clay's automatic Pebble event registration. This is more robust alongside
@@ -567,12 +573,9 @@ function openSettingsPage() {
 
 Pebble.addEventListener('showConfiguration', function() {
   if (CONFIG_TEST_MODE) {
-    sessionEntitlement = 2;
-    sessionProUnlocked = true;
-    sessionLicenseKnown = true;
-    pendingOpenSettings = false;
-    console.log('CONFIG TEST MODE: opening all Pro settings without license check');
-    openSettingsPage();
+    // Clay's automatic handler owns this event in emulator test mode.
+    // Do not open a second generated URL from the production wrapper.
+    console.log('CONFIG TEST MODE: Clay automatic showConfiguration handler active');
     return;
   }
 
@@ -651,6 +654,13 @@ Pebble.addEventListener('showConfiguration', function() {
 
 
 Pebble.addEventListener('webviewclosed', function(e) {
+  if (CONFIG_TEST_MODE) {
+    // Clay's automatic handler parses the response and calls sendAppMessage.
+    // Avoid a duplicate/manual parse in pypkjs.
+    console.log('CONFIG TEST MODE: Clay automatic webviewclosed handler active');
+    return;
+  }
+
   if (!e || !e.response) {
     console.log('Configuration closed without saving');
     return;
