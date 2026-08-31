@@ -1,13 +1,8 @@
-# Development Build — dev-35
+# Release Package — 1.4.0
 
-Based on the pre-parallelogram dev-34 baseline.
+Production package based on dev-36.
 
-- Replaced analog hour-marker stroke lines with filled tapered rectangular markers.
-- Markers are 4 px thick on their inner edge and 6 px thick on their outer edge.
-- Preserved the existing marker positions, lengths, scaling behavior, and automatic dial contrast colors.
-- 3/9 use the same subtle outward flare while remaining centered on the horizontal axis.
-- No parallelogram geometry from dev-26+ was reintroduced.
-
-
-## dev-36
-- Increased tapered analog hour markers from 4/6 px to 6/8 px (inner/outer).
+- Analog hour markers use tapered filled rectangles.
+- Marker thickness is 6 px on the inner edge and 8 px on the outer edge.
+- No parallelogram marker experiments are included.
+- Package version: 1.4.0.

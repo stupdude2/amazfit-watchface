@@ -1,0 +1,10 @@
+Big Time v1.4.0 Production Release Package
+
+PASS: Based on the approved dev-36 watchface source.
+PASS: Tapered analog hour markers use 6 px inner / 8 px outer thickness.
+PASS: Pebble app UUID retained.
+PASS: Production KiezelPay integration retained.
+PASS: Existing settings/persistence schema retained.
+PASS: Package version set to 1.4.0.
+
+Production version: 1.4.0
