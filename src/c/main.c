@@ -5378,6 +5378,18 @@ static void init(void) {
   // A validated KiezelPay purchase is sticky across watchface process restarts.
   // Restore it immediately so paying users never flash/revert to Free merely
   // because Bluetooth/network/KiezelPay status refresh is delayed.
+#if CONFIG_TEST_MODE
+  // Emulator configuration test mode is permanently Pro for this process.
+  // Do not run the normal startup downgrade path: it can overwrite the very
+  // settings we are trying to preview before the first AppMessage arrives.
+  s_kiezelpay_licensed = true;
+  s_kiezelpay_status_known = true;
+  s_pro_unlocked = true;
+  if (s_saved_settings_valid) {
+    s_settings = s_saved_settings;
+  }
+  APP_LOG(APP_LOG_LEVEL_INFO, "CONFIG TEST MODE: Pro forced unlocked");
+#else
   if (purchased_pro_is_persisted()) {
     s_kiezelpay_licensed = true;
     s_kiezelpay_status_known = true;
@@ -5390,6 +5402,7 @@ static void init(void) {
     s_pro_unlocked = false;
     enforce_free_defaults();
   }
+#endif
 
   s_window = window_create();
   window_set_background_color(s_window, s_settings.background_color);
@@ -5404,10 +5417,12 @@ static void init(void) {
   tick_timer_service_subscribe(
       s_second_tick_mode ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
 
-  // KiezelPay and Big Time both use AppMessage. pebble-events allows both
-  // subscribers to coexist without one replacing the other's callbacks.
+  // KiezelPay is intentionally not initialized in emulator config-test mode.
+  // This removes licensing AppMessage traffic from the test path entirely.
+#if !CONFIG_TEST_MODE
   kiezelpay_set_event_handler(kiezelpay_event_callback);
   kiezelpay_init();
+#endif
 
   s_appmsg_received_handle =
       events_app_message_register_inbox_received(inbox_received_handler, NULL);
@@ -5421,7 +5436,10 @@ static void init(void) {
   // entire message, making it look like none of the settings work.
   //
   // Keep the outbox unchanged; only the incoming configuration needs room.
-  events_app_message_request_inbox_size(512);
+  // The full Pro Clay page sends a large dictionary on every Save. 1024 bytes
+  // gives the emulator ample headroom as new settings are added, avoiding a
+  // silent APP_MSG_BUFFER_OVERFLOW that looks like Settings did nothing.
+  events_app_message_request_inbox_size(1024);
   events_app_message_request_outbox_size(256);
   events_app_message_open();
 

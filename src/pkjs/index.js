@@ -6,18 +6,34 @@
 // Clay automatically opens the settings page and sends configured messageKey
 // values to the watch when Save Settings is pressed.
 var Clay = require('@rebble/clay');
-var clayConfig = require('./config');
-
-// Official KiezelPay phone-side companion. Keep verbose logging enabled while
-// test purchases/trials are being validated; disable before store release.
-var KIEZELPAY_LOGGING = true;
 
 // CloudPebble/RePebble configuration test mode. When enabled, the settings
 // page always exposes Pro controls without requiring a KiezelPay entitlement.
 // This is for emulator/UI testing only and must be false for publishing builds.
 var CONFIG_TEST_MODE = true;
+
+// Set the edition BEFORE config.js is first required. pypkjs/CloudPebble does
+// not reliably expose Node's require.cache, so rebuilding config.js later can
+// otherwise leave the first (Free) config snapshot cached for the whole run.
+var editionState = require('./edition');
+if (CONFIG_TEST_MODE) {
+  editionState.entitlement = 2;
+  editionState.isTrial = false;
+  editionState.isPurchased = true;
+  editionState.trialRemaining = 0;
+  editionState.trialUsed = true;
+  editionState.isPro = true;
+  editionState.configTest = true;
+}
+
+var clayConfig = require('./config');
+
+// Official KiezelPay phone-side companion. Test mode deliberately does not
+// start it; licensing traffic is irrelevant in the emulator and can race with
+// configuration AppMessages.
+var KIEZELPAY_LOGGING = true;
 var KiezelPay = require('kiezelpay-core');
-var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
+var kiezelpay = CONFIG_TEST_MODE ? null : new KiezelPay(KIEZELPAY_LOGGING);
 
 // Injected into Clay's generated settings page. Clay's custom-function API
 // exposes each config item through getItemByMessageKey()/getItemById(), and
@@ -1098,10 +1114,14 @@ Pebble.addEventListener('appmessage', function(e) {
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready');
 
-  // PebbleKit JS localStorage survives watchapp uninstall/reinstall. If an
-  // existing trial is still active, restore its ORIGINAL expiry to the watch.
-  // If it already expired, do nothing so reinstalling cannot grant another one.
-  restorePersistedTrialToWatch();
+  // Licensing is intentionally absent in emulator config-test mode. Sending
+  // trial/license traffic here only creates unnecessary AppMessage contention.
+  if (!CONFIG_TEST_MODE) {
+    // PebbleKit JS localStorage survives watchapp uninstall/reinstall. If an
+    // existing trial is still active, restore its ORIGINAL expiry to the watch.
+    // If it already expired, do nothing so reinstalling cannot grant another one.
+    restorePersistedTrialToWatch();
+  }
 
   var cachedWeather = readCachedWeather();
   if (cachedWeather) {

@@ -1,11 +1,12 @@
-# Big Time 1.4.0 — CloudPebble Config Test Build
+# Big Time 1.4.0 — CloudPebble Config Test Fix
 
-This build is based on the approved 1.4.0 release code and enables CONFIG_TEST_MODE for emulator/web configuration testing.
+Dedicated emulator build for testing all Pro settings in CloudPebble/RePebble.
 
-- All Pro controls are exposed in Clay without a KiezelPay entitlement.
-- Pro AppMessage settings are accepted by the watch/emulator so changes can be tested end-to-end.
-- The watch reports a Pro entitlement to the settings UI while test mode is active.
-- KiezelPay production identifiers remain present, but entitlement enforcement is bypassed only by the explicit test-mode flags.
-- Package version remains 1.4.0.
+Changes from the first config-test build:
+- Pro edition state is forced before config.js is first loaded, avoiding stale Free config caching in pypkjs.
+- KiezelPay is not initialized on either JS or watch side while CONFIG_TEST_MODE is enabled.
+- Trial/license restore traffic is suppressed in test mode.
+- Watch starts permanently Pro in test mode and never applies Free defaults.
+- AppMessage inbox increased to 1024 bytes for the full Pro Clay settings dictionary.
 
-IMPORTANT: Do not publish this ZIP. Publishing builds must set CONFIG_TEST_MODE to false/0 in both src/pkjs/index.js and src/c/main.c.
+Do not publish this build. Disable CONFIG_TEST_MODE and restore normal licensing before release.
