@@ -165,6 +165,24 @@ var config = [
         "defaultValue": true,
         "label": "Center 12 Hour Clock",
         "description": "Centers H:MM when the hour is 1-9. Available in the free version."
+      },
+      {
+        "type": "select",
+        "messageKey": "CLOCK_FACE",
+        "defaultValue": "0",
+        "label": "Clock Face",
+        "description": "Choose Big Time's original digital display or the rectangular analog face. Both are available in the free version.",
+        "options": [
+          { "label": "Digital", "value": "0" },
+          { "label": "Analog", "value": "1" }
+        ]
+      },
+      {
+        "type": "toggle",
+        "messageKey": "ANALOG_SECOND_HAND",
+        "defaultValue": false,
+        "label": "Analog Second Hand",
+        "description": "Show a moving second hand on the analog face. Available in the free version."
       }
     ]
   },
@@ -208,27 +226,6 @@ if (!edition.isPro) {
   config.push({
     "type": "section",
     "items": [
-      { "type": "heading", "defaultValue": "Clock Face" },
-      {
-        "type": "select",
-        "messageKey": "CLOCK_FACE",
-        "defaultValue": "0",
-        "label": "Clock Face",
-        "description": "Choose Big Time's original digital display or the rectangular analog face.",
-        "options": [
-          { "label": "Digital", "value": "0" },
-          { "label": "Analog", "value": "1" }
-        ]
-      },
-      { "type": "toggle", "messageKey": "ANALOG_SECOND_HAND", "defaultValue": false,
-        "label": "Analog Second Hand",
-        "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." }
-    ]
-  });
-
-  config.push({
-    "type": "section",
-    "items": [
       { "type": "heading", "defaultValue": "Upgrade to Pro" },
       {
         "type": "text",
@@ -254,7 +251,7 @@ if (!edition.isPro) {
       },
       {
         "type": "text",
-        "defaultValue": "Pro unlocks advanced appearance controls, custom backgrounds and accents, layouts, custom step goals, advanced data placement, Raise to Wake, and all advanced customization."
+        "defaultValue": "Pro unlocks colors, layouts, custom step goals, advanced data placement, Raise to Wake, and all advanced customization."
       }
     ])
   });
@@ -279,16 +276,6 @@ if (edition.isPro) {
       { "type": "toggle", "messageKey": "BLUETOOTH_COLON", "defaultValue": false,
         "label": "Bluetooth Colon",
         "description": "Use the bottom colon dot as a Bluetooth indicator. Filled when connected; outlined when disconnected." },
-      { "type": "select", "messageKey": "CLOCK_FACE", "defaultValue": "0",
-        "label": "Clock Face",
-        "description": "Choose Big Time's original digital display or the rectangular analog face.",
-        "options": [
-          { "label": "Digital", "value": "0" },
-          { "label": "Analog", "value": "1" }
-        ] },
-      { "type": "toggle", "messageKey": "ANALOG_SECOND_HAND", "defaultValue": false,
-        "label": "Analog Second Hand",
-        "description": "Show a moving second hand on the analog face. Uses per-second updates while enabled." },
       { "type": "color", "messageKey": "SECOND_HAND_COLOR", "defaultValue": "0xFFFFFF",
         "label": "Second Hand Color", "layout": "COLOR" },
       { "type": "select", "messageKey": "ROUNDED_TIME", "defaultValue": "0",

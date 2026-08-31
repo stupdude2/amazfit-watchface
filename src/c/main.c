@@ -647,9 +647,6 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_HEADER_MODE:
     case KEY_STEP_GOAL:
     case KEY_CLOCK_COLOR:
-    case KEY_HOUR_COLOR:
-    case KEY_MINUTE_COLOR:
-    case KEY_SECOND_HAND_COLOR:
     case KEY_BACKGROUND_COLOR:
     case KEY_TOP_LEFT_SLOT:
     case KEY_TOP_CENTER_SLOT:
@@ -665,10 +662,13 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_TOP_RIGHT_TIME_ZONE:
     case KEY_LEFT_TIME_ZONE:
     case KEY_RIGHT_TIME_ZONE:
+    case KEY_HOUR_COLOR:
+    case KEY_MINUTE_COLOR:
     case KEY_SPLIT_CLOCK_COLORS:
     case KEY_FLASH_COLON:
     case KEY_BLUETOOTH_COLON:
     case KEY_ROUNDED_TIME:
+    case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
       return true;
     default:
@@ -1059,8 +1059,9 @@ static void settings_save(void) {
   }
 
   // While Free, s_settings contains the enforced Free presentation. Never save
-  // those defaults over the user's premium preferences. Only the two controls
-  // available in Free are allowed to update the preserved preference record.
+  // those defaults over the user's premium preferences. Free controls stored
+  // inside WatchfaceSettings update the preserved preference record here; the
+  // analog face and second-hand preferences use their own persist keys.
   if (!s_saved_settings_valid) {
     s_saved_settings = s_settings;
     s_saved_settings_valid = true;
@@ -2016,9 +2017,9 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   // Use the same contrast rule as the rest of Big Time: white on dark
   // backgrounds and black once the background is light enough.
   GColor marker_color = gcolor_legible_over(s_settings.background_color);
-  // Analog hand colors are a Pro appearance control. Free analog keeps the
-  // standard white hands even if custom colors remain persisted from a prior
-  // trial/purchase; upgrading restores those saved custom colors.
+  // Pro users can customize each analog hand. Free users get the complete
+  // analog face (including the optional second hand) with fixed white hands,
+  // so analog is fully usable without exposing premium color controls.
   GColor hour_color = s_pro_unlocked ? s_hour_color : GColorWhite;
   GColor minute_color = s_pro_unlocked ? s_minute_color : GColorWhite;
   GColor second_color = s_pro_unlocked ? s_second_hand_color : GColorWhite;

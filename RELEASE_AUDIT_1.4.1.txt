@@ -1,23 +1,14 @@
 Big Time v1.4.1 Production Release Package
 
-PASS: Based on the supplied v1.4.0 config-test-fixed3 source.
-PASS: Analog clock face is available without a Pro entitlement.
-PASS: Free analog hour/minute hand colors are configurable.
-PASS: Free analog second hand and second-hand color are configurable.
-PASS: Advanced Pro layout/data customization remains entitlement-gated on-watch.
-PASS: CONFIG_TEST_MODE disabled in src/pkjs/index.js.
 PASS: CONFIG_TEST_MODE disabled in src/c/main.c.
-PASS: Production KiezelPay initialization/deinitialization path restored.
-PASS: Pebble app UUID retained.
-PASS: Package publishing version set to 1.4.1.
-PASS: Internal development version documented as 3.3.1.
+PASS: CONFIG_TEST_MODE disabled in src/pkjs/index.js.
+PASS: KiezelPay production object enabled.
+PASS: KiezelPay verbose logging disabled.
+PASS: Free analog face enabled.
+PASS: Free analog second hand enabled.
+PASS: Analog color controls remain Pro-only.
+PASS: Digital-only settings disable when Analog is selected.
+PASS: WEATHER_REFRESH message key mapping retained.
+PASS: Package version set to 1.4.1.
 
 Production version: 1.4.1
-Development version: 3.3.1
-
-Revision: Free Analog Settings Adjustment
-- Free mode exposes Clock Face (Digital/Analog) and Analog Second Hand only.
-- Analog hour/minute/second hand color controls remain Pro-only.
-- Watch-side entitlement enforcement blocks HOUR_COLOR, MINUTE_COLOR, and SECOND_HAND_COLOR for Free users.
-- Free analog renders standard white hands even when custom Pro colors remain persisted.
-- CONFIG_TEST_MODE remains disabled in native C and PebbleKit JS.

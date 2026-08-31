@@ -1,11 +1,12 @@
-# Big Time 1.4.1 — Development 3.3.1
+# Big Time 1.4.1 — Production Publishing Build
 
-- Publishing version: 1.4.1.
-- Internal development version: 3.3.1.
-- Analog clock face is now available in Free mode.
-- Free analog uses the standard hand colors; analog hand-color customization remains Pro-only.
-- Free analog users can enable or disable the analog second hand.
-- Analog rendering, frame layout, and second-hand tick cadence no longer require a Pro entitlement.
-- Pro remains required for advanced layout/data customization, background/accent customization, Raise to Wake, and other premium controls.
-- CONFIG_TEST_MODE is disabled in both PebbleKit JS and native C for publishing.
-- KiezelPay production licensing is enabled.
+Production package based on the approved 1.4.0 CloudPebble config-test/free-analog codebase.
+
+- Analog clock face is available in Free.
+- Analog second hand option is available in Free.
+- Analog hand color customization remains Pro-only.
+- Seconds Colon, Bluetooth Colon, and Time Style are disabled in Settings when Analog is selected.
+- CloudPebble CONFIG_TEST_MODE is disabled in both C and PebbleKit JS.
+- KiezelPay production licensing remains enabled; verbose KiezelPay logging is disabled.
+- WEATHER_REFRESH AppMessage key 56 is retained so Clay settings serialize correctly.
+- Package version: 1.4.1.

@@ -31,7 +31,7 @@ var clayConfig = require('./config');
 // Official KiezelPay phone-side companion. Test mode deliberately does not
 // start it; licensing traffic is irrelevant in the emulator and can race with
 // configuration AppMessages.
-var KIEZELPAY_LOGGING = true;
+var KIEZELPAY_LOGGING = false;
 var KiezelPay = require('kiezelpay-core');
 var kiezelpay = CONFIG_TEST_MODE ? null : new KiezelPay(KIEZELPAY_LOGGING);
 
@@ -158,10 +158,16 @@ function customClay(minified) {
     var clockFace = clayPage.getItemByMessageKey('CLOCK_FACE');
     var analogSecondHand = clayPage.getItemByMessageKey('ANALOG_SECOND_HAND');
     var secondHandColor = clayPage.getItemByMessageKey('SECOND_HAND_COLOR');
+    var secondsColon = clayPage.getItemByMessageKey('FLASH_COLON');
+    var bluetoothColon = clayPage.getItemByMessageKey('BLUETOOTH_COLON');
+    var timeStyle = clayPage.getItemByMessageKey('ROUNDED_TIME');
 
     // In digital mode, Hour/Minute Color remain governed by the existing split
-    // toggle. In analog mode they are the actual hand colors, so always expose
-    // them. Second-hand controls only belong to the analog face.
+    // toggle. In analog mode they are the actual hand colors for Pro users.
+    // The analog face and its second-hand toggle are available to Free users,
+    // while hand-color controls remain part of Pro. Digital-only controls are
+    // disabled whenever Analog is selected so their state is preserved but it
+    // is clear that they do not apply to the analog face.
     function syncClockColorControls() {
       var analog = clockFace && String(clockFace.get()) === '1';
       var split = splitClockColors && !!splitClockColors.get();
@@ -183,6 +189,19 @@ function customClay(minified) {
       if (secondHandColor) {
         if (analog) secondHandColor.show();
         else secondHandColor.hide();
+      }
+
+      if (secondsColon) {
+        if (analog) secondsColon.disable();
+        else secondsColon.enable();
+      }
+      if (bluetoothColon) {
+        if (analog) bluetoothColon.disable();
+        else bluetoothColon.enable();
+      }
+      if (timeStyle) {
+        if (analog) timeStyle.disable();
+        else timeStyle.enable();
       }
     }
 
