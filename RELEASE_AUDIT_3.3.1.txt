@@ -1,0 +1,14 @@
+Big Time v3.3.1 Production Release Package
+
+PASS: CONFIG_TEST_MODE disabled in src/c/main.c.
+PASS: CONFIG_TEST_MODE disabled in src/pkjs/index.js.
+PASS: KiezelPay production object enabled.
+PASS: KiezelPay verbose logging disabled.
+PASS: Free analog face enabled.
+PASS: Free analog second hand enabled.
+PASS: Analog color controls remain Pro-only.
+PASS: Digital-only settings disable when Analog is selected.
+PASS: WEATHER_REFRESH message key mapping retained.
+PASS: Package version set to 3.3.1.
+
+Production version: 3.3.1

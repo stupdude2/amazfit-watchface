@@ -1,4 +1,4 @@
-# Big Time 1.4.1 — Production Publishing Build
+# Big Time 3.3.1 — Production Publishing Build
 
 Production package based on the approved 1.4.0 CloudPebble config-test/free-analog codebase.
 
@@ -9,4 +9,4 @@ Production package based on the approved 1.4.0 CloudPebble config-test/free-anal
 - CloudPebble CONFIG_TEST_MODE is disabled in both C and PebbleKit JS.
 - KiezelPay production licensing remains enabled; verbose KiezelPay logging is disabled.
 - WEATHER_REFRESH AppMessage key 56 is retained so Clay settings serialize correctly.
-- Package version: 1.4.1.
+- Package version: 3.3.1.
