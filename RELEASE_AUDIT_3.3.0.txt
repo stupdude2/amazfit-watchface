@@ -1,0 +1,11 @@
+Big Time v3.3.0 Production Release Package
+
+PASS: Code-identical to the v1.4.0 production package except for package version metadata.
+PASS: Based on the approved dev-36 watchface source.
+PASS: Tapered analog hour markers use 6 px inner / 8 px outer thickness.
+PASS: Pebble app UUID retained.
+PASS: Production KiezelPay integration retained.
+PASS: Existing settings/persistence schema retained.
+PASS: Package version set to 3.3.0 for Rebble publishing/version continuity.
+
+Production version: 3.3.0
