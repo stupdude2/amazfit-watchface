@@ -1,8 +1,11 @@
-# Release Package — 3.3.0
+# Big Time 1.4.0 — CloudPebble Config Test Build
 
-Production package based on dev-36 and code-identical to the 1.4.0 release except for package version metadata.
+This build is based on the approved 1.4.0 release code and enables CONFIG_TEST_MODE for emulator/web configuration testing.
 
-- Analog hour markers use tapered filled rectangles.
-- Marker thickness is 6 px on the inner edge and 8 px on the outer edge.
-- No parallelogram marker experiments are included.
-- Package version: 3.3.0.
+- All Pro controls are exposed in Clay without a KiezelPay entitlement.
+- Pro AppMessage settings are accepted by the watch/emulator so changes can be tested end-to-end.
+- The watch reports a Pro entitlement to the settings UI while test mode is active.
+- KiezelPay production identifiers remain present, but entitlement enforcement is bypassed only by the explicit test-mode flags.
+- Package version remains 1.4.0.
+
+IMPORTANT: Do not publish this ZIP. Publishing builds must set CONFIG_TEST_MODE to false/0 in both src/pkjs/index.js and src/c/main.c.

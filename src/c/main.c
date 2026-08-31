@@ -506,7 +506,12 @@ static bool s_saved_settings_valid = false;
 // call license_set_pro(true/false) from its license callback.
 // Default is free/locked so a failed or unavailable license check never grants
 // premium features accidentally.
-static bool s_pro_unlocked = false;
+// Emulator/configuration test mode. Enable only in dedicated test builds.
+// Bypasses Pro entitlement enforcement so CloudPebble/RePebble can exercise
+// every setting end-to-end. Publishing builds must set this to 0.
+#define CONFIG_TEST_MODE 1
+
+static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 
 // Big Time's trial is deliberately user-started rather than KiezelPay's
 // automatic timed trial. This preserves a permanently usable Free edition.
@@ -4051,11 +4056,15 @@ static void license_send_status_to_phone(void) {
   //   1 = Free Trial
   //   2 = Purchased / restored Pro
   uint8_t entitlement = 0;
+#if CONFIG_TEST_MODE
+  entitlement = 2;
+#else
   if (s_kiezelpay_licensed || purchased_pro_is_persisted()) {
     entitlement = 2;
   } else if (s_trial_active && s_pro_unlocked) {
     entitlement = 1;
   }
+#endif
 
   dict_write_uint8(iter, KEY_PRO_LICENSE, entitlement);
   dict_write_uint8(iter, KEY_LANGUAGE, s_settings.language);
@@ -4125,6 +4134,9 @@ static void license_refresh_ui(void) {
 }
 
 static void license_set_pro(bool unlocked) {
+#if CONFIG_TEST_MODE
+  unlocked = true;
+#endif
   if (s_pro_unlocked == unlocked) {
     license_send_status_to_phone();
     return;
@@ -4241,7 +4253,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
     // Security boundary: Pro controls are enforced on-watch, not just hidden in
     // the settings page. A crafted AppMessage cannot unlock premium settings.
-    if (!s_pro_unlocked && key_is_pro_customization(t->key)) {
+    if (!CONFIG_TEST_MODE && !s_pro_unlocked && key_is_pro_customization(t->key)) {
       APP_LOG(APP_LOG_LEVEL_WARNING, "Ignoring locked Pro setting key=%lu",
               (unsigned long)t->key);
       continue;

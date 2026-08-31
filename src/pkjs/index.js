@@ -11,6 +11,11 @@ var clayConfig = require('./config');
 // Official KiezelPay phone-side companion. Keep verbose logging enabled while
 // test purchases/trials are being validated; disable before store release.
 var KIEZELPAY_LOGGING = true;
+
+// CloudPebble/RePebble configuration test mode. When enabled, the settings
+// page always exposes Pro controls without requiring a KiezelPay entitlement.
+// This is for emulator/UI testing only and must be false for publishing builds.
+var CONFIG_TEST_MODE = true;
 var KiezelPay = require('kiezelpay-core');
 var kiezelpay = new KiezelPay(KIEZELPAY_LOGGING);
 
@@ -476,6 +481,11 @@ function forceFullLanguageOptions(configItems) {
 
 function openSettingsPage() {
   try {
+    if (CONFIG_TEST_MODE) {
+      sessionEntitlement = 2;
+      sessionProUnlocked = true;
+      sessionLicenseKnown = true;
+    }
     // Rebuild Clay with the current session entitlement so Pro controls are
     // shown only after the watch has actually confirmed a license.
     var editionModule = require('./edition');
@@ -540,6 +550,16 @@ function openSettingsPage() {
 }
 
 Pebble.addEventListener('showConfiguration', function() {
+  if (CONFIG_TEST_MODE) {
+    sessionEntitlement = 2;
+    sessionProUnlocked = true;
+    sessionLicenseKnown = true;
+    pendingOpenSettings = false;
+    console.log('CONFIG TEST MODE: opening all Pro settings without license check');
+    openSettingsPage();
+    return;
+  }
+
   // Purchased Pro is stable enough to open immediately. This cached value only
   // controls which Clay controls are shown; C-side licensing remains the
   // authority and still rejects locked Pro AppMessage keys.
@@ -1095,6 +1115,18 @@ Pebble.addEventListener('ready', function() {
 // Runtime Pro status is authoritative from the watch/C side.
 Pebble.addEventListener('appmessage', function(e) {
   if (!e || !e.payload || typeof e.payload.PRO_LICENSE === 'undefined') return;
+
+  if (CONFIG_TEST_MODE) {
+    sessionEntitlement = 2;
+    sessionProUnlocked = true;
+    sessionLicenseKnown = true;
+    console.log('CONFIG TEST MODE: ignoring runtime license state for settings UI');
+    if (pendingOpenSettings) {
+      pendingOpenSettings = false;
+      openSettingsPage();
+    }
+    return;
+  }
 
   sessionEntitlement = Number(e.payload.PRO_LICENSE);
   if (isNaN(sessionEntitlement) || sessionEntitlement < 0 || sessionEntitlement > 2) {
