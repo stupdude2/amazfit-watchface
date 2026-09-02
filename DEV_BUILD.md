@@ -1,4 +1,4 @@
-# Big Time v1.4.2 — Production Release
+# Big Time v3.3.2 — Production Release
 
 Publishable production build.
 
@@ -17,4 +17,4 @@ Publishing safeguards:
 - KiezelPay production integration enabled
 - KIEZELPAY_LOGGING = false
 - UUID unchanged: ced51275-d445-4b7e-89f6-9e41110ed4da
-- Package version: 1.4.2
+- Package version: 3.3.2
