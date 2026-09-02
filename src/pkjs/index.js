@@ -149,6 +149,32 @@ function customClay(minified) {
       progressTrackBattery.on('change', syncProgressSource);
     }
 
+    // Migrate the old combined progress-bar mode to the new independent
+    // Style + Visibility controls. Clay may still have values 2 or 5-8 saved
+    // from v1.4.1, even though those values are no longer style choices.
+    var stepbarStyle = clayPage.getItemByMessageKey('STEPBAR_MODE');
+    var stepbarVisibility = clayPage.getItemByMessageKey('STEPBAR_VISIBILITY');
+    if (stepbarStyle && stepbarVisibility) {
+      var legacyStepbarMode = String(stepbarStyle.get());
+      var migratedStyle = null;
+      var migratedVisibility = null;
+      if (legacyStepbarMode === '2') {
+        migratedStyle = '0'; migratedVisibility = '2';
+      } else if (legacyStepbarMode === '5') {
+        migratedStyle = '0'; migratedVisibility = '1';
+      } else if (legacyStepbarMode === '6') {
+        migratedStyle = '1'; migratedVisibility = '1';
+      } else if (legacyStepbarMode === '7') {
+        migratedStyle = '3'; migratedVisibility = '1';
+      } else if (legacyStepbarMode === '8') {
+        migratedStyle = '4'; migratedVisibility = '1';
+      }
+      if (migratedStyle !== null) {
+        stepbarStyle.set(migratedStyle);
+        stepbarVisibility.set(migratedVisibility);
+      }
+    }
+
     // Split clock colors are opt-in for backward compatibility. Existing users
     // keep their single Clock Color until they explicitly enable this toggle.
     var splitClockColors =
@@ -364,6 +390,7 @@ function customClay(minified) {
 
         setValue('STEP_GOAL', 5000);
         setValue('STEPBAR_MODE', '0');
+        setValue('STEPBAR_VISIBILITY', '0');
 
         closeOverlay();
 

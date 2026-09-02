@@ -327,6 +327,8 @@ if (edition.isPro) {
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
+          { "label": "Show With Tap/Shake", "value": "3" },
+          { "label": "Show With Tap/Shake/Backlight", "value": "4" },
           { "label": "Always Hidden", "value": "2" }
         ]
       }
@@ -351,6 +353,8 @@ if (edition.isPro) {
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
+          { "label": "Show With Tap/Shake", "value": "3" },
+          { "label": "Show With Tap/Shake/Backlight", "value": "4" },
           { "label": "Always Hidden", "value": "2" }
         ]
       }
@@ -377,13 +381,19 @@ if (edition.isPro) {
         "options": [
           { "label": "Mirrored Below Time", "value": "0" },
           { "label": "Left to Right Below Time", "value": "1" },
-          { "label": "Always Hidden", "value": "2" },
           { "label": "Mirrored Above Time", "value": "3" },
-          { "label": "Left to Right Above Time", "value": "4" },
-          { "label": "Mirrored Below Time — With Backlight", "value": "5" },
-          { "label": "Left to Right Below Time — With Backlight", "value": "6" },
-          { "label": "Mirrored Above Time — With Backlight", "value": "7" },
-          { "label": "Left to Right Above Time — With Backlight", "value": "8" }
+          { "label": "Left to Right Above Time", "value": "4" }
+        ]
+      },
+      {
+        "type": "select", "messageKey": "STEPBAR_VISIBILITY", "defaultValue": "0",
+        "serializeValueAs": "integer", "label": "Progress Bar Visibility",
+        "options": [
+          { "label": "Always Visible", "value": "0" },
+          { "label": "Show With Backlight", "value": "1" },
+          { "label": "Show With Tap/Shake", "value": "3" },
+          { "label": "Show With Tap/Shake/Backlight", "value": "4" },
+          { "label": "Always Hidden", "value": "2" }
         ]
       }
     ]

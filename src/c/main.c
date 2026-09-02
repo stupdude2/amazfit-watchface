@@ -34,7 +34,8 @@
 // ── Step bar ──────────────────────────────────────────────────────────────────
 // Step-bar layout helpers are declared before the draw proc because C99 does not
 // allow implicit function declarations.
-static bool stepbar_is_backlight_only(void);
+static bool stepbar_uses_backlight(void);
+static bool stepbar_uses_tap_shake(void);
 static bool stepbar_is_above(void);
 static bool stepbar_is_left_to_right(void);
 static bool conditional_ui_is_visible(void);
@@ -141,6 +142,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
+#define KEY_STEPBAR_VISIBILITY       57
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -194,7 +196,9 @@ typedef enum {
 typedef enum {
   BAR_ALWAYS = 0,
   BAR_BACKLIGHT = 1,
-  BAR_HIDDEN = 2
+  BAR_HIDDEN = 2,
+  BAR_TAP_SHAKE = 3,
+  BAR_TAP_SHAKE_BACKLIGHT = 4
 } BarVisibilityMode;
 
 typedef enum {
@@ -502,6 +506,10 @@ static WatchfaceSettings s_settings;
 static WatchfaceSettings s_saved_settings;
 static bool s_saved_settings_valid = false;
 
+// Step progress style stays in the legacy STEPBAR_MODE byte so existing users
+// keep their layout. Visibility is now independent and persisted separately.
+static uint8_t s_stepbar_visibility = BAR_ALWAYS;
+
 // Runtime Pro entitlement. KiezelPay's product-specific Pebble library should
 // call license_set_pro(true/false) from its license callback.
 // Default is free/locked so a failed or unavailable license check never grants
@@ -534,6 +542,7 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define CLOCK_FACE_PERSIST_KEY       1114
 #define ANALOG_SECOND_PERSIST_KEY    1115
 #define SECOND_HAND_COLOR_PERSIST_KEY 1116
+#define STEPBAR_VISIBILITY_PERSIST_KEY 1117
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -644,6 +653,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_RIGHT_SLOT:
     case KEY_FOOTER_MODE:
     case KEY_STEPBAR_MODE:
+    case KEY_STEPBAR_VISIBILITY:
     case KEY_HEADER_MODE:
     case KEY_STEP_GOAL:
     case KEY_CLOCK_COLOR:
@@ -695,8 +705,8 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
           settings->top_center_slot == SLOT_SECONDS ||
           settings->top_center_slot == SLOT_RAIN_CHANCE) &&
          settings->top_right_slot <= SLOT_PLUS2_FORECAST &&
-         settings->footer_mode <= BAR_HIDDEN &&
-         settings->header_mode <= BAR_HIDDEN &&
+         settings->footer_mode <= BAR_TAP_SHAKE_BACKLIGHT &&
+         settings->header_mode <= BAR_TAP_SHAKE_BACKLIGHT &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
          settings->step_goal >= 1000 && settings->step_goal <= 30000 &&
          settings->temp_unit <= TEMP_CELSIUS &&
@@ -1249,6 +1259,66 @@ static void load_split_clock_colors(void) {
       persist_read_int(PROGRESS_TRACK_BATTERY_PERSIST_KEY) != 0;
 }
 
+static void load_stepbar_visibility(void) {
+  // v1.4.1 and earlier encoded both style and visibility in STEPBAR_MODE.
+  // Convert that legacy value once, then keep visibility in its own key.
+  if (persist_exists(STEPBAR_VISIBILITY_PERSIST_KEY)) {
+    int saved = persist_read_int(STEPBAR_VISIBILITY_PERSIST_KEY);
+    if (saved >= BAR_ALWAYS && saved <= BAR_TAP_SHAKE_BACKLIGHT) {
+      s_stepbar_visibility = (uint8_t)saved;
+    } else {
+      s_stepbar_visibility = BAR_ALWAYS;
+    }
+  } else {
+    switch (s_settings.stepbar_mode) {
+      case STEPBAR_HIDDEN:
+        s_settings.stepbar_mode = STEPBAR_MIRRORED;
+        s_stepbar_visibility = BAR_HIDDEN;
+        break;
+      case STEPBAR_MIRRORED_BACKLIGHT:
+        s_settings.stepbar_mode = STEPBAR_MIRRORED;
+        s_stepbar_visibility = BAR_BACKLIGHT;
+        break;
+      case STEPBAR_LEFT_TO_RIGHT_BACKLIGHT:
+        s_settings.stepbar_mode = STEPBAR_LEFT_TO_RIGHT;
+        s_stepbar_visibility = BAR_BACKLIGHT;
+        break;
+      case STEPBAR_MIRRORED_ABOVE_BACKLIGHT:
+        s_settings.stepbar_mode = STEPBAR_MIRRORED_ABOVE;
+        s_stepbar_visibility = BAR_BACKLIGHT;
+        break;
+      case STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT:
+        s_settings.stepbar_mode = STEPBAR_LEFT_TO_RIGHT_ABOVE;
+        s_stepbar_visibility = BAR_BACKLIGHT;
+        break;
+      default:
+        s_stepbar_visibility = BAR_ALWAYS;
+        break;
+    }
+    persist_write_int(STEPBAR_VISIBILITY_PERSIST_KEY, s_stepbar_visibility);
+  }
+
+  // If a partially migrated build left one of the old combined values behind,
+  // normalize just the style without changing the independently saved show mode.
+  if (s_settings.stepbar_mode == STEPBAR_MIRRORED_BACKLIGHT) {
+    s_settings.stepbar_mode = STEPBAR_MIRRORED;
+  } else if (s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_BACKLIGHT) {
+    s_settings.stepbar_mode = STEPBAR_LEFT_TO_RIGHT;
+  } else if (s_settings.stepbar_mode == STEPBAR_MIRRORED_ABOVE_BACKLIGHT) {
+    s_settings.stepbar_mode = STEPBAR_MIRRORED_ABOVE;
+  } else if (s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT) {
+    s_settings.stepbar_mode = STEPBAR_LEFT_TO_RIGHT_ABOVE;
+  } else if (s_settings.stepbar_mode == STEPBAR_HIDDEN) {
+    s_settings.stepbar_mode = STEPBAR_MIRRORED;
+  }
+}
+
+static uint8_t effective_stepbar_visibility(void) {
+  // Progress-bar visibility remains a Pro preference. Free mode keeps the
+  // standard always-visible progress bar without overwriting the saved choice.
+  return s_pro_unlocked ? s_stepbar_visibility : BAR_ALWAYS;
+}
+
 static uint8_t load_time_zone_preset(uint32_t persist_key) {
   if (!persist_exists(persist_key)) return 0;
 
@@ -1318,9 +1388,24 @@ static bool s_backlight_subscribed = false;
 // If an explicit interaction occurs while the OS keeps the LED off (for example
 // in bright sunlight), a single five-second fallback reveals the hidden UI.
 static bool s_touch_subscribed = false;
+static bool s_tap_subscribed = false;
 static bool s_sunlight_fallback_active = false;
 static AppTimer *s_sunlight_fallback_timer = NULL;
-#define SUNLIGHT_FALLBACK_MS 5000
+static bool s_tap_reveal_active = false;
+static AppTimer *s_tap_reveal_timer = NULL;
+
+// Pebble does not expose the user's configured backlight timeout to apps.
+// Learn the real timeout whenever the LED actually turns on, then reuse that
+// duration when ambient light suppresses the LED. Until we have observed one
+// complete ON->OFF cycle, use the historical five-second fallback.
+#define SUNLIGHT_FALLBACK_DEFAULT_MS 5000
+#define SUNLIGHT_FALLBACK_MIN_MS 1000
+#define SUNLIGHT_FALLBACK_MAX_MS 15000
+static uint32_t s_observed_backlight_duration_ms = SUNLIGHT_FALLBACK_DEFAULT_MS;
+static bool s_have_observed_backlight_duration = false;
+static bool s_backlight_timing_active = false;
+static time_t s_backlight_on_seconds = 0;
+static uint16_t s_backlight_on_ms = 0;
 
 // ── Raise-to-wake gesture state ──────────────────────────────────────────────
 // Pebble Z is perpendicular to the display. A normal glance holds the display
@@ -2096,7 +2181,7 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   // Permanently hidden step bar uses the expanded clock area, biased 3 px upward.
   // Backlight-only modes reserve their step-bar space at all times so the clock
   // never jumps when the backlight turns the bar on or off.
-  if (s_settings.stepbar_mode == STEPBAR_HIDDEN) sy -= 3;
+  if (effective_stepbar_visibility() == BAR_HIDDEN) sy -= 3;
   GColor hour_color =
       (s_pro_unlocked && s_split_clock_colors)
         ? s_hour_color : s_settings.clock_color;
@@ -2208,7 +2293,7 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return;
+  if (effective_stepbar_visibility() == BAR_HIDDEN) return;
 
   int progress_value;
   int progress_goal;
@@ -2256,28 +2341,36 @@ static void stepbar_update_proc(Layer *layer, GContext *ctx) {
 // Reflow the clock and step-progress zones when the bar moves or is hidden.
 // With the step bar hidden, the clock gets the full space between header/footer,
 // so its existing centering math automatically centers the digits vertically.
-static bool stepbar_is_backlight_only(void) {
-  return s_settings.stepbar_mode >= STEPBAR_MIRRORED_BACKLIGHT &&
-         s_settings.stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+static bool bar_mode_uses_backlight(uint8_t mode) {
+  return mode == BAR_BACKLIGHT || mode == BAR_TAP_SHAKE_BACKLIGHT;
+}
+
+static bool bar_mode_uses_tap_shake(uint8_t mode) {
+  return mode == BAR_TAP_SHAKE || mode == BAR_TAP_SHAKE_BACKLIGHT;
+}
+
+static bool stepbar_uses_backlight(void) {
+  return bar_mode_uses_backlight(effective_stepbar_visibility());
+}
+
+static bool stepbar_uses_tap_shake(void) {
+  return bar_mode_uses_tap_shake(effective_stepbar_visibility());
 }
 
 static bool stepbar_is_above(void) {
   return s_settings.stepbar_mode == STEPBAR_MIRRORED_ABOVE ||
-         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE ||
-         s_settings.stepbar_mode == STEPBAR_MIRRORED_ABOVE_BACKLIGHT ||
-         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE;
 }
 
 static bool stepbar_is_left_to_right(void) {
   return s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT ||
-         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE ||
-         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_BACKLIGHT ||
-         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT;
+         s_settings.stepbar_mode == STEPBAR_LEFT_TO_RIGHT_ABOVE;
 }
 
 static bool conditional_ui_is_visible(void);
 static bool header_is_effectively_visible(void);
 static bool footer_is_effectively_visible(void);
+static bool stepbar_is_effectively_visible(void);
 static void update_analog_bar_layout(bool animated);
 
 // Keep the analog progress-bar layer synchronized with the same interaction
@@ -2287,11 +2380,8 @@ static void update_analog_bar_layout(bool animated);
 static void update_analog_stepbar_layer(void) {
   if (!s_stepbar_layer) return;
 
-  const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
-  const bool backlight_only = stepbar_is_backlight_only();
-  const bool interaction_visible = conditional_ui_is_visible();
-  const bool bar_visible =
-      !permanently_hidden && (!backlight_only || interaction_visible);
+  const bool permanently_hidden = effective_stepbar_visibility() == BAR_HIDDEN;
+  const bool bar_visible = stepbar_is_effectively_visible();
 
   if (permanently_hidden) {
     layer_set_hidden(s_stepbar_layer, true);
@@ -2337,10 +2427,8 @@ static void update_stepbar_layout(void) {
 
   GRect old_clock_frame = layer_get_frame(s_clock_layer);
   const int available_h = SCREEN_H - HEADER_H - FOOTER_H;
-  const bool permanently_hidden = s_settings.stepbar_mode == STEPBAR_HIDDEN;
-  const bool backlight_only = stepbar_is_backlight_only();
-  const bool interaction_visible = conditional_ui_is_visible();
-  const bool bar_visible = !permanently_hidden && (!backlight_only || interaction_visible);
+  const bool permanently_hidden = effective_stepbar_visibility() == BAR_HIDDEN;
+  const bool bar_visible = stepbar_is_effectively_visible();
 
   if (permanently_hidden) {
     // Only the true Hidden mode gives the clock the step-bar space.
@@ -3363,27 +3451,37 @@ static void update_footer_content(void) {
 static void apply_bar_visibility(void);
 
 static bool conditional_ui_is_visible(void) {
-  // Never cache physical backlight state. The only synthetic state is the
-  // bounded sunlight fallback.
+  // "Backlight" visibility includes the bounded daylight fallback started by
+  // Big Time's wrist-raise/touch interaction when ambient light suppresses the LED.
   return light_is_on() || s_sunlight_fallback_active;
 }
 
+static bool bar_mode_is_visible(uint8_t mode) {
+  switch (mode) {
+    case BAR_ALWAYS:
+      return true;
+    case BAR_BACKLIGHT:
+      return conditional_ui_is_visible();
+    case BAR_TAP_SHAKE:
+      return s_tap_reveal_active;
+    case BAR_TAP_SHAKE_BACKLIGHT:
+      return conditional_ui_is_visible() || s_tap_reveal_active;
+    case BAR_HIDDEN:
+    default:
+      return false;
+  }
+}
+
 static bool header_is_effectively_visible(void) {
-  const bool interaction_visible = conditional_ui_is_visible();
-  return (s_settings.header_mode == BAR_ALWAYS) ||
-         (s_settings.header_mode == BAR_BACKLIGHT && interaction_visible);
+  return bar_mode_is_visible(s_settings.header_mode);
 }
 
 static bool footer_is_effectively_visible(void) {
-  const bool interaction_visible = conditional_ui_is_visible();
-  return (s_settings.footer_mode == BAR_ALWAYS) ||
-         (s_settings.footer_mode == BAR_BACKLIGHT && interaction_visible);
+  return bar_mode_is_visible(s_settings.footer_mode);
 }
 
 static bool stepbar_is_effectively_visible(void) {
-  if (s_settings.stepbar_mode == STEPBAR_HIDDEN) return false;
-  if (!stepbar_is_backlight_only()) return true;
-  return conditional_ui_is_visible();
+  return bar_mode_is_visible(effective_stepbar_visibility());
 }
 
 static GRect analog_target_clock_frame(void) {
@@ -3511,7 +3609,7 @@ static void refresh_conditional_ui(void) {
     // the matching frame animation so both react to the same backlight event.
     update_analog_stepbar_layer();
     update_analog_bar_layout(true);
-  } else if (stepbar_is_backlight_only()) {
+  } else if (effective_stepbar_visibility() != BAR_ALWAYS) {
     update_stepbar_layout();
   }
 }
@@ -3539,18 +3637,65 @@ static void cancel_sunlight_fallback(void) {
   s_sunlight_fallback_active = false;
 }
 
+static uint32_t current_sunlight_fallback_ms(void) {
+  return s_have_observed_backlight_duration
+      ? s_observed_backlight_duration_ms
+      : SUNLIGHT_FALLBACK_DEFAULT_MS;
+}
+
 static void start_sunlight_fallback(void) {
   if (s_sunlight_fallback_timer) {
     app_timer_cancel(s_sunlight_fallback_timer);
     s_sunlight_fallback_timer = NULL;
   }
 
+  uint32_t duration_ms = current_sunlight_fallback_ms();
   s_sunlight_fallback_active = true;
   s_sunlight_fallback_timer =
-      app_timer_register(SUNLIGHT_FALLBACK_MS, sunlight_fallback_timeout, NULL);
+      app_timer_register(duration_ms, sunlight_fallback_timeout, NULL);
 
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Sunlight fallback started");
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Sunlight fallback started for %lu ms%s",
+          (unsigned long)duration_ms,
+          s_have_observed_backlight_duration ? " (learned)" : " (default)");
   refresh_conditional_ui();
+}
+
+static void tap_reveal_timeout(void *context) {
+  s_tap_reveal_timer = NULL;
+  s_tap_reveal_active = false;
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Tap/shake reveal expired");
+  refresh_conditional_ui();
+}
+
+static void cancel_tap_reveal(void) {
+  if (s_tap_reveal_timer) {
+    app_timer_cancel(s_tap_reveal_timer);
+    s_tap_reveal_timer = NULL;
+  }
+  s_tap_reveal_active = false;
+}
+
+static void start_tap_reveal(void) {
+  if (s_tap_reveal_timer) {
+    app_timer_cancel(s_tap_reveal_timer);
+    s_tap_reveal_timer = NULL;
+  }
+
+  uint32_t duration_ms = current_sunlight_fallback_ms();
+  s_tap_reveal_active = true;
+  s_tap_reveal_timer = app_timer_register(duration_ms, tap_reveal_timeout, NULL);
+  APP_LOG(APP_LOG_LEVEL_INFO,
+          "Accelerometer tap/shake reveal: %lu ms",
+          (unsigned long)duration_ms);
+  refresh_conditional_ui();
+}
+
+static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG,
+          "Accelerometer tap event: axis=%d direction=%ld",
+          (int)axis, (long)direction);
+  start_tap_reveal();
 }
 
 static void request_light_with_fallback(void) {
@@ -3572,9 +3717,31 @@ static void touch_handler(const TouchEvent *event, void *context) {
 }
 
 static void backlight_handler(bool on) {
-  // The real backlight supersedes the sunlight fallback.
   if (on) {
+    // The real backlight supersedes the synthetic daylight reveal. Also start
+    // timing this interaction so future daylight-only gestures can match the
+    // user's actual system backlight timeout as closely as the public SDK allows.
     cancel_sunlight_fallback();
+    time_ms(&s_backlight_on_seconds, &s_backlight_on_ms);
+    s_backlight_timing_active = true;
+  } else if (s_backlight_timing_active) {
+    time_t off_seconds = 0;
+    uint16_t off_ms = 0;
+    time_ms(&off_seconds, &off_ms);
+
+    int64_t elapsed_ms =
+        ((int64_t)off_seconds - (int64_t)s_backlight_on_seconds) * 1000 +
+        (int64_t)off_ms - (int64_t)s_backlight_on_ms;
+    s_backlight_timing_active = false;
+
+    if (elapsed_ms >= SUNLIGHT_FALLBACK_MIN_MS &&
+        elapsed_ms <= SUNLIGHT_FALLBACK_MAX_MS) {
+      s_observed_backlight_duration_ms = (uint32_t)elapsed_ms;
+      s_have_observed_backlight_duration = true;
+      APP_LOG(APP_LOG_LEVEL_INFO,
+              "Learned system backlight duration: %lu ms",
+              (unsigned long)s_observed_backlight_duration_ms);
+    }
   }
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
@@ -3597,19 +3764,28 @@ static void focus_handler(bool in_focus) {
   // race the window-appear and touch/backlight callbacks immediately after a
   // configuration update. Just synchronize the UI to the real system state.
   cancel_sunlight_fallback();
+  cancel_tap_reveal();
   refresh_conditional_ui();
 }
 
 static void update_bar_input_services(void) {
   const bool want_backlight =
-      s_settings.footer_mode == BAR_BACKLIGHT ||
-      s_settings.header_mode == BAR_BACKLIGHT ||
-      stepbar_is_backlight_only();
+      bar_mode_uses_backlight(s_settings.footer_mode) ||
+      bar_mode_uses_backlight(s_settings.header_mode) ||
+      stepbar_uses_backlight();
+  const bool want_tap =
+      bar_mode_uses_tap_shake(s_settings.footer_mode) ||
+      bar_mode_uses_tap_shake(s_settings.header_mode) ||
+      stepbar_uses_tap_shake();
 
-  if (want_backlight && !s_backlight_subscribed) {
+  const bool want_backlight_events = want_backlight || want_tap;
+
+  if (want_backlight_events && !s_backlight_subscribed) {
+    // Tap-only bars also listen for physical backlight transitions so Big Time
+    // can learn the user's system timeout and use the same duration for taps.
     backlight_service_subscribe(backlight_handler);
     s_backlight_subscribed = true;
-  } else if (!want_backlight && s_backlight_subscribed) {
+  } else if (!want_backlight_events && s_backlight_subscribed) {
     backlight_service_unsubscribe();
     s_backlight_subscribed = false;
   }
@@ -3622,6 +3798,19 @@ static void update_bar_input_services(void) {
   } else if (!want_backlight && s_touch_subscribed) {
     touch_service_unsubscribe();
     s_touch_subscribed = false;
+  }
+
+  // Pebble calls these accelerometer "tap events"; the official guide notes
+  // that they fire for a significant tap OR shake of the watch.
+  if (want_tap && !s_tap_subscribed) {
+    accel_tap_service_subscribe(accel_tap_handler);
+    s_tap_subscribed = true;
+    APP_LOG(APP_LOG_LEVEL_INFO, "Accelerometer tap/shake service enabled");
+  } else if (!want_tap && s_tap_subscribed) {
+    accel_tap_service_unsubscribe();
+    s_tap_subscribed = false;
+    cancel_tap_reveal();
+    APP_LOG(APP_LOG_LEVEL_INFO, "Accelerometer tap/shake service disabled");
   }
 
   // Synchronize from the live system backlight state. Header/footer visibility
@@ -3726,8 +3915,12 @@ static void raise_wake_accel_handler(AccelData *data, uint32_t num_samples) {
           APP_LOG(APP_LOG_LEVEL_INFO,
                   "Raise wake suppressed by Quiet Time");
         } else {
-          // Request Pebble's normal backlight interaction. Conditional UI
-          // follows the actual system backlight state.
+          // One detected wrist gesture performs both actions:
+          //   1) ask Pebble OS for its normal backlight interaction (the light
+          //      sensor may still suppress the LED in bright conditions), and
+          //   2) reveal any backlight-only data bars independently. If the LED
+          //      is suppressed, the reveal uses the last observed system
+          //      backlight duration instead.
           request_light_with_fallback();
 
           s_raise_last_wake_at = now_ms;
@@ -4542,7 +4735,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_FOOTER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.footer_mode);
-        if (value >= BAR_ALWAYS && value <= BAR_HIDDEN) {
+        if (value >= BAR_ALWAYS && value <= BAR_TAP_SHAKE_BACKLIGHT) {
           s_settings.footer_mode = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Footer mode -> %ld", (long)value);
           layout_changed = true;
@@ -4552,7 +4745,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_HEADER_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.header_mode);
-        if (value >= BAR_ALWAYS && value <= BAR_HIDDEN) {
+        if (value >= BAR_ALWAYS && value <= BAR_TAP_SHAKE_BACKLIGHT) {
           s_settings.header_mode = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Header mode -> %ld", (long)value);
           layout_changed = true;
@@ -4562,9 +4755,23 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_STEPBAR_MODE: {
         int32_t value = tuple_to_int32(t, s_settings.stepbar_mode);
-        if (value >= STEPBAR_MIRRORED && value <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT) {
+        if (value == STEPBAR_MIRRORED ||
+            value == STEPBAR_LEFT_TO_RIGHT ||
+            value == STEPBAR_MIRRORED_ABOVE ||
+            value == STEPBAR_LEFT_TO_RIGHT_ABOVE) {
           s_settings.stepbar_mode = (uint8_t)value;
-          APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar mode -> %ld", (long)value);
+          APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar style -> %ld", (long)value);
+          layout_changed = true;
+        }
+        break;
+      }
+
+      case KEY_STEPBAR_VISIBILITY: {
+        int32_t value = tuple_to_int32(t, s_stepbar_visibility);
+        if (value >= BAR_ALWAYS && value <= BAR_TAP_SHAKE_BACKLIGHT) {
+          s_stepbar_visibility = (uint8_t)value;
+          persist_write_int(STEPBAR_VISIBILITY_PERSIST_KEY, s_stepbar_visibility);
+          APP_LOG(APP_LOG_LEVEL_INFO, "Stepbar visibility -> %ld", (long)value);
           layout_changed = true;
         }
         break;
@@ -5349,6 +5556,7 @@ static void window_unload(Window *window) {
 static void init(void) {
   settings_load();
   load_split_clock_colors();
+  load_stepbar_visibility();
   load_time_zone_presets();
 
   // Seed Bluetooth state before the first clock frame so Bluetooth Colon does
@@ -5478,11 +5686,17 @@ static void deinit(void) {
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
   if (s_touch_subscribed) touch_service_unsubscribe();
+  if (s_tap_subscribed) accel_tap_service_unsubscribe();
   if (s_sunlight_fallback_timer) {
     app_timer_cancel(s_sunlight_fallback_timer);
     s_sunlight_fallback_timer = NULL;
   }
+  if (s_tap_reveal_timer) {
+    app_timer_cancel(s_tap_reveal_timer);
+    s_tap_reveal_timer = NULL;
+  }
   s_sunlight_fallback_active = false;
+  s_tap_reveal_active = false;
   if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
 #if defined(PBL_HEALTH)
