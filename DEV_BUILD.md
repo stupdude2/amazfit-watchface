@@ -28,3 +28,8 @@ Publishing safeguards remain unchanged:
 - Root cause: STEP BAR VISIBILITY is stored outside the main WatchfaceSettings record, so the post-save delta optimization could incorrectly clear the relayout flag.
 - Post-save structural reconciliation now includes Step Bar Visibility, Analog/Digital face changes, Expand Digital Clock, and all time-zone selectors in addition to the main settings record.
 - Top/Bottom visibility, Step style/visibility, clock format/layout, clock-face switching, and expanded-clock geometry are now reconciled from the final parsed settings state immediately after Save.
+
+## Digital edge margin test
+- Expanded digital clock now uses a 6 px top/bottom inset whenever its clock frame reaches the physical top or bottom edge of the 200x228 display.
+- This matches the analog dial's 6 px outer-marker inset at the screen edge.
+- Existing 4 px internal digital margins are preserved when the clock is adjacent to a visible bar instead of the physical screen edge.

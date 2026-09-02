@@ -2191,16 +2191,37 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
 
   const bool expand_digital = s_pro_unlocked && s_expand_digital_clock;
   s_clock_digit_height = DIGIT_HEIGHT;
+  int sy = (b.size.h - s_clock_digit_height) / 2;
   if (expand_digital) {
-    // The normal 118 px clock layer leaves 4 px above and below the 110 px
-    // digits. Preserve that breathing room as the layer expands vertically.
-    int expanded_height = b.size.h - 8;
+    // Match the analog face's physical-edge breathing room. Analog's outer
+    // markers sit 6 px in from the display edge; when the expanded digital
+    // clock reaches the top and/or bottom of the 200x228 screen, give the
+    // seven-segment digits that same 6 px inset. Away from a physical edge,
+    // retain the established 4 px internal clock margin.
+    GRect frame = layer_get_frame(layer);
+    const int16_t internal_margin = 4;
+    const int16_t screen_edge_margin = 6;
+    int16_t top_margin =
+        frame.origin.y <= 0 ? screen_edge_margin : internal_margin;
+    int16_t frame_bottom = frame.origin.y + frame.size.h;
+    int16_t bottom_margin =
+        frame_bottom >= SCREEN_H ? screen_edge_margin : internal_margin;
+
+    int expanded_height = b.size.h - top_margin - bottom_margin;
     if (expanded_height < DIGIT_HEIGHT) expanded_height = DIGIT_HEIGHT;
-    if (expanded_height > SCREEN_H - 8) expanded_height = SCREEN_H - 8;
+    if (expanded_height > SCREEN_H - (screen_edge_margin * 2)) {
+      expanded_height = SCREEN_H - (screen_edge_margin * 2);
+    }
     s_clock_digit_height = expanded_height;
+    sy = top_margin;
+
+    // If a constrained frame is ever too short to honor the requested top
+    // margin after the minimum digit-height clamp, fall back to centering.
+    if (sy + s_clock_digit_height + bottom_margin > b.size.h) {
+      sy = (b.size.h - s_clock_digit_height) / 2;
+    }
   }
 
-  int sy = (b.size.h - s_clock_digit_height) / 2;
   // Preserve the legacy small upward bias only when digital expansion is off.
   // Expanded mode uses the same dynamic target-frame geometry as analog.
   if (!expand_digital && effective_stepbar_visibility() == BAR_HIDDEN) sy -= 3;
