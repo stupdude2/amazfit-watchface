@@ -10,7 +10,7 @@ var Clay = require('@rebble/clay');
 // CloudPebble/RePebble configuration test mode. When enabled, the settings
 // page always exposes Pro controls without requiring a KiezelPay entitlement.
 // This is for emulator/UI testing only and must be false for publishing builds.
-var CONFIG_TEST_MODE = false;
+var CONFIG_TEST_MODE = true;
 
 // Set the edition BEFORE config.js is first required. pypkjs/CloudPebble does
 // not reliably expose Node's require.cache, so rebuilding config.js later can

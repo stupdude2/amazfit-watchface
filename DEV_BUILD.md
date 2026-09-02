@@ -1,20 +1,23 @@
-# Big Time v3.3.2 — Production Release
+# Big Time v1.4.2 — CloudPebble Screenshot Build
 
-Publishable production build.
+Dedicated emulator/configuration build for collecting screenshots in CloudPebble/RePebble.
 
-Included changes:
+Includes the complete v1.4.2 feature set:
 - Tap/Shake visibility support for Top Bar and Bottom Bar.
 - Combined Tap/Shake/Backlight visibility option.
-- Step Progress Bar style and visibility are separate settings, with the same visibility choices as Top/Bottom bars.
-- Wrist gesture can reveal interaction bars independently of whether the ambient-light logic actually illuminates the backlight.
-- Added optional expandable digital clock that reclaims vertical space when bars/steps are hidden.
-- Expanded digital clock animates with the same 260 ms ease-in/out behavior used by the analog face.
-- Expanded digital clock uses the same 6 px outer top/bottom edge margin as the analog face.
-- Saved settings now force immediate structural/layout reconciliation, including Step Bar visibility and dynamic clock geometry.
+- Step Progress Bar style and visibility as separate settings.
+- Wrist-gesture data reveal independent of whether ambient-light logic actually illuminates the backlight.
+- Optional expandable digital clock.
+- Matching 6 px expanded digital/analog outer edge margins.
+- Immediate layout reconciliation after saved settings.
 
-Publishing safeguards:
-- CONFIG_TEST_MODE = false
-- KiezelPay production integration enabled
-- KIEZELPAY_LOGGING = false
+Screenshot/testing behavior:
+- CONFIG_TEST_MODE = true in PebbleKit JS.
+- CONFIG_TEST_MODE = 1 on the watch.
+- Pro entitlement is forced on so every configuration control is available.
+- KiezelPay is not initialized in test mode.
+- Clay automatic configuration handling is enabled for CloudPebble/RePebble compatibility.
+- Package version remains 1.4.2.
 - UUID unchanged: ced51275-d445-4b7e-89f6-9e41110ed4da
-- Package version: 3.3.2
+
+DO NOT publish this build to the Pebble Store. Use the production 1.4.2 package for release.

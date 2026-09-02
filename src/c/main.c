@@ -518,7 +518,7 @@ static uint8_t s_stepbar_visibility = BAR_ALWAYS;
 // Emulator/configuration test mode. Enable only in dedicated test builds.
 // Bypasses Pro entitlement enforcement so CloudPebble/RePebble can exercise
 // every setting end-to-end. Publishing builds must set this to 0.
-#define CONFIG_TEST_MODE 0
+#define CONFIG_TEST_MODE 1
 
 static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 
