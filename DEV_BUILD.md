@@ -1,35 +1,20 @@
-# Big Time v1.4.1 — Tap/Shake Visibility Test
+# Big Time v1.4.2 — Production Release
 
-Development/test build based on the v1.4.1 wrist-gesture data build.
+Publishable production build.
 
-Changes in this build:
-- Added Pebble Accelerometer Tap Service support. Pebble documents these tap events as firing for a significant tap or shake of the watch.
-- Top Bar and Bottom Bar visibility now offer: Always Visible, Show With Backlight, Show With Tap/Shake, Show With Tap/Shake/Backlight, and Always Hidden.
-- Tap/Shake visibility is independent of the physical backlight and uses the learned system backlight duration when available (5-second fallback until learned).
-- Step Progress Bar style and visibility are now separate controls.
-- Step Progress Bar visibility uses the same five choices as the Top and Bottom bars.
-- Existing legacy Step Bar modes are migrated to the equivalent Style + Visibility combination on both the watch and Clay settings page.
-- Existing custom Wrist Raise Backlight behavior remains intact and can coexist with the built-in Tap/Shake event service.
+Included changes:
+- Tap/Shake visibility support for Top Bar and Bottom Bar.
+- Combined Tap/Shake/Backlight visibility option.
+- Step Progress Bar style and visibility are separate settings, with the same visibility choices as Top/Bottom bars.
+- Wrist gesture can reveal interaction bars independently of whether the ambient-light logic actually illuminates the backlight.
+- Added optional expandable digital clock that reclaims vertical space when bars/steps are hidden.
+- Expanded digital clock animates with the same 260 ms ease-in/out behavior used by the analog face.
+- Expanded digital clock uses the same 6 px outer top/bottom edge margin as the analog face.
+- Saved settings now force immediate structural/layout reconciliation, including Step Bar visibility and dynamic clock geometry.
 
-Publishing safeguards remain unchanged:
+Publishing safeguards:
 - CONFIG_TEST_MODE = false
 - KiezelPay production integration enabled
-- package version remains 1.4.1 for testing
-
-## Digital clock expansion test
-- Added Pro option: **Expand Digital Clock**.
-- When enabled, the digital clock reclaims vertical space whenever the top bar, bottom bar, or progress bar is not currently visible.
-- The clock frame animates using the same 260 ms ease-in/out behavior as the analog face.
-- Seven-segment digit height stretches with the available clock frame while the established horizontal geometry remains unchanged.
-- Gesture/backlight/Tap-Shake bar visibility continues to contract and expand the clock dynamically.
-
-## Immediate settings application audit
-- Fixed Step Progress Bar Visibility not always applying immediately after Save.
-- Root cause: STEP BAR VISIBILITY is stored outside the main WatchfaceSettings record, so the post-save delta optimization could incorrectly clear the relayout flag.
-- Post-save structural reconciliation now includes Step Bar Visibility, Analog/Digital face changes, Expand Digital Clock, and all time-zone selectors in addition to the main settings record.
-- Top/Bottom visibility, Step style/visibility, clock format/layout, clock-face switching, and expanded-clock geometry are now reconciled from the final parsed settings state immediately after Save.
-
-## Digital edge margin test
-- Expanded digital clock now uses a 6 px top/bottom inset whenever its clock frame reaches the physical top or bottom edge of the 200x228 display.
-- This matches the analog dial's 6 px outer-marker inset at the screen edge.
-- Existing 4 px internal digital margins are preserved when the clock is adjacent to a visible bar instead of the physical screen edge.
+- KIEZELPAY_LOGGING = false
+- UUID unchanged: ced51275-d445-4b7e-89f6-9e41110ed4da
+- Package version: 1.4.2

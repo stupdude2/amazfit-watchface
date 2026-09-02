@@ -1,0 +1,14 @@
+Big Time 1.4.2 Production Release Audit
+
+Version: 1.4.2
+UUID: ced51275-d445-4b7e-89f6-9e41110ed4da
+Display name: Big Time
+Target platform: emery
+Watchface: true
+CONFIG_TEST_MODE (JS): false
+CONFIG_TEST_MODE (C): 0
+KIEZELPAY_LOGGING: false
+KiezelPay production integration: enabled
+
+Release content verified from the final 1.4.1 digital-edge-margin test codebase.
+Includes Tap/Shake visibility, separate Step Bar style/visibility, immediate settings apply fixes, expandable digital clock, and analog-matched outer digital margins.
