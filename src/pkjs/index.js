@@ -187,6 +187,7 @@ function customClay(minified) {
     var secondsColon = clayPage.getItemByMessageKey('FLASH_COLON');
     var bluetoothColon = clayPage.getItemByMessageKey('BLUETOOTH_COLON');
     var timeStyle = clayPage.getItemByMessageKey('ROUNDED_TIME');
+    var expandDigitalClock = clayPage.getItemByMessageKey('EXPAND_DIGITAL_CLOCK');
 
     // In digital mode, Hour/Minute Color remain governed by the existing split
     // toggle. In analog mode they are the actual hand colors for Pro users.
@@ -228,6 +229,10 @@ function customClay(minified) {
       if (timeStyle) {
         if (analog) timeStyle.disable();
         else timeStyle.enable();
+      }
+      if (expandDigitalClock) {
+        if (analog) expandDigitalClock.hide();
+        else expandDigitalClock.show();
       }
     }
 
@@ -360,6 +365,7 @@ function customClay(minified) {
         setValue('ANALOG_SECOND_HAND', false);
         setValue('PROGRESS_TRACK_BATTERY', false);
         setValue('ROUNDED_TIME', '0');
+        setValue('EXPAND_DIGITAL_CLOCK', false);
         setValue('TIME_FORMAT', '0');
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');

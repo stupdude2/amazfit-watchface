@@ -286,6 +286,9 @@ if (edition.isPro) {
           { "label": "Rounded", "value": "1" },
           { "label": "Slightly Rounded", "value": "2" }
         ] },
+      { "type": "toggle", "messageKey": "EXPAND_DIGITAL_CLOCK", "defaultValue": false,
+        "label": "Expand Digital Clock",
+        "description": "Vertically expands the digital digits into space freed when the top bar, bottom bar, or progress bar is hidden." },
       { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });

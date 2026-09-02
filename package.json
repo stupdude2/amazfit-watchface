@@ -75,7 +75,8 @@
       "ANALOG_SECOND_HAND": 54,
       "SECOND_HAND_COLOR": 55,
       "WEATHER_REFRESH": 56,
-      "STEPBAR_VISIBILITY": 57
+      "STEPBAR_VISIBILITY": 57,
+      "EXPAND_DIGITAL_CLOCK": 58
     },
     "projectType": "native",
     "resources": {

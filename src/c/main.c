@@ -143,6 +143,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
 #define KEY_STEPBAR_VISIBILITY       57
+#define KEY_EXPAND_DIGITAL_CLOCK      58
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -543,6 +544,7 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define ANALOG_SECOND_PERSIST_KEY    1115
 #define SECOND_HAND_COLOR_PERSIST_KEY 1116
 #define STEPBAR_VISIBILITY_PERSIST_KEY 1117
+#define EXPAND_DIGITAL_CLOCK_PERSIST_KEY 1118
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -680,6 +682,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_ROUNDED_TIME:
     case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
+    case KEY_EXPAND_DIGITAL_CLOCK:
       return true;
     default:
       return false;
@@ -1125,8 +1128,8 @@ static Layer     *s_footer_layer;
 // Analog clock frame morph animation. The analog face grows into any space
 // released by the top/bottom data bars, including the full 200x228 display
 // when both bars are hidden.
-static PropertyAnimation *s_analog_frame_animation;
-static const uint32_t ANALOG_FRAME_ANIMATION_MS = 260;
+static PropertyAnimation *s_clock_frame_animation;
+static const uint32_t CLOCK_FRAME_ANIMATION_MS = 260;
 static TextLayer *s_left_label;
 static TextLayer *s_left_val;
 static TextLayer *s_center_label;
@@ -1188,6 +1191,7 @@ static bool s_bluetooth_colon = false;
 // from the clock layer bounds, allowing the same renderer to expand cleanly
 // when the layer is later promoted to full-screen.
 static bool s_analog_clock = false;
+static bool s_expand_digital_clock = false;
 static bool s_analog_second_hand = false;
 static bool s_progress_track_battery = false;
 typedef enum {
@@ -1241,6 +1245,9 @@ static void load_split_clock_colors(void) {
   s_analog_second_hand =
       persist_exists(ANALOG_SECOND_PERSIST_KEY) &&
       persist_read_int(ANALOG_SECOND_PERSIST_KEY) != 0;
+  s_expand_digital_clock =
+      persist_exists(EXPAND_DIGITAL_CLOCK_PERSIST_KEY) &&
+      persist_read_int(EXPAND_DIGITAL_CLOCK_PERSIST_KEY) != 0;
   if (persist_exists(ROUNDED_TIME_PERSIST_KEY)) {
     int saved_style = persist_read_int(ROUNDED_TIME_PERSIST_KEY);
     // v3.2.2 stored this key as a bool, so 0/1 remain fully compatible.
@@ -1429,6 +1436,10 @@ static void to_upper(char *s) {
 }
 
 // ── Segment drawing ───────────────────────────────────────────────────────────
+// Digital expansion keeps the established horizontal geometry but lets the
+// seven-segment digits grow vertically into space released by hidden bars.
+static int s_clock_digit_height = DIGIT_HEIGHT;
+
 static int clock_segment_radius(int thickness) {
   switch (s_time_style) {
     case TIME_STYLE_ROUNDED:
@@ -1461,8 +1472,8 @@ static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
   uint8_t s = DIGIT_SEGS[digit];
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int top_y = oy;
-  int mid_y = oy + HALF_V - STK / 2;
-  int bot_y = oy + DIGIT_HEIGHT - STK;
+  int mid_y = oy + (s_clock_digit_height / 2) - STK / 2;
+  int bot_y = oy + s_clock_digit_height - STK;
   int lx    = ox;
   int rx    = ox + DIGIT_WIDTH - STK;
   if (s & SEG_TOP) draw_h(ctx, ox, top_y);
@@ -1476,24 +1487,24 @@ static void draw_digit(GContext *ctx, int ox, int oy, int digit) {
 static void draw_one_h1(GContext *ctx, int oy) {
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int ox    = H1_X + H1_ONE_X;
-  int mid_y = oy + HALF_V - STK / 2;
-  int bot_y = oy + DIGIT_HEIGHT - STK;
+  int mid_y = oy + (s_clock_digit_height / 2) - STK / 2;
+  int bot_y = oy + s_clock_digit_height - STK;
   draw_v(ctx, ox, oy,    mid_y - oy + STK);
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
 static void draw_one(GContext *ctx, int cell_x, int oy) {
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int ox    = cell_x + ONE_X_OFFSET;
-  int mid_y = oy + HALF_V - STK / 2;
-  int bot_y = oy + DIGIT_HEIGHT - STK;
+  int mid_y = oy + (s_clock_digit_height / 2) - STK / 2;
+  int bot_y = oy + s_clock_digit_height - STK;
   draw_v(ctx, ox, oy,    mid_y - oy + STK);
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
 static void draw_colon(GContext *ctx, int ox, int oy) {
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
   int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
-  int upper_y = oy + DIGIT_HEIGHT / 3 - COLON_DOT / 2;
-  int lower_y = oy + (DIGIT_HEIGHT * 2) / 3 - COLON_DOT / 2;
+  int upper_y = oy + s_clock_digit_height / 3 - COLON_DOT / 2;
+  int lower_y = oy + (s_clock_digit_height * 2) / 3 - COLON_DOT / 2;
   int radius = 0;
   if (s_time_style == TIME_STYLE_ROUNDED) {
     radius = COLON_DOT / 2;
@@ -1551,8 +1562,8 @@ static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
 
   int top_y = oy;
-  int mid_y = oy + HALF_V - H24_STK / 2;
-  int bot_y = oy + DIGIT_HEIGHT - H24_STK;
+  int mid_y = oy + (s_clock_digit_height / 2) - H24_STK / 2;
+  int bot_y = oy + s_clock_digit_height - H24_STK;
   int lx = ox;
   int rx = ox + width - H24_STK;
 
@@ -1571,8 +1582,8 @@ static void draw_one_24(GContext *ctx, int cell_x, int oy) {
   // In 24-hour mode every "1" uses the same ONE_X_OFFSET (8px).
   // This keeps 01:11, 11:11, 21:11, etc. visually consistent.
   int ox = cell_x + ONE_X_OFFSET;
-  int mid_y = oy + HALF_V - H24_STK / 2;
-  int bot_y = oy + DIGIT_HEIGHT - H24_STK;
+  int mid_y = oy + (s_clock_digit_height / 2) - H24_STK / 2;
+  int bot_y = oy + s_clock_digit_height - H24_STK;
 
   graphics_fill_rect(ctx, GRect(ox, oy, H24_STK, mid_y - oy + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
   graphics_fill_rect(ctx, GRect(ox, mid_y, H24_STK, bot_y - mid_y + H24_STK), clock_segment_radius(H24_STK), clock_segment_corners());
@@ -2177,11 +2188,22 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
   int h2 = s_hour % 10;
   int m1 = s_minute / 10;
   int m2 = s_minute % 10;
-  int sy = (b.size.h - DIGIT_HEIGHT) / 2;
-  // Permanently hidden step bar uses the expanded clock area, biased 3 px upward.
-  // Backlight-only modes reserve their step-bar space at all times so the clock
-  // never jumps when the backlight turns the bar on or off.
-  if (effective_stepbar_visibility() == BAR_HIDDEN) sy -= 3;
+
+  const bool expand_digital = s_pro_unlocked && s_expand_digital_clock;
+  s_clock_digit_height = DIGIT_HEIGHT;
+  if (expand_digital) {
+    // The normal 118 px clock layer leaves 4 px above and below the 110 px
+    // digits. Preserve that breathing room as the layer expands vertically.
+    int expanded_height = b.size.h - 8;
+    if (expanded_height < DIGIT_HEIGHT) expanded_height = DIGIT_HEIGHT;
+    if (expanded_height > SCREEN_H - 8) expanded_height = SCREEN_H - 8;
+    s_clock_digit_height = expanded_height;
+  }
+
+  int sy = (b.size.h - s_clock_digit_height) / 2;
+  // Preserve the legacy small upward bias only when digital expansion is off.
+  // Expanded mode uses the same dynamic target-frame geometry as analog.
+  if (!expand_digital && effective_stepbar_visibility() == BAR_HIDDEN) sy -= 3;
   GColor hour_color =
       (s_pro_unlocked && s_split_clock_colors)
         ? s_hour_color : s_settings.clock_color;
@@ -2371,13 +2393,13 @@ static bool conditional_ui_is_visible(void);
 static bool header_is_effectively_visible(void);
 static bool footer_is_effectively_visible(void);
 static bool stepbar_is_effectively_visible(void);
-static void update_analog_bar_layout(bool animated);
+static void update_expanded_clock_layout(bool animated);
 
-// Keep the analog progress-bar layer synchronized with the same interaction
-// state that drives the header/footer. This is deliberately separate from the
-// analog clock-frame animation so a backlight event can reveal the step bar and
-// animate the clock into its reserved rectangle at the same time.
-static void update_analog_stepbar_layer(void) {
+// Keep the progress-bar layer synchronized with the same interaction state
+// that drives the header/footer whenever the clock is using dynamic expansion.
+// This is separate from the clock-frame animation so a gesture can reveal the
+// progress bar and contract the clock into its reserved rectangle together.
+static void update_dynamic_stepbar_layer(void) {
   if (!s_stepbar_layer) return;
 
   const bool permanently_hidden = effective_stepbar_visibility() == BAR_HIDDEN;
@@ -2390,15 +2412,15 @@ static void update_analog_stepbar_layer(void) {
     if (stepbar_is_above()) {
       // Match the original above-clock spacing: when the header is visible,
       // tuck the step bar 5 px upward toward it instead of reserving a full
-      // STEPBAR_H strip below the header. This keeps the analog face from
+      // STEPBAR_H strip below the header. This keeps the expanded clock from
       // being pushed too far down. With no header, anchor the bar at y=0.
       const int16_t top_edge = header_is_effectively_visible() ? HEADER_H : 0;
       const int16_t bar_y = header_is_effectively_visible() ? top_edge - 5 : 0;
       layer_set_frame(s_stepbar_layer, GRect(0, bar_y, SCREEN_W, STEPBAR_H));
     } else {
       // Likewise, when the bottom data bar is hidden, pin an enabled step bar
-      // to the physical bottom of the display. The analog clock target frame
-      // reserves STEPBAR_H above it, so the expanded face ends immediately
+      // to the physical bottom of the display. The expanded clock target frame
+      // reserves STEPBAR_H above it, so the clock ends immediately
       // above the progress bar instead of leaving the bar at its legacy y.
       const int16_t bottom_edge = footer_is_effectively_visible() ? FOOTER_Y : SCREEN_H;
       layer_set_frame(s_stepbar_layer,
@@ -2416,12 +2438,12 @@ static void update_analog_stepbar_layer(void) {
 static void update_stepbar_layout(void) {
   if (!s_clock_layer || !s_stepbar_layer) return;
 
-  // The analog face owns the full vertical region left by the data bars. The
-  // step-progress layer may still overlay that region, but it no longer keeps
-  // the analog dial artificially confined to the old digital-time rectangle.
-  if (s_analog_clock) {
-    update_analog_stepbar_layer();
-    update_analog_bar_layout(false);
+  // Analog and optional expanded-digital mode own the full vertical region left
+  // by the data bars. The step-progress layer may still overlay that region,
+  // but it no longer confines the clock to the legacy digital-time rectangle.
+  if (s_analog_clock || (s_pro_unlocked && s_expand_digital_clock)) {
+    update_dynamic_stepbar_layer();
+    update_expanded_clock_layout(false);
     return;
   }
 
@@ -3484,7 +3506,7 @@ static bool stepbar_is_effectively_visible(void) {
   return bar_mode_is_visible(effective_stepbar_visibility());
 }
 
-static GRect analog_target_clock_frame(void) {
+static GRect expanded_clock_target_frame(void) {
   const bool header_visible = header_is_effectively_visible();
   const bool footer_visible = footer_is_effectively_visible();
   const bool stepbar_visible = stepbar_is_effectively_visible();
@@ -3537,32 +3559,33 @@ static GRect analog_target_clock_frame(void) {
   return GRect(0, top, SCREEN_W, height);
 }
 
-static void analog_frame_animation_stopped(Animation *animation, bool finished,
+static void clock_frame_animation_stopped(Animation *animation, bool finished,
                                            void *context) {
-  if (s_analog_frame_animation &&
-      animation == property_animation_get_animation(s_analog_frame_animation)) {
-    property_animation_destroy(s_analog_frame_animation);
-    s_analog_frame_animation = NULL;
+  if (s_clock_frame_animation &&
+      animation == property_animation_get_animation(s_clock_frame_animation)) {
+    property_animation_destroy(s_clock_frame_animation);
+    s_clock_frame_animation = NULL;
   }
 }
 
-static void cancel_analog_frame_animation(void) {
-  if (!s_analog_frame_animation) return;
-  PropertyAnimation *property_animation = s_analog_frame_animation;
-  s_analog_frame_animation = NULL;
+static void cancel_clock_frame_animation(void) {
+  if (!s_clock_frame_animation) return;
+  PropertyAnimation *property_animation = s_clock_frame_animation;
+  s_clock_frame_animation = NULL;
   Animation *animation = property_animation_get_animation(property_animation);
   animation_unschedule(animation);
   property_animation_destroy(property_animation);
 }
 
-static void update_analog_bar_layout(bool animated) {
-  if (!s_clock_layer || !s_analog_clock) return;
+static void update_expanded_clock_layout(bool animated) {
+  if (!s_clock_layer) return;
+  if (!s_analog_clock && !(s_pro_unlocked && s_expand_digital_clock)) return;
 
-  GRect target = analog_target_clock_frame();
+  GRect target = expanded_clock_target_frame();
   GRect current = layer_get_frame(s_clock_layer);
   if (grect_equal(&current, &target)) return;
 
-  cancel_analog_frame_animation();
+  cancel_clock_frame_animation();
 
   if (!animated) {
     layer_set_frame(s_clock_layer, target);
@@ -3570,19 +3593,19 @@ static void update_analog_bar_layout(bool animated) {
     return;
   }
 
-  s_analog_frame_animation =
+  s_clock_frame_animation =
       property_animation_create_layer_frame(s_clock_layer, &current, &target);
-  if (!s_analog_frame_animation) {
+  if (!s_clock_frame_animation) {
     layer_set_frame(s_clock_layer, target);
     layer_mark_dirty(s_clock_layer);
     return;
   }
 
-  Animation *animation = property_animation_get_animation(s_analog_frame_animation);
-  animation_set_duration(animation, ANALOG_FRAME_ANIMATION_MS);
+  Animation *animation = property_animation_get_animation(s_clock_frame_animation);
+  animation_set_duration(animation, CLOCK_FRAME_ANIMATION_MS);
   animation_set_curve(animation, AnimationCurveEaseInOut);
   animation_set_handlers(animation, (AnimationHandlers) {
-    .stopped = analog_frame_animation_stopped
+    .stopped = clock_frame_animation_stopped
   }, NULL);
   animation_schedule(animation);
 }
@@ -3597,18 +3620,17 @@ static void apply_bar_visibility(void) {
   }
 }
 
-// Backlight/touch callbacks can arrive back-to-back. In analog mode, the clock
-// morphs at the same moment the conditional bars appear/disappear, so the dial
-// smoothly expands into (or contracts out of) the newly available space.
+// Backlight/tap callbacks can arrive back-to-back. Dynamic analog or digital
+// expansion morphs at the same moment conditional bars appear/disappear, so
+// the clock smoothly grows into (or contracts out of) the available space.
 static void refresh_conditional_ui(void) {
   apply_bar_visibility();
-  if (s_analog_clock) {
-    // The dev-7 path animated the analog frame here but never refreshed the
-    // backlight-only step layer. As a result, the clock contracted correctly
-    // while the progress bar remained hidden. Update the bar first, then start
-    // the matching frame animation so both react to the same backlight event.
-    update_analog_stepbar_layer();
-    update_analog_bar_layout(true);
+  if (s_analog_clock || (s_pro_unlocked && s_expand_digital_clock)) {
+    // Analog and optional expanded-digital mode both reclaim space immediately
+    // as conditional bars appear/disappear. Refresh the progress layer first,
+    // then animate the clock frame to the matching target.
+    update_dynamic_stepbar_layer();
+    update_expanded_clock_layout(true);
   } else if (effective_stepbar_visibility() != BAR_ALWAYS) {
     update_stepbar_layout();
   }
@@ -4377,6 +4399,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool bluetooth_colon_before = s_bluetooth_colon;
   bool analog_clock_before = s_analog_clock;
   bool analog_second_before = s_analog_second_hand;
+  bool expand_digital_before = s_expand_digital_clock;
   TimeStyle time_style_before = s_time_style;
   bool progress_battery_before = s_progress_track_battery;
   uint8_t tz_top_left_before = s_top_left_time_zone;
@@ -4888,6 +4911,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         s_analog_clock = enabled;
         persist_write_int(CLOCK_FACE_PERSIST_KEY, enabled ? 1 : 0);
         update_tick_service();
+        update_stepbar_layout();
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Clock face -> %s",
                 enabled ? "ANALOG" : "DIGITAL");
@@ -4917,6 +4941,19 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         update_tick_service();
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Analog second hand -> %d",
+                enabled ? 1 : 0);
+        break;
+      }
+
+      case KEY_EXPAND_DIGITAL_CLOCK: {
+        bool enabled =
+            tuple_to_int32(t, s_expand_digital_clock ? 1 : 0) != 0;
+        if (enabled == s_expand_digital_clock) break;
+        s_expand_digital_clock = enabled;
+        persist_write_int(EXPAND_DIGITAL_CLOCK_PERSIST_KEY, enabled ? 1 : 0);
+        update_stepbar_layout();
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Expand digital clock -> %d",
                 enabled ? 1 : 0);
         break;
       }
@@ -5163,7 +5200,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d analog=%d asecond=%d style=%d batterybar=%d tz=%d%d%d%d",
+          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d analog=%d asecond=%d expand=%d style=%d batterybar=%d tz=%d%d%d%d",
           hour_color_before.argb != s_hour_color.argb ? 1 : 0,
           minute_color_before.argb != s_minute_color.argb ? 1 : 0,
           split_colors_before != s_split_clock_colors ? 1 : 0,
@@ -5171,6 +5208,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
           bluetooth_colon_before != s_bluetooth_colon ? 1 : 0,
           analog_clock_before != s_analog_clock ? 1 : 0,
           analog_second_before != s_analog_second_hand ? 1 : 0,
+          expand_digital_before != s_expand_digital_clock ? 1 : 0,
           time_style_before != s_time_style ? 1 : 0,
           progress_battery_before != s_progress_track_battery ? 1 : 0,
           tz_top_left_before != s_top_left_time_zone ? 1 : 0,
@@ -5535,7 +5573,7 @@ static void window_unload(Window *window) {
   s_top_center_label = NULL; s_top_center_val = NULL;
   s_top_right_label = NULL; s_top_right_val = NULL;
 
-  cancel_analog_frame_animation();
+  cancel_clock_frame_animation();
 
   layer_destroy(s_header_layer);
   layer_destroy(s_clock_layer);

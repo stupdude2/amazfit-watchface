@@ -15,3 +15,10 @@ Publishing safeguards remain unchanged:
 - CONFIG_TEST_MODE = false
 - KiezelPay production integration enabled
 - package version remains 1.4.1 for testing
+
+## Digital clock expansion test
+- Added Pro option: **Expand Digital Clock**.
+- When enabled, the digital clock reclaims vertical space whenever the top bar, bottom bar, or progress bar is not currently visible.
+- The clock frame animates using the same 260 ms ease-in/out behavior as the analog face.
+- Seven-segment digit height stretches with the available clock frame while the established horizontal geometry remains unchanged.
+- Gesture/backlight/Tap-Shake bar visibility continues to contract and expand the clock dynamically.
