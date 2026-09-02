@@ -22,3 +22,9 @@ Publishing safeguards remain unchanged:
 - The clock frame animates using the same 260 ms ease-in/out behavior as the analog face.
 - Seven-segment digit height stretches with the available clock frame while the established horizontal geometry remains unchanged.
 - Gesture/backlight/Tap-Shake bar visibility continues to contract and expand the clock dynamically.
+
+## Immediate settings application audit
+- Fixed Step Progress Bar Visibility not always applying immediately after Save.
+- Root cause: STEP BAR VISIBILITY is stored outside the main WatchfaceSettings record, so the post-save delta optimization could incorrectly clear the relayout flag.
+- Post-save structural reconciliation now includes Step Bar Visibility, Analog/Digital face changes, Expand Digital Clock, and all time-zone selectors in addition to the main settings record.
+- Top/Bottom visibility, Step style/visibility, clock format/layout, clock-face switching, and expanded-clock geometry are now reconciled from the final parsed settings state immediately after Save.

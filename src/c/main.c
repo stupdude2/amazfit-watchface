@@ -4402,6 +4402,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool expand_digital_before = s_expand_digital_clock;
   TimeStyle time_style_before = s_time_style;
   bool progress_battery_before = s_progress_track_battery;
+  uint8_t stepbar_visibility_before = s_stepbar_visibility;
   uint8_t tz_top_left_before = s_top_left_time_zone;
   uint8_t tz_top_right_before = s_top_right_time_zone;
   uint8_t tz_left_before = s_left_time_zone;
@@ -5050,15 +5051,27 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool settings_record_changed =
       memcmp(&settings_before, &s_settings, sizeof(s_settings)) != 0;
 
-  // If every WatchfaceSettings field is identical, none of those resent tuples
-  // should cause the layout/service pipeline to run again.
-  if (!settings_record_changed) {
-    layout_changed = false;
-    temperature_setting_changed = false;
-  } else {
-    temperature_setting_changed =
-        settings_before.temp_unit != s_settings.temp_unit;
-  }
+  // Several newer preferences intentionally live outside WatchfaceSettings so
+  // they can be added without breaking the persisted settings record. Include
+  // those in the final layout delta too. Previously STEP BAR VISIBILITY could
+  // change successfully, but this block then cleared layout_changed because the
+  // WatchfaceSettings struct itself had not changed. That left the old layer
+  // visibility in place until a later gesture/tick/reload.
+  const bool standalone_layout_changed =
+      stepbar_visibility_before != s_stepbar_visibility ||
+      analog_clock_before != s_analog_clock ||
+      expand_digital_before != s_expand_digital_clock ||
+      tz_top_left_before != s_top_left_time_zone ||
+      tz_top_right_before != s_top_right_time_zone ||
+      tz_left_before != s_left_time_zone ||
+      tz_right_before != s_right_time_zone;
+
+  // Reconcile from actual before/after state, not merely from tuples Clay sent.
+  // This guarantees every structural setting is applied immediately on Save,
+  // while still avoiding needless relayouts for unchanged full dictionaries.
+  layout_changed = settings_record_changed || standalone_layout_changed;
+  temperature_setting_changed =
+      settings_before.temp_unit != s_settings.temp_unit;
 
   if (accent_changed) {
     accent_changed =
