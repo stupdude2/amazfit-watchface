@@ -1,0 +1,17 @@
+Big Time 3.3.3 Production Release Audit
+
+Version: 3.3.3
+UUID: ced51275-d445-4b7e-89f6-9e41110ed4da
+CONFIG_TEST_MODE: false / 0
+KiezelPay production integration: enabled
+KIEZELPAY_LOGGING: false
+
+Primary fix:
+- Active trial / paid Pro settings are rebuilt from the current entitlement every time Settings opens, avoiding stale Free-only Clay controls.
+
+Also includes the complete 1.4.2 / 3.3.2 feature set:
+- Tap/Shake and Tap/Shake/Backlight visibility modes.
+- Independent Step Bar style and visibility controls.
+- Wrist-gesture data reveal independent of actual backlight illumination.
+- Expandable digital clock with analog-matched edge margins.
+- Immediate post-save settings/layout reconciliation.
