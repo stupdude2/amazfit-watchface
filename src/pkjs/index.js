@@ -10,7 +10,7 @@ var Clay = require('@rebble/clay');
 // CloudPebble/RePebble configuration test mode. When enabled, the settings
 // page always exposes Pro controls without requiring a KiezelPay entitlement.
 // This is for emulator/UI testing only and must be false for publishing builds.
-var CONFIG_TEST_MODE = true;
+var CONFIG_TEST_MODE = false;
 
 // Set the edition BEFORE config.js is first required. pypkjs/CloudPebble does
 // not reliably expose Node's require.cache, so rebuilding config.js later can
@@ -26,7 +26,8 @@ if (CONFIG_TEST_MODE) {
   editionState.configTest = true;
 }
 
-var clayConfig = require('./config');
+var buildConfig = require('./config');
+var clayConfig = buildConfig(editionState);
 
 // Official KiezelPay phone-side companion. Test mode deliberately does not
 // start it; licensing traffic is irrelevant in the emulator and can race with
@@ -571,13 +572,11 @@ function openSettingsPage() {
     editionModule.isPro = sessionEntitlement > 0;
     sessionProUnlocked = editionModule.isPro;
 
-    // config.js is loaded once by CommonJS, so create a fresh config module
-    // snapshot by clearing its cache when available.
-    try {
-      delete require.cache[require.resolve('./config')];
-    } catch (e) {}
-
-    var liveConfig = require('./config');
+    // Build a fresh Clay config from the current entitlement every time.
+    // PebbleKit JS does not consistently expose Node's require.cache, so a
+    // cached Free config could otherwise survive after a trial/purchase unlock
+    // and hide Pro controls even while the watch correctly reports Pro.
+    var liveConfig = buildConfig(editionModule);
 
     // Some Pebble companion environments retain the previously-loaded config
     // object even after a watchface update. Make the Free language selector

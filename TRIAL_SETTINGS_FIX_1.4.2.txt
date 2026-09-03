@@ -1,0 +1,7 @@
+Big Time 1.4.2 trial/settings hotfix
+
+- Trial remains explicitly user-started; KiezelPay automatic timed trial is disabled.
+- Existing active trials may resume after reinstall because phone-side localStorage intentionally preserves the original one-time trial expiry.
+- Fixed Clay configuration generation so Free/Trial/Purchased layouts are rebuilt from the current entitlement on every Settings open instead of relying on CommonJS require.cache behavior.
+- This prevents a valid active trial or purchase from showing a stale Free settings page with Pro controls missing.
+- KiezelPay verbose C logging disabled for production.

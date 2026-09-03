@@ -1,4 +1,5 @@
-var edition = require('./edition');
+module.exports = function buildConfig(edition) {
+  edition = edition || require('./edition');
 
 var sideOptions = [
   { "label": "Weather", "value": "0" },
@@ -432,4 +433,5 @@ if (edition.isPro) {
 }
 
 config.push({ "type": "submit", "defaultValue": "Save Settings" });
-module.exports = config;
+return config;
+};

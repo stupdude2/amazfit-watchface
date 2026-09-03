@@ -32,7 +32,7 @@
   
   Set to 0 before releasing
 */
-#define KIEZELPAY_LOG_VERBOSE 1
+#define KIEZELPAY_LOG_VERBOSE 0
 
 /**
   When set to 1, you can test the purchasing of your app without having to pay for real.
