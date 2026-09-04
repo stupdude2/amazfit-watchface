@@ -3756,7 +3756,26 @@ static void request_light_with_fallback(void) {
 
 static void touch_handler(const TouchEvent *event, void *context) {
   if (!event || event->type != TouchEvent_Touchdown) return;
-  request_light_with_fallback();
+
+  // Pebble Time 2 screen touches are separate from accelerometer "tap events".
+  // Treat a real touchscreen tap as Tap/Shake input whenever any configured
+  // bar uses that visibility mode. This works independently of the user's
+  // system Backlight on Tap / Backlight Motion preferences.
+  const bool want_tap =
+      bar_mode_uses_tap_shake(s_settings.footer_mode) ||
+      bar_mode_uses_tap_shake(s_settings.header_mode) ||
+      stepbar_uses_tap_shake();
+  const bool want_backlight =
+      bar_mode_uses_backlight(s_settings.footer_mode) ||
+      bar_mode_uses_backlight(s_settings.header_mode) ||
+      stepbar_uses_backlight();
+
+  if (want_tap) {
+    start_tap_reveal();
+  }
+  if (want_backlight) {
+    request_light_with_fallback();
+  }
 }
 
 static void backlight_handler(bool on) {
@@ -3833,12 +3852,14 @@ static void update_bar_input_services(void) {
     s_backlight_subscribed = false;
   }
 
-  // On PT2, touchscreen intent is useful even when ambient light suppresses
-  // the physical LED. Subscribe only when some UI actually depends on it.
-  if (want_backlight && !s_touch_subscribed) {
+  // On PT2, touchscreen touches are their own input path; they are not the
+  // same thing as AccelerometerService tap events. Subscribe whenever either
+  // Backlight or Tap/Shake visibility depends on a screen touch.
+  const bool want_touch = want_backlight || want_tap;
+  if (want_touch && !s_touch_subscribed) {
     touch_service_subscribe(touch_handler, NULL);
     s_touch_subscribed = true;
-  } else if (!want_backlight && s_touch_subscribed) {
+  } else if (!want_touch && s_touch_subscribed) {
     touch_service_unsubscribe();
     s_touch_subscribed = false;
   }

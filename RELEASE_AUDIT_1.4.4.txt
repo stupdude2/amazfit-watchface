@@ -1,0 +1,10 @@
+Big Time 1.4.4 release audit
+
+Package version: 1.4.4
+UUID: ced51275-d445-4b7e-89f6-9e41110ed4da
+CONFIG_TEST_MODE (JS): false
+CONFIG_TEST_MODE (C): 0
+KIEZELPAY_LOGGING: false
+Production KiezelPay: enabled
+Tap/Shake accelerometer support: included
+Pebble Time 2 touchscreen tap reveal: included
