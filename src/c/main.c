@@ -1394,7 +1394,6 @@ static bool s_backlight_subscribed = false;
 // Conditional bars/step bar normally follow Pebble's actual system backlight.
 // If an explicit interaction occurs while the OS keeps the LED off (for example
 // in bright sunlight), a single five-second fallback reveals the hidden UI.
-static bool s_touch_subscribed = false;
 static bool s_tap_subscribed = false;
 static bool s_sunlight_fallback_active = false;
 static AppTimer *s_sunlight_fallback_timer = NULL;
@@ -3729,7 +3728,7 @@ static void start_tap_reveal(void) {
   s_tap_reveal_active = true;
   s_tap_reveal_timer = app_timer_register(duration_ms, tap_reveal_timeout, NULL);
   APP_LOG(APP_LOG_LEVEL_INFO,
-          "Accelerometer tap/shake reveal: %lu ms",
+          "Accelerometer shake reveal: %lu ms",
           (unsigned long)duration_ms);
   refresh_conditional_ui();
 }
@@ -3751,30 +3750,6 @@ static void request_light_with_fallback(void) {
   } else {
     cancel_sunlight_fallback();
     refresh_conditional_ui();
-  }
-}
-
-static void touch_handler(const TouchEvent *event, void *context) {
-  if (!event || event->type != TouchEvent_Touchdown) return;
-
-  // Pebble Time 2 screen touches are separate from accelerometer "tap events".
-  // Treat a real touchscreen tap as Tap/Shake input whenever any configured
-  // bar uses that visibility mode. This works independently of the user's
-  // system Backlight on Tap / Backlight Motion preferences.
-  const bool want_tap =
-      bar_mode_uses_tap_shake(s_settings.footer_mode) ||
-      bar_mode_uses_tap_shake(s_settings.header_mode) ||
-      stepbar_uses_tap_shake();
-  const bool want_backlight =
-      bar_mode_uses_backlight(s_settings.footer_mode) ||
-      bar_mode_uses_backlight(s_settings.header_mode) ||
-      stepbar_uses_backlight();
-
-  if (want_tap) {
-    start_tap_reveal();
-  }
-  if (want_backlight) {
-    request_light_with_fallback();
   }
 }
 
@@ -3852,29 +3827,19 @@ static void update_bar_input_services(void) {
     s_backlight_subscribed = false;
   }
 
-  // On PT2, touchscreen touches are their own input path; they are not the
-  // same thing as AccelerometerService tap events. Subscribe whenever either
-  // Backlight or Tap/Shake visibility depends on a screen touch.
-  const bool want_touch = want_backlight || want_tap;
-  if (want_touch && !s_touch_subscribed) {
-    touch_service_subscribe(touch_handler, NULL);
-    s_touch_subscribed = true;
-  } else if (!want_touch && s_touch_subscribed) {
-    touch_service_unsubscribe();
-    s_touch_subscribed = false;
-  }
 
-  // Pebble calls these accelerometer "tap events"; the official guide notes
-  // that they fire for a significant tap OR shake of the watch.
+  // Pebble calls these accelerometer "tap events", but they represent a
+  // significant physical motion/tap of the watch, not a touchscreen touch.
+  // The settings UI calls this "Shake" to avoid implying screen-touch support.
   if (want_tap && !s_tap_subscribed) {
     accel_tap_service_subscribe(accel_tap_handler);
     s_tap_subscribed = true;
-    APP_LOG(APP_LOG_LEVEL_INFO, "Accelerometer tap/shake service enabled");
+    APP_LOG(APP_LOG_LEVEL_INFO, "Accelerometer shake service enabled");
   } else if (!want_tap && s_tap_subscribed) {
     accel_tap_service_unsubscribe();
     s_tap_subscribed = false;
     cancel_tap_reveal();
-    APP_LOG(APP_LOG_LEVEL_INFO, "Accelerometer tap/shake service disabled");
+    APP_LOG(APP_LOG_LEVEL_INFO, "Accelerometer shake service disabled");
   }
 
   // Synchronize from the live system backlight state. Header/footer visibility
@@ -5778,7 +5743,6 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   if (s_backlight_subscribed) backlight_service_unsubscribe();
-  if (s_touch_subscribed) touch_service_unsubscribe();
   if (s_tap_subscribed) accel_tap_service_unsubscribe();
   if (s_sunlight_fallback_timer) {
     app_timer_cancel(s_sunlight_fallback_timer);

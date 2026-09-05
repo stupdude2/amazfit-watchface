@@ -331,8 +331,8 @@ if (edition.isPro) {
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
-          { "label": "Show With Tap/Shake", "value": "3" },
-          { "label": "Show With Tap/Shake/Backlight", "value": "4" },
+          { "label": "Show With Shake", "value": "3" },
+          { "label": "Show With Shake/Backlight", "value": "4" },
           { "label": "Always Hidden", "value": "2" }
         ]
       }
@@ -357,8 +357,8 @@ if (edition.isPro) {
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
-          { "label": "Show With Tap/Shake", "value": "3" },
-          { "label": "Show With Tap/Shake/Backlight", "value": "4" },
+          { "label": "Show With Shake", "value": "3" },
+          { "label": "Show With Shake/Backlight", "value": "4" },
           { "label": "Always Hidden", "value": "2" }
         ]
       }
@@ -395,8 +395,8 @@ if (edition.isPro) {
         "options": [
           { "label": "Always Visible", "value": "0" },
           { "label": "Show With Backlight", "value": "1" },
-          { "label": "Show With Tap/Shake", "value": "3" },
-          { "label": "Show With Tap/Shake/Backlight", "value": "4" },
+          { "label": "Show With Shake", "value": "3" },
+          { "label": "Show With Shake/Backlight", "value": "4" },
           { "label": "Always Hidden", "value": "2" }
         ]
       }
