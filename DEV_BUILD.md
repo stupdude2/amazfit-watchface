@@ -1,6 +1,6 @@
-# Big Time 1.4.5 Production Release
+# Big Time 3.3.5 Production Release
 
-Publishable production build based on the validated 1.4.4 release.
+Publishable production build based on the validated 3.3.4 release.
 
 ## Changes
 - Renamed the visibility option from **Tap/Shake** to **Shake** so the setting accurately describes the input watchfaces can reliably receive.

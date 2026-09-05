@@ -1,0 +1,13 @@
+Big Time 3.3.5 release audit
+
+Package version: 3.3.5
+Release type: Production
+CONFIG_TEST_MODE: OFF
+KiezelPay: Production enabled
+Verbose KiezelPay logging: OFF
+App UUID: unchanged
+
+Change summary:
+- Renamed Tap/Shake visibility wording to Shake.
+- Removed unsupported/unreliable watchface touchscreen-touch reveal handling.
+- Accelerometer-based shake reveal remains enabled.
