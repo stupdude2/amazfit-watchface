@@ -871,7 +871,7 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Fixes Forecast +2 Hours icon pop-in after returning from menus.
 
 
-## v1.4.7 — Italian and Dutch watchface languages
+## v3.3.7 — Italian and Dutch watchface languages
 - Added Italian (Italiano) and Dutch (Nederlands) display translations.
 - Translates watchface labels, weekday abbreviations, and month abbreviations.
 - Settings interface remains in English; only the existing language selector gains the two new choices.

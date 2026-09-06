@@ -1,0 +1,7 @@
+Big Time 3.3.7 release audit
+PASS: Italian appended as language ID 7.
+PASS: Dutch appended as language ID 8.
+PASS: Existing language IDs 0-6 unchanged.
+PASS: Watchface labels, weekday abbreviations, and month abbreviations translated.
+PASS: Settings UI copy remains English; only language options were appended.
+PASS: Language validation accepts IDs through 8.

@@ -1,0 +1,8 @@
+Big Time 3.3.6 release audit
+
+Package version: 3.3.6
+PASS: Production CONFIG_TEST_MODE remains disabled.
+PASS: KiezelPay production mode enabled; verbose logging disabled.
+PASS: Existing Big Time UUID retained.
+PASS: KiezelPay purchase screen copy shortened for readability.
+PASS: KZL.IO/CODE is isolated on its own line and visually emphasized; purchase code remains rendered by KiezelPay's dedicated code field.
