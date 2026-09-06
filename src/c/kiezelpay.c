@@ -102,8 +102,8 @@
   It is also possible to configure a custom url in your product settings on our website so its shows your personalized purchase page to the customers.
   if you do so, remember to also change the URL below so it matches.
 */
-#define KIEZELPAY_CODE_AVAILABLE_MSG "To continue using BIG TIME please visit kzl.io/code and enter this code:"
-#define KIEZELPAY_PURCHASE_STARTED_MSG "Please complete the purchase process on kzl.io/code to unlock BIG TIME"
+#define KIEZELPAY_CODE_AVAILABLE_MSG "BIG TIME PRO\n\nKZL.IO/CODE\n\nEnter code below:"
+#define KIEZELPAY_PURCHASE_STARTED_MSG "Complete purchase at:\n\nKZL.IO/CODE\n\nto unlock BIG TIME"
 #define KIEZELPAY_LICENSED_MSG "Thank you for your purchase!"
 
 
