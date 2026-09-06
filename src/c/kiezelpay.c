@@ -27,6 +27,15 @@
 #include <pebble.h>
 #include <kiezelpay-core/kiezelpay.h>
 
+// Big Time custom purchase screen reads the same validated purchase-code value
+// that KiezelPay receives from its server.  The licensing/validation flow stays
+// entirely under KiezelPay; this only lets Big Time render the code larger.
+static uint32_t s_big_time_purchase_code = 0;
+
+uint32_t big_time_kiezelpay_purchase_code(void) {
+  return s_big_time_purchase_code;
+}
+
 /**
   Set to 1 to enable verbose logging, handy for tracking down issues with the kiezelpay integration
   
@@ -218,6 +227,9 @@ static bool kiezelpay_validate_msg(kiezelpay_msg_data *msg) {
 	//compare this hash with the checksum returned by the server
 	for (uint32_t i = 0; i < SHA256_BLOCK_SIZE; i++) {
 		if (msg->checksum[i] != hash[i]) return false;
+	}
+	if (msg->status == 0) {
+		s_big_time_purchase_code = msg->purchase_code;
 	}
 	return true;
 	#else

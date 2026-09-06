@@ -1,6 +1,10 @@
 #include <pebble.h>
 #include <pebble-events/pebble-events.h>
 #include <kiezelpay-core/kiezelpay.h>
+
+// Exposed by our generated KiezelPay wrapper after a server message has passed
+// KiezelPay's checksum validation. Used only to render the purchase code larger.
+extern uint32_t big_time_kiezelpay_purchase_code(void);
 #include <stdlib.h>
 #include "edition.h"
 
@@ -1114,6 +1118,16 @@ static const uint8_t DIGIT_SEGS[10] = {
 
 // ── Layers ────────────────────────────────────────────────────────────────────
 static Window    *s_window;
+
+// Custom KiezelPay purchase-code window. The stock KiezelPay message renderer
+// uses conservative fixed font sizes; Emery has enough room for a much more
+// readable URL and code.
+static Window *s_purchase_window;
+static TextLayer *s_purchase_title_layer;
+static TextLayer *s_purchase_url_layer;
+static TextLayer *s_purchase_instruction_layer;
+static TextLayer *s_purchase_code_layer;
+static char s_purchase_code_buf[7];
 static Layer     *s_header_layer;
 static TextLayer *s_top_left_label;
 static TextLayer *s_top_left_val;
@@ -4147,9 +4161,92 @@ static void pro_trial_refresh(void) {
   }
 }
 
+static void purchase_code_to_text(uint32_t value, char out[7]) {
+  // Legacy Pebble KiezelPay purchase codes are a compact five-character
+  // base-36 representation of the validated 32-bit purchase-code value.
+  static const char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  out[5] = '\0';
+  for (int i = 4; i >= 0; --i) {
+    out[i] = digits[value % 36];
+    value /= 36;
+  }
+}
+
+static void purchase_window_unload(Window *window) {
+  text_layer_destroy(s_purchase_title_layer);
+  text_layer_destroy(s_purchase_url_layer);
+  text_layer_destroy(s_purchase_instruction_layer);
+  text_layer_destroy(s_purchase_code_layer);
+  s_purchase_title_layer = NULL;
+  s_purchase_url_layer = NULL;
+  s_purchase_instruction_layer = NULL;
+  s_purchase_code_layer = NULL;
+}
+
+static TextLayer *purchase_text_layer(Layer *root, GRect frame, const char *text,
+                                      GFont font) {
+  TextLayer *layer = text_layer_create(frame);
+  text_layer_set_background_color(layer, GColorClear);
+  text_layer_set_text_color(layer, GColorBlack);
+  text_layer_set_text_alignment(layer, GTextAlignmentCenter);
+  text_layer_set_font(layer, font);
+  text_layer_set_text(layer, text);
+  layer_add_child(root, text_layer_get_layer(layer));
+  return layer;
+}
+
+static void purchase_window_load(Window *window) {
+  Layer *root = window_get_root_layer(window);
+  GRect bounds = layer_get_bounds(root);
+
+  // Keep the supporting copy compact and spend the available screen space on
+  // the two things the customer must actually read: URL and purchase code.
+  s_purchase_title_layer = purchase_text_layer(
+      root, GRect(0, 10, bounds.size.w, 24), "BIG TIME PRO",
+      fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  s_purchase_url_layer = purchase_text_layer(
+      root, GRect(0, 42, bounds.size.w, 45), "KZL.IO/CODE",
+      fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK));
+  s_purchase_instruction_layer = purchase_text_layer(
+      root, GRect(0, 101, bounds.size.w, 26), "Enter code below:",
+      fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  s_purchase_code_layer = purchase_text_layer(
+      root, GRect(0, 143, bounds.size.w, 58), s_purchase_code_buf,
+      fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+}
+
+static void hide_purchase_window(void) {
+  if (!s_purchase_window) return;
+  if (window_stack_contains_window(s_purchase_window)) {
+    window_stack_remove(s_purchase_window, false);
+  }
+  window_destroy(s_purchase_window);
+  s_purchase_window = NULL;
+}
+
+static void show_purchase_window(void) {
+  uint32_t purchase_code = big_time_kiezelpay_purchase_code();
+  if (purchase_code == 0) {
+    // If a future KiezelPay protocol revision does not expose the validated
+    // code here, fall back to its standard renderer rather than show bad data.
+    return;
+  }
+
+  purchase_code_to_text(purchase_code, s_purchase_code_buf);
+  hide_purchase_window();
+  s_purchase_window = window_create();
+  window_set_background_color(s_purchase_window, GColorWhite);
+  window_set_window_handlers(s_purchase_window, (WindowHandlers){
+    .load = purchase_window_load,
+    .unload = purchase_window_unload,
+  });
+  window_stack_push(s_purchase_window, true);
+}
+
 static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
   switch (e) {
     case KIEZELPAY_LICENSED:
+      hide_purchase_window();
       APP_LOG(APP_LOG_LEVEL_INFO,
               "KiezelPay: LICENSED -> Purchased Pro");
       s_kiezelpay_status_known = true;
@@ -4168,7 +4265,9 @@ static bool kiezelpay_event_callback(kiezelpay_event e, void *extra_data) {
       if (!s_trial_active) {
         license_set_pro(false);
       }
-      break;
+      show_purchase_window();
+      // We handled CODE_AVAILABLE with Big Time's larger Emery layout.
+      return big_time_kiezelpay_purchase_code() != 0;
 
     case KIEZELPAY_PURCHASE_STARTED:
       APP_LOG(APP_LOG_LEVEL_INFO, "KiezelPay: purchase started");
@@ -5731,6 +5830,7 @@ static void init(void) {
 }
 
 static void deinit(void) {
+  hide_purchase_window();
   tick_timer_service_unsubscribe();
   if (s_appmsg_handlers_registered) {
     events_app_message_unsubscribe(s_appmsg_received_handle);

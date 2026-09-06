@@ -1,0 +1,6 @@
+Big Time 1.4.7
+- Custom larger KiezelPay purchase screen on Emery
+- KZL.IO/CODE uses Bitham 30 Black
+- Purchase code uses Bitham 42 Bold
+- KiezelPay validation/licensing unchanged
+- CONFIG_TEST_MODE remains disabled
