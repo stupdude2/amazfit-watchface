@@ -13,3 +13,11 @@ Publishable production build based on the validated 1.4.4 release.
 - Production KiezelPay integration remains enabled.
 - Verbose KiezelPay logging is disabled.
 - Existing Big Time application UUID is retained.
+
+
+## Purchase screen readability test (1.4.8)
+- Restores the familiar KiezelPay-style green time bar, light-gray body, and black code panel.
+- Uses Gothic 24 Bold for KZL.IO/CODE so the full URL fits while remaining noticeably larger than stock.
+- Restores a larger Gothic 24 instruction line.
+- Uses a large white Bitham 42 Bold purchase code on black.
+- Corrects the custom renderer to display KiezelPay's numeric purchase code instead of an incorrect base-36 conversion.

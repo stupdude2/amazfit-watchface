@@ -1127,7 +1127,8 @@ static TextLayer *s_purchase_title_layer;
 static TextLayer *s_purchase_url_layer;
 static TextLayer *s_purchase_instruction_layer;
 static TextLayer *s_purchase_code_layer;
-static char s_purchase_code_buf[7];
+static StatusBarLayer *s_purchase_status_bar;
+static char s_purchase_code_buf[12];
 static Layer     *s_header_layer;
 static TextLayer *s_top_left_label;
 static TextLayer *s_top_left_val;
@@ -4161,15 +4162,11 @@ static void pro_trial_refresh(void) {
   }
 }
 
-static void purchase_code_to_text(uint32_t value, char out[7]) {
-  // Legacy Pebble KiezelPay purchase codes are a compact five-character
-  // base-36 representation of the validated 32-bit purchase-code value.
-  static const char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  out[5] = '\0';
-  for (int i = 4; i >= 0; --i) {
-    out[i] = digits[value % 36];
-    value /= 36;
-  }
+static void purchase_code_to_text(uint32_t value, char out[12]) {
+  // KiezelPay purchase codes are numeric. Preserve the familiar five-digit
+  // presentation (including a leading zero if the server returns one) rather
+  // than inventing a base-36 representation.
+  snprintf(out, 12, "%05lu", (unsigned long)value);
 }
 
 static void purchase_window_unload(Window *window) {
@@ -4177,10 +4174,14 @@ static void purchase_window_unload(Window *window) {
   text_layer_destroy(s_purchase_url_layer);
   text_layer_destroy(s_purchase_instruction_layer);
   text_layer_destroy(s_purchase_code_layer);
+  if (s_purchase_status_bar) {
+    status_bar_layer_destroy(s_purchase_status_bar);
+  }
   s_purchase_title_layer = NULL;
   s_purchase_url_layer = NULL;
   s_purchase_instruction_layer = NULL;
   s_purchase_code_layer = NULL;
+  s_purchase_status_bar = NULL;
 }
 
 static TextLayer *purchase_text_layer(Layer *root, GRect frame, const char *text,
@@ -4199,20 +4200,32 @@ static void purchase_window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(root);
 
-  // Keep the supporting copy compact and spend the available screen space on
-  // the two things the customer must actually read: URL and purchase code.
+  // Match KiezelPay's familiar purchase-screen structure: green system time
+  // bar, light-gray instructions, and a high-contrast black code panel.  The
+  // URL uses the same clean Gothic family as the stock screen, only larger.
+  s_purchase_status_bar = status_bar_layer_create();
+  status_bar_layer_set_colors(s_purchase_status_bar,
+                              GColorFromHEX(0x006644), GColorBlack);
+  layer_add_child(root, status_bar_layer_get_layer(s_purchase_status_bar));
+
   s_purchase_title_layer = purchase_text_layer(
-      root, GRect(0, 10, bounds.size.w, 24), "BIG TIME PRO",
+      root, GRect(0, 24, bounds.size.w, 26), "BIG TIME PRO",
       fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   s_purchase_url_layer = purchase_text_layer(
-      root, GRect(0, 42, bounds.size.w, 45), "KZL.IO/CODE",
-      fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK));
+      root, GRect(0, 63, bounds.size.w, 34), "KZL.IO/CODE",
+      fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
   s_purchase_instruction_layer = purchase_text_layer(
-      root, GRect(0, 101, bounds.size.w, 26), "Enter code below:",
-      fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  s_purchase_code_layer = purchase_text_layer(
-      root, GRect(0, 143, bounds.size.w, 58), s_purchase_code_buf,
-      fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+      root, GRect(0, 119, bounds.size.w, 32), "Enter code below:",
+      fonts_get_system_font(FONT_KEY_GOTHIC_24));
+
+  s_purchase_code_layer = text_layer_create(GRect(0, 164, bounds.size.w, 64));
+  text_layer_set_background_color(s_purchase_code_layer, GColorBlack);
+  text_layer_set_text_color(s_purchase_code_layer, GColorWhite);
+  text_layer_set_text_alignment(s_purchase_code_layer, GTextAlignmentCenter);
+  text_layer_set_font(s_purchase_code_layer,
+                      fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+  text_layer_set_text(s_purchase_code_layer, s_purchase_code_buf);
+  layer_add_child(root, text_layer_get_layer(s_purchase_code_layer));
 }
 
 static void hide_purchase_window(void) {
@@ -4235,7 +4248,7 @@ static void show_purchase_window(void) {
   purchase_code_to_text(purchase_code, s_purchase_code_buf);
   hide_purchase_window();
   s_purchase_window = window_create();
-  window_set_background_color(s_purchase_window, GColorWhite);
+  window_set_background_color(s_purchase_window, GColorLightGray);
   window_set_window_handlers(s_purchase_window, (WindowHandlers){
     .load = purchase_window_load,
     .unload = purchase_window_unload,
