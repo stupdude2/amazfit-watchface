@@ -869,3 +869,10 @@ Top and bottom bars now share customizable content choices. Day of Week, Date, a
 - Current-weather icon updates no longer destroy forecast bitmaps owned by Tomorrow/+2 layers.
 - Background changes re-tint all weather icon families independently.
 - Fixes Forecast +2 Hours icon pop-in after returning from menus.
+
+
+## v1.4.7 — Italian and Dutch watchface languages
+- Added Italian (Italiano) and Dutch (Nederlands) display translations.
+- Translates watchface labels, weekday abbreviations, and month abbreviations.
+- Settings interface remains in English; only the existing language selector gains the two new choices.
+- Existing language IDs and saved preferences remain unchanged.

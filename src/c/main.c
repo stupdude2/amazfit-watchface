@@ -254,7 +254,9 @@ typedef enum {
   LANG_FRENCH = 3,
   LANG_GERMAN = 4,
   LANG_PORTUGUESE = 5,
-  LANG_CATALAN = 6
+  LANG_CATALAN = 6,
+  LANG_ITALIAN = 7,
+  LANG_DUTCH = 8
 } WatchLanguage;
 
 typedef struct {
@@ -636,7 +638,7 @@ static void enforce_free_defaults(void) {
   s_settings.right_hide_label = 0;
 
   s_settings.language =
-      keep_language <= LANG_CATALAN ? keep_language : LANG_ENGLISH;
+      keep_language <= LANG_DUTCH ? keep_language : LANG_ENGLISH;
   s_settings.time_format =
       keep_time_format <= TIME_FORMAT_24H ? keep_time_format : TIME_FORMAT_12H;
   s_settings.center_12h = keep_center_12h ? 1 : 0;
@@ -726,7 +728,7 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
          settings->left_hide_label <= 1 &&
          settings->center_hide_label <= 1 &&
          settings->right_hide_label <= 1 &&
-         settings->language <= LANG_CATALAN;
+         settings->language <= LANG_DUTCH;
 }
 
 static void settings_load(void) {
@@ -2753,6 +2755,20 @@ static const WatchTranslation TRANSLATIONS[] = {
     { "DG", "DL", "DT", "DC", "DJ", "DV", "DS" },
     { "GEN", "FEB", "MAR", "ABR", "MAI", "JUN",
       "JUL", "AGO", "SET", "OCT", "NOV", "DES" }
+  },
+  {
+    "METEO", "PASSI", "BATT", "BT", "GIORNO", "DATA", "MESE",
+    "KCAL", "DIST", "ALBA", "TRAM", "M/M", "TEMP",
+    { "DOM", "LUN", "MAR", "MER", "GIO", "VEN", "SAB" },
+    { "GEN", "FEB", "MAR", "APR", "MAG", "GIU",
+      "LUG", "AGO", "SET", "OTT", "NOV", "DIC" }
+  },
+  {
+    "WEER", "STAPPEN", "HART", "BT", "DAG", "DATUM", "MAAND",
+    "KCAL", "AFST", "OP", "ONDER", "H/L", "TEMP",
+    { "ZON", "MAA", "DIN", "WOE", "DON", "VRI", "ZAT" },
+    { "JAN", "FEB", "MRT", "APR", "MEI", "JUN",
+      "JUL", "AUG", "SEP", "OKT", "NOV", "DEC" }
   }
 };
 
@@ -4818,7 +4834,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LANGUAGE: {
         int32_t value = tuple_to_int32(t, s_settings.language);
-        if (value >= LANG_ENGLISH && value <= LANG_CATALAN) {
+        if (value >= LANG_ENGLISH && value <= LANG_DUTCH) {
           s_settings.language = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO,
                   "Watchface language -> %ld", (long)value);

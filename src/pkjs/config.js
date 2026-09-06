@@ -140,7 +140,9 @@ var config = [
           { "label": "Français", "value": "3" },
           { "label": "Deutsch", "value": "4" },
           { "label": "Português", "value": "5" },
-          { "label": "Català", "value": "6" }
+          { "label": "Català", "value": "6" },
+          { "label": "Italiano", "value": "7" },
+          { "label": "Nederlands", "value": "8" }
         ]
       }
     ]

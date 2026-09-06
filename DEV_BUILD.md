@@ -28,3 +28,7 @@ Publishable production build based on the validated 1.4.4 release.
 - Increases KZL.IO/CODE to Gothic 28 Bold while keeping the stock-style font.
 - Restores the original lighter green KiezelPay-style status bar using GColorDarkGreen.
 - Keeps Enter code below: at Gothic 24, matching the previous readable size.
+
+
+## 1.4.7
+Added Italian and Dutch watchface display translations. Settings UI text remains English.

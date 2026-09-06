@@ -1,6 +1,7 @@
-Big Time 1.4.7
-- Custom larger KiezelPay purchase screen on Emery
-- KZL.IO/CODE uses Bitham 30 Black
-- Purchase code uses Bitham 42 Bold
-- KiezelPay validation/licensing unchanged
-- CONFIG_TEST_MODE remains disabled
+Big Time 1.4.7 release audit
+PASS: Italian appended as language ID 7.
+PASS: Dutch appended as language ID 8.
+PASS: Existing language IDs 0-6 unchanged.
+PASS: Watchface labels, weekday abbreviations, and month abbreviations translated.
+PASS: Settings UI copy remains English; only language options were appended.
+PASS: Language validation accepts IDs through 8.
