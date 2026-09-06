@@ -4201,11 +4201,11 @@ static void purchase_window_load(Window *window) {
   GRect bounds = layer_get_bounds(root);
 
   // Match KiezelPay's familiar purchase-screen structure: green system time
-  // bar, light-gray instructions, and a high-contrast black code panel.  The
+  // bar, white instructions, and a high-contrast black code panel.  The
   // URL uses the same clean Gothic family as the stock screen, only larger.
   s_purchase_status_bar = status_bar_layer_create();
   status_bar_layer_set_colors(s_purchase_status_bar,
-                              GColorDarkGreen, GColorBlack);
+                              GColorTiffanyBlue, GColorBlack);
   layer_add_child(root, status_bar_layer_get_layer(s_purchase_status_bar));
 
   s_purchase_title_layer = purchase_text_layer(
@@ -4248,7 +4248,7 @@ static void show_purchase_window(void) {
   purchase_code_to_text(purchase_code, s_purchase_code_buf);
   hide_purchase_window();
   s_purchase_window = window_create();
-  window_set_background_color(s_purchase_window, GColorLightGray);
+  window_set_background_color(s_purchase_window, GColorWhite);
   window_set_window_handlers(s_purchase_window, (WindowHandlers){
     .load = purchase_window_load,
     .unload = purchase_window_unload,
