@@ -1,0 +1,8 @@
+Big Time 1.4.9 purchase-screen test audit
+PASS: Purchase code remains numeric and is rendered from KiezelPay validated value.
+PASS: Code panel remains black with large white Bitham 42 Bold code.
+PASS: URL uses Gothic 28 Bold and fits within full Emery width.
+PASS: BIG TIME PRO uses Gothic 24 Bold.
+PASS: Enter code below uses Gothic 24.
+PASS: Status bar uses GColorDarkGreen to match the original lighter KiezelPay green.
+PASS: KiezelPay test mode remains disabled.

@@ -4205,15 +4205,15 @@ static void purchase_window_load(Window *window) {
   // URL uses the same clean Gothic family as the stock screen, only larger.
   s_purchase_status_bar = status_bar_layer_create();
   status_bar_layer_set_colors(s_purchase_status_bar,
-                              GColorFromHEX(0x006644), GColorBlack);
+                              GColorDarkGreen, GColorBlack);
   layer_add_child(root, status_bar_layer_get_layer(s_purchase_status_bar));
 
   s_purchase_title_layer = purchase_text_layer(
-      root, GRect(0, 24, bounds.size.w, 26), "BIG TIME PRO",
-      fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
-  s_purchase_url_layer = purchase_text_layer(
-      root, GRect(0, 63, bounds.size.w, 34), "KZL.IO/CODE",
+      root, GRect(0, 24, bounds.size.w, 30), "BIG TIME PRO",
       fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+  s_purchase_url_layer = purchase_text_layer(
+      root, GRect(0, 60, bounds.size.w, 40), "KZL.IO/CODE",
+      fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
   s_purchase_instruction_layer = purchase_text_layer(
       root, GRect(0, 119, bounds.size.w, 32), "Enter code below:",
       fonts_get_system_font(FONT_KEY_GOTHIC_24));
