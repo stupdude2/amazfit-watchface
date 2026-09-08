@@ -2364,15 +2364,6 @@ static void draw_heart_outline(GContext *ctx, GPoint c, GColor color) {
   }
 }
 
-static void draw_steps_icon(GContext *ctx, GPoint c, GColor color) {
-  // Use Pebble's built-in athletic-shoe emoji glyph rather than maintaining a
-  // hand-drawn steps symbol. System text rendering supplies the platform icon.
-  GRect r = GRect(c.x - 10, c.y - 10, 20, 20);
-  graphics_context_set_text_color(ctx, color);
-  graphics_draw_text(ctx, "👟", fonts_get_system_font(FONT_KEY_GOTHIC_18),
-                     r, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-}
-
 
 // ── Header ────────────────────────────────────────────────────────────────────
 // Datebox starts at y=0 (top of screen) and extends to the underline row.
@@ -2428,14 +2419,6 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
       draw_heart_outline(ctx, GPoint(right_area.origin.x + right_area.size.w / 2, heart_y), side_fg);
   }
 
-  // For compact no-label step counts, use the familiar walking icon on the
-  // outside edge so the digits remain visually anchored toward the clock.
-  if (s_step_count >= 0 && s_step_count <= 999) {
-    if (s_settings.top_left_slot == SLOT_STEPS && s_settings.top_left_hide_label)
-      draw_steps_icon(ctx, GPoint(left_area.origin.x + 10, 26), side_fg);
-    if (s_settings.top_right_slot == SLOT_STEPS && s_settings.top_right_hide_label)
-      draw_steps_icon(ctx, GPoint(right_area.origin.x + right_area.size.w - 10, 26), side_fg);
-  }
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
@@ -2772,12 +2755,6 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
       draw_heart_outline(ctx, GPoint(right_x + right_area.size.w / 2, 29), side_fg);
   }
 
-  if (s_step_count >= 0 && s_step_count <= 999) {
-    if (s_settings.left_slot == SLOT_STEPS && s_settings.left_hide_label)
-      draw_steps_icon(ctx, GPoint(10, 25), side_fg);
-    if (s_settings.right_slot == SLOT_STEPS && s_settings.right_hide_label)
-      draw_steps_icon(ctx, GPoint(SCREEN_W - 10, 25), side_fg);
-  }
 }
 
 static void update_time(struct tm *tick_time);
@@ -3392,18 +3369,6 @@ static void update_header_content(void) {
             right_calendar ? HEADER_H - 5 :
               (right_full_value ? HEADER_H - 5 : 34)));
 
-  if (s_step_count >= 0 && s_step_count <= 999) {
-    if (s_settings.top_left_slot == SLOT_STEPS && left_label_hidden) {
-      GRect f = layer_get_frame(text_layer_get_layer(s_top_left_val));
-      f.origin.x += 22; f.size.w -= 22;
-      layer_set_frame(text_layer_get_layer(s_top_left_val), f);
-    }
-    if (s_settings.top_right_slot == SLOT_STEPS && right_label_hidden) {
-      GRect f = layer_get_frame(text_layer_get_layer(s_top_right_val));
-      f.size.w -= 22;
-      layer_set_frame(text_layer_get_layer(s_top_right_val), f);
-    }
-  }
 
   text_layer_set_text_alignment(
       s_top_left_label,
@@ -3655,18 +3620,6 @@ static void update_footer_content(void) {
   // weather icon may overlap the far edge slightly; this is preferable to
   // shrinking the TextLayer enough that Pebble replaces the degree symbol
   // with an ellipsis.
-  if (s_step_count >= 0 && s_step_count <= 999) {
-    if (s_settings.left_slot == SLOT_STEPS && left_label_hidden) {
-      GRect f = layer_get_frame(text_layer_get_layer(s_left_val));
-      f.origin.x += 22; f.size.w -= 22;
-      layer_set_frame(text_layer_get_layer(s_left_val), f);
-    }
-    if (s_settings.right_slot == SLOT_STEPS && right_label_hidden) {
-      GRect f = layer_get_frame(text_layer_get_layer(s_right_val));
-      f.size.w -= 22;
-      layer_set_frame(text_layer_get_layer(s_right_val), f);
-    }
-  }
 
   text_layer_set_text_alignment(
       s_left_label,
