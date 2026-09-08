@@ -57,9 +57,9 @@ function customClay(minified) {
     function syncCenter12hAvailability() {
       if (!timeFormat || !center12h) return;
       if (String(timeFormat.get()) === '1') {
-        center12h.disable();
+        center12h.hide();
       } else {
-        center12h.enable();
+        center12h.show();
       }
     }
 
@@ -146,8 +146,8 @@ function customClay(minified) {
 
     if (progressTrackBattery && stepGoal) {
       function syncProgressSource() {
-        if (progressTrackBattery.get()) stepGoal.disable();
-        else stepGoal.enable();
+        if (progressTrackBattery.get()) stepGoal.hide();
+        else stepGoal.show();
       }
       syncProgressSource();
       progressTrackBattery.on('change', syncProgressSource);
@@ -190,6 +190,7 @@ function customClay(minified) {
     var secondHandColor = clayPage.getItemByMessageKey('SECOND_HAND_COLOR');
     var secondsColon = clayPage.getItemByMessageKey('FLASH_COLON');
     var bluetoothColon = clayPage.getItemByMessageKey('BLUETOOTH_COLON');
+    var quietTimeIndicator = clayPage.getItemByMessageKey('QUIET_TIME_INDICATOR');
     var timeStyle = clayPage.getItemByMessageKey('ROUNDED_TIME');
     var expandDigitalClock = clayPage.getItemByMessageKey('EXPAND_DIGITAL_CLOCK');
 
@@ -223,16 +224,16 @@ function customClay(minified) {
       }
 
       if (secondsColon) {
-        if (analog) secondsColon.disable();
-        else secondsColon.enable();
+        if (analog) secondsColon.hide();
+        else secondsColon.show();
       }
-      if (bluetoothColon) {
-        if (analog) bluetoothColon.disable();
-        else bluetoothColon.enable();
-      }
+      // Bluetooth and Quiet Time indicators apply to both digital and analog
+      // faces, so keep both controls visible in either clock mode.
+      if (bluetoothColon) bluetoothColon.show();
+      if (quietTimeIndicator) quietTimeIndicator.show();
       if (timeStyle) {
-        if (analog) timeStyle.disable();
-        else timeStyle.enable();
+        if (analog) timeStyle.hide();
+        else timeStyle.show();
       }
       if (expandDigitalClock) {
         if (analog) expandDigitalClock.hide();
@@ -365,6 +366,7 @@ function customClay(minified) {
         setValue('SECOND_HAND_COLOR', '0xFFFFFF');
         setValue('FLASH_COLON', false);
         setValue('BLUETOOTH_COLON', false);
+        setValue('QUIET_TIME_INDICATOR', false);
         setValue('CLOCK_FACE', '0');
         setValue('ANALOG_SECOND_HAND', false);
         setValue('PROGRESS_TRACK_BATTERY', false);

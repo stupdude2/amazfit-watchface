@@ -143,6 +143,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_PLUS2_ICON             50
 #define KEY_PLUS2_TEMP             51
 #define KEY_BLUETOOTH_COLON        52
+#define KEY_QUIET_TIME_INDICATOR   60
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -551,6 +552,7 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define PROGRESS_TRACK_BATTERY_PERSIST_KEY 1111
 #define PLUS2_WEATHER_CACHE_PERSIST_KEY 1112
 #define BLUETOOTH_COLON_PERSIST_KEY 1113
+#define QUIET_TIME_INDICATOR_PERSIST_KEY 1119
 #define CLOCK_FACE_PERSIST_KEY       1114
 #define ANALOG_SECOND_PERSIST_KEY    1115
 #define SECOND_HAND_COLOR_PERSIST_KEY 1116
@@ -691,6 +693,7 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_SPLIT_CLOCK_COLORS:
     case KEY_FLASH_COLON:
     case KEY_BLUETOOTH_COLON:
+    case KEY_QUIET_TIME_INDICATOR:
     case KEY_ROUNDED_TIME:
     case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
@@ -1215,6 +1218,7 @@ static GColor s_second_hand_color;
 static bool s_split_clock_colors = false;
 static bool s_flash_colon = false;
 static bool s_bluetooth_colon = false;
+static bool s_quiet_time_indicator = false;
 // Analog face is intentionally stored outside WatchfaceSettings so this first
 // implementation remains migration-safe. Its geometry is derived entirely
 // from the clock layer bounds, allowing the same renderer to expand cleanly
@@ -1268,6 +1272,9 @@ static void load_split_clock_colors(void) {
   s_bluetooth_colon =
       persist_exists(BLUETOOTH_COLON_PERSIST_KEY) &&
       persist_read_int(BLUETOOTH_COLON_PERSIST_KEY) != 0;
+  s_quiet_time_indicator =
+      persist_exists(QUIET_TIME_INDICATOR_PERSIST_KEY) &&
+      persist_read_int(QUIET_TIME_INDICATOR_PERSIST_KEY) != 0;
   s_analog_clock =
       persist_exists(CLOCK_FACE_PERSIST_KEY) &&
       persist_read_int(CLOCK_FACE_PERSIST_KEY) != 0;
@@ -1561,7 +1568,8 @@ static void draw_colon(GContext *ctx, int ox, int oy) {
       s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll;
 
   // Quiet Time is indicated by outlining the upper colon dot.
-  draw_colon_dot(ctx, cx, upper_y, radius, corners, quiet_time_is_active());
+  draw_colon_dot(ctx, cx, upper_y, radius, corners,
+                 s_quiet_time_indicator && quiet_time_is_active());
 
   // Bluetooth keeps its existing optional lower-dot behavior.
   const bool show_bt_disconnect =
@@ -2055,10 +2063,10 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
   // the other hour ticks. For 9 the outer edge is left; for 3 it is right.
   // 9 o'clock mirrors the digital upper colon dot: outline while Quiet Time is active.
   analog_draw_tapered_marker_state(ctx, GPoint(left_x2, cy), GPoint(left_x1, cy),
-                                   marker_color, quiet_time_is_active());
+                                   marker_color, s_quiet_time_indicator && quiet_time_is_active());
   // 3 o'clock mirrors the digital Bluetooth indicator: outline when disconnected.
   analog_draw_tapered_marker_state(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy),
-                                   marker_color, !s_bluetooth_connected);
+                                   marker_color, s_bluetooth_colon && !s_bluetooth_connected);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
@@ -4720,6 +4728,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool split_colors_before = s_split_clock_colors;
   bool flash_colon_before = s_flash_colon;
   bool bluetooth_colon_before = s_bluetooth_colon;
+  bool quiet_time_indicator_before = s_quiet_time_indicator;
   bool analog_clock_before = s_analog_clock;
   bool analog_second_before = s_analog_second_hand;
   bool expand_digital_before = s_expand_digital_clock;
@@ -5230,6 +5239,20 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_QUIET_TIME_INDICATOR: {
+        bool enabled =
+            tuple_to_int32(t, s_quiet_time_indicator ? 1 : 0) != 0;
+        if (enabled == s_quiet_time_indicator) break;
+
+        s_quiet_time_indicator = enabled;
+        persist_write_int(QUIET_TIME_INDICATOR_PERSIST_KEY, enabled ? 1 : 0);
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+
+        APP_LOG(APP_LOG_LEVEL_INFO,
+                "Quiet Time Indicator -> %d", enabled ? 1 : 0);
+        break;
+      }
+
       case KEY_ROUNDED_TIME: {
         int value = tuple_to_int32(t, (int)s_time_style);
         if (value < TIME_STYLE_SQUARE || value > TIME_STYLE_SOFT_SQUARE) {
@@ -5550,12 +5573,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #endif
 
   APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d analog=%d asecond=%d expand=%d style=%d batterybar=%d tz=%d%d%d%d",
+          "Config separate deltas: hour=%d minute=%d split=%d colon=%d btcolon=%d quiet=%d analog=%d asecond=%d expand=%d style=%d batterybar=%d tz=%d%d%d%d",
           hour_color_before.argb != s_hour_color.argb ? 1 : 0,
           minute_color_before.argb != s_minute_color.argb ? 1 : 0,
           split_colors_before != s_split_clock_colors ? 1 : 0,
           flash_colon_before != s_flash_colon ? 1 : 0,
           bluetooth_colon_before != s_bluetooth_colon ? 1 : 0,
+          quiet_time_indicator_before != s_quiet_time_indicator ? 1 : 0,
           analog_clock_before != s_analog_clock ? 1 : 0,
           analog_second_before != s_analog_second_hand ? 1 : 0,
           expand_digital_before != s_expand_digital_clock ? 1 : 0,

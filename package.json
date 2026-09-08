@@ -77,7 +77,8 @@
       "WEATHER_REFRESH": 56,
       "STEPBAR_VISIBILITY": 57,
       "EXPAND_DIGITAL_CLOCK": 58,
-      "UV_INDEX": 59
+      "UV_INDEX": 59,
+      "QUIET_TIME_INDICATOR": 60
     },
     "projectType": "native",
     "resources": {
@@ -147,5 +148,5 @@
       "watchface": true
     }
   },
-  "version": "1.4.8"
+  "version": "1.4.9"
 }
