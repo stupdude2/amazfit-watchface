@@ -1,34 +1,14 @@
-# Big Time 3.3.6 Production Release
-
-Publishable production build based on the validated 3.3.4 release.
+# Big Time 1.4.8 Production Release
 
 ## Changes
-- Renamed the visibility option from **Tap/Shake** to **Shake** so the setting accurately describes the input watchfaces can reliably receive.
-- Removed the ineffective Pebble Time 2 touchscreen-touch reveal path.
-- **Show With Shake** continues to use Pebble's AccelerometerService event and works independently of the system backlight settings.
-- **Show With Shake/Backlight** responds to either the accelerometer gesture or the normal backlight interaction.
+- Added Quiet Time status to the digital clock: the upper colon dot is outlined while Quiet Time is active.
+- Added analog status indicators: the 9 o’clock dash outlines for Quiet Time and the 3 o’clock dash outlines when Bluetooth is disconnected.
+- Replaced missing heart-rate “--” values with an outlined heart icon.
+- Added a compact steps icon beside hidden-label step values when the count is three digits or fewer, positioned on the outside edge of left/right data slots.
+- Added UV Index as a configurable data item using the existing Open-Meteo weather refresh/cache pipeline.
+- Added ISO Week of Year as a configurable data item.
 
 ## Production safeguards
-- CONFIG_TEST_MODE is disabled.
-- Production KiezelPay integration remains enabled.
-- Verbose KiezelPay logging is disabled.
-- Existing Big Time application UUID is retained.
-
-
-## Purchase screen readability test (3.3.8)
-- Restores the familiar KiezelPay-style green time bar, light-gray body, and black code panel.
-- Uses Gothic 24 Bold for KZL.IO/CODE so the full URL fits while remaining noticeably larger than stock.
-- Restores a larger Gothic 24 instruction line.
-- Uses a large white Bitham 42 Bold purchase code on black.
-- Corrects the custom renderer to display KiezelPay's numeric purchase code instead of an incorrect base-36 conversion.
-
-## Purchase screen test 3.3.9
-- Keeps the large white numeric KiezelPay code on the black panel.
-- Increases BIG TIME PRO to Gothic 24 Bold.
-- Increases KZL.IO/CODE to Gothic 28 Bold while keeping the stock-style font.
-- Restores the original lighter green KiezelPay-style status bar using GColorDarkGreen.
-- Keeps Enter code below: at Gothic 24, matching the previous readable size.
-
-
-## 3.3.7
-Added Italian and Dutch watchface display translations. Settings UI text remains English.
+- CONFIG_TEST_MODE remains disabled.
+- KiezelPay production licensing remains enabled.
+- Existing application UUID is retained.

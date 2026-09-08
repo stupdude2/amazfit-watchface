@@ -76,7 +76,8 @@
       "SECOND_HAND_COLOR": 55,
       "WEATHER_REFRESH": 56,
       "STEPBAR_VISIBILITY": 57,
-      "EXPAND_DIGITAL_CLOCK": 58
+      "EXPAND_DIGITAL_CLOCK": 58,
+      "UV_INDEX": 59
     },
     "projectType": "native",
     "resources": {
@@ -146,5 +147,5 @@
       "watchface": true
     }
   },
-  "version": "3.3.7"
+  "version": "1.4.8"
 }

@@ -12,6 +12,8 @@ var sideOptions = [
   { "label": "Forecast Tomorrow", "value": "17" },
   { "label": "Rain Chance", "value": "18" },
   { "label": "Forecast +2 Hours", "value": "19" },
+  { "label": "UV Index", "value": "20" },
+  { "label": "Week of Year", "value": "21" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Day of Week", "value": "5" },
@@ -71,6 +73,8 @@ var topCenterOptions = [
   { "label": "Battery %", "value": "14" },
   { "label": "Seconds", "value": "16" },
   { "label": "Rain Chance", "value": "18" },
+  { "label": "UV Index", "value": "20" },
+  { "label": "Week of Year", "value": "21" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Date", "value": "6" }
@@ -83,6 +87,8 @@ var centerOptions = [
   { "label": "Battery %", "value": "9" },
   { "label": "Seconds", "value": "10" },
   { "label": "Rain Chance", "value": "11" },
+  { "label": "UV Index", "value": "12" },
+  { "label": "Week of Year", "value": "13" },
   { "label": "Bluetooth", "value": "2" },
   { "label": "Weather", "value": "3" },
   { "label": "Date", "value": "6" }

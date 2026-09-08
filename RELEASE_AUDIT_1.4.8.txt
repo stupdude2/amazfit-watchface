@@ -1,0 +1,11 @@
+Big Time 1.4.8 release audit
+
+- package.json version: 1.4.8
+- UUID unchanged: ced51275-d445-4b7e-89f6-9e41110ed4da
+- CONFIG_TEST_MODE: 0
+- JS CONFIG_TEST_MODE expected false
+- Added message key UV_INDEX=59
+- Added SideSlot values UV Index=20, Week of Year=21
+- Added CenterSlot values UV Index=12, Week of Year=13
+- Quiet Time/Bluetooth analog marker indicators enabled
+- Missing HR heart icon and compact steps icon enabled

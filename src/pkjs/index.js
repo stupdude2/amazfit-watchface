@@ -75,17 +75,20 @@ function customClay(minified) {
       return value === '0' || value === '1' || value === '3' ||
              value === '8' || value === '9' || value === '10' ||
              value === '11' || value === '12' || value === '15' ||
-             value === '17' || value === '18' || value === '19';
+             value === '17' || value === '18' || value === '19' ||
+             value === '20' || value === '21';
     }
 
     function centerSlotHasLabel(value, topCenter) {
       value = String(value);
       if (topCenter) {
         // Top-center uses SideSlotContent values: Weather=0, HR=3.
-        return value === '0' || value === '3' || value === '18';
+        return value === '0' || value === '3' || value === '18' ||
+               value === '20' || value === '21';
       }
       // Bottom-center uses CenterSlotContent values: HR=0, Weather=3, Rain=11.
-      return value === '0' || value === '3' || value === '11';
+      return value === '0' || value === '3' || value === '11' ||
+             value === '12' || value === '13';
     }
 
     function bindConditionalLabelToggle(
@@ -897,7 +900,8 @@ function weatherRefreshDue() {
   // does not remain "--" until the user's normal interval expires.
   if (!cached ||
       typeof cached.PLUS2_ICON === 'undefined' ||
-      typeof cached.PLUS2_TEMP === 'undefined') {
+      typeof cached.PLUS2_TEMP === 'undefined' ||
+      typeof cached.UV_INDEX === 'undefined') {
     return true;
   }
 
@@ -968,7 +972,7 @@ function fetchWeather(lat, lon) {
     + '?latitude=' + encodeURIComponent(lat)
     + '&longitude=' + encodeURIComponent(lon)
     + '&current=temperature_2m,weather_code'
-    + '&hourly=precipitation_probability,temperature_2m,weather_code'
+    + '&hourly=precipitation_probability,temperature_2m,weather_code,uv_index'
     + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,weather_code,precipitation_probability_max'
     + '&temperature_unit=celsius'
     + '&timezone=auto'
@@ -1053,6 +1057,26 @@ function fetchWeather(lat, lon) {
               payload.PLUS2_TEMP =
                   Math.round(data.hourly.temperature_2m[plus2Index] * 10);
             }
+          }
+        }
+
+        // UV Index follows the current local forecast hour and is sent in
+        // tenths so the watch can display one decimal when useful.
+        if (data.hourly && data.hourly.time && data.hourly.uv_index) {
+          var uvTime = data.current && data.current.time;
+          var uvIndex = uvTime ? data.hourly.time.indexOf(uvTime) : -1;
+          if (uvIndex < 0 && uvTime) {
+            var uvHour = uvTime.substring(0, 13);
+            for (var ui = 0; ui < data.hourly.time.length; ui++) {
+              if (data.hourly.time[ui].substring(0, 13) === uvHour) {
+                uvIndex = ui;
+                break;
+              }
+            }
+          }
+          if (uvIndex >= 0 && typeof data.hourly.uv_index[uvIndex] === 'number') {
+            payload.UV_INDEX = Math.max(0, Math.min(300,
+                Math.round(data.hourly.uv_index[uvIndex] * 10)));
           }
         }
 

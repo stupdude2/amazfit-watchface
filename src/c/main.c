@@ -148,6 +148,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_SECOND_HAND_COLOR        55
 #define KEY_STEPBAR_VISIBILITY       57
 #define KEY_EXPAND_DIGITAL_CLOCK      58
+#define KEY_UV_INDEX                  59
 
 // Internal KiezelPay protocol value emitted by kiezelpay-core v2.2.4.
 // KiezelPay's own handler is registered before Big Time's pebble-events
@@ -180,7 +181,9 @@ typedef enum {
   SLOT_SECONDS = 16,
   SLOT_FORECAST = 17,
   SLOT_RAIN_CHANCE = 18,
-  SLOT_PLUS2_FORECAST = 19
+  SLOT_PLUS2_FORECAST = 19,
+  SLOT_UV_INDEX = 20,
+  SLOT_WEEK_OF_YEAR = 21
 } SideSlotContent;
 
 typedef enum {
@@ -195,7 +198,9 @@ typedef enum {
   CENTER_BATTERY_ICON = 8,
   CENTER_BATTERY_PERCENT = 9,
   CENTER_SECONDS = 10,
-  CENTER_RAIN_CHANCE = 11
+  CENTER_RAIN_CHANCE = 11,
+  CENTER_UV_INDEX = 12,
+  CENTER_WEEK_OF_YEAR = 13
 } CenterSlotContent;
 
 typedef enum {
@@ -551,6 +556,7 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define SECOND_HAND_COLOR_PERSIST_KEY 1116
 #define STEPBAR_VISIBILITY_PERSIST_KEY 1117
 #define EXPAND_DIGITAL_CLOCK_PERSIST_KEY 1118
+#define UV_INDEX_CACHE_PERSIST_KEY        1119
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -698,22 +704,26 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_PLUS2_FORECAST &&
+         settings->left_slot <= SLOT_WEEK_OF_YEAR &&
          ((settings->center_slot <= CENTER_MONTH &&
            settings->center_slot != CENTER_STEPS) ||
           settings->center_slot == CENTER_BATTERY_ICON ||
           settings->center_slot == CENTER_BATTERY_PERCENT ||
           settings->center_slot == CENTER_SECONDS ||
-          settings->center_slot == CENTER_RAIN_CHANCE) &&
-         settings->right_slot <= SLOT_PLUS2_FORECAST &&
-         settings->top_left_slot <= SLOT_PLUS2_FORECAST &&
+          settings->center_slot == CENTER_RAIN_CHANCE ||
+          settings->center_slot == CENTER_UV_INDEX ||
+          settings->center_slot == CENTER_WEEK_OF_YEAR) &&
+         settings->right_slot <= SLOT_WEEK_OF_YEAR &&
+         settings->top_left_slot <= SLOT_WEEK_OF_YEAR &&
          ((settings->top_center_slot <= SLOT_MONTH &&
            settings->top_center_slot != SLOT_STEPS) ||
           settings->top_center_slot == SLOT_BATTERY_ICON ||
           settings->top_center_slot == SLOT_BATTERY_PERCENT ||
           settings->top_center_slot == SLOT_SECONDS ||
-          settings->top_center_slot == SLOT_RAIN_CHANCE) &&
-         settings->top_right_slot <= SLOT_PLUS2_FORECAST &&
+          settings->top_center_slot == SLOT_RAIN_CHANCE ||
+          settings->top_center_slot == SLOT_UV_INDEX ||
+          settings->top_center_slot == SLOT_WEEK_OF_YEAR) &&
+         settings->top_right_slot <= SLOT_WEEK_OF_YEAR &&
          settings->footer_mode <= BAR_TAP_SHAKE_BACKLIGHT &&
          settings->header_mode <= BAR_TAP_SHAKE_BACKLIGHT &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1192,6 +1202,8 @@ static char s_high_low_buf[16];
 static char s_forecast_buf[16];
 static char s_plus2_buf[12];
 static char s_rain_buf[8];
+static char s_uv_buf[8];
+static char s_week_buf[4];
 static int  s_step_count  = 0;
 static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
@@ -1379,6 +1391,8 @@ static bool s_have_rain_chance = false;
 static int  s_plus2_icon = -1;
 static int  s_plus2_temp_c_x10 = 0;
 static bool s_have_plus2_forecast = false;
+static int  s_uv_index_x10 = 0;
+static bool s_have_uv_index = false;
 
 typedef struct {
   int32_t temperature_c_x10;
@@ -1516,60 +1530,43 @@ static void draw_one(GContext *ctx, int cell_x, int oy) {
   draw_v(ctx, ox, oy,    mid_y - oy + STK);
   draw_v(ctx, ox, mid_y, bot_y - mid_y + STK);
 }
-static void draw_colon(GContext *ctx, int ox, int oy) {
+static void draw_colon_dot(GContext *ctx, int x, int y, int radius,
+                           GCornerMask corners, bool outlined) {
+  GRect outer = GRect(x, y, COLON_DOT, COLON_DOT);
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
+  graphics_fill_rect(ctx, outer, radius, corners);
+  if (!outlined) return;
+
+  const int outline = 2;
+  int inner_size = COLON_DOT - (outline * 2);
+  if (inner_size <= 0) return;
+  int inner_radius = 0;
+  if (s_time_style == TIME_STYLE_ROUNDED) inner_radius = inner_size / 2;
+  else if (s_time_style == TIME_STYLE_SOFT_SQUARE) inner_radius = 1;
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
+  graphics_fill_rect(ctx,
+                     GRect(x + outline, y + outline, inner_size, inner_size),
+                     inner_radius,
+                     s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll);
+}
+
+static void draw_colon(GContext *ctx, int ox, int oy) {
   int cx      = ox + (COLON_WIDTH - COLON_DOT) / 2;
   int upper_y = oy + s_clock_digit_height / 3 - COLON_DOT / 2;
   int lower_y = oy + (s_clock_digit_height * 2) / 3 - COLON_DOT / 2;
   int radius = 0;
-  if (s_time_style == TIME_STYLE_ROUNDED) {
-    radius = COLON_DOT / 2;
-  } else if (s_time_style == TIME_STYLE_SOFT_SQUARE) {
-    radius = 3;
-  }
+  if (s_time_style == TIME_STYLE_ROUNDED) radius = COLON_DOT / 2;
+  else if (s_time_style == TIME_STYLE_SOFT_SQUARE) radius = 3;
   GCornerMask corners =
       s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll;
 
-  // Top dot is always the normal colon shape.
-  graphics_fill_rect(ctx, GRect(cx, upper_y, COLON_DOT, COLON_DOT),
-                     radius, corners);
+  // Quiet Time is indicated by outlining the upper colon dot.
+  draw_colon_dot(ctx, cx, upper_y, radius, corners, quiet_time_is_active());
 
+  // Bluetooth keeps its existing optional lower-dot behavior.
   const bool show_bt_disconnect =
       s_bluetooth_colon && !s_bluetooth_connected;
-
-  if (!show_bt_disconnect) {
-    // Connected (or feature disabled): preserve the normal filled bottom dot.
-    graphics_fill_rect(ctx, GRect(cx, lower_y, COLON_DOT, COLON_DOT),
-                       radius, corners);
-    return;
-  }
-
-  // Disconnected: draw the same shape as an outline in the colon color.
-  // The inset is repainted with the watchface background, visually exposing
-  // the background through the center while remaining compatible with Pebble's
-  // simple rectangle drawing API.
-  const int outline = 2;
-  GRect outer = GRect(cx, lower_y, COLON_DOT, COLON_DOT);
-  graphics_context_set_fill_color(ctx, s_clock_draw_color);
-  graphics_fill_rect(ctx, outer, radius, corners);
-
-  int inner_size = COLON_DOT - (outline * 2);
-  if (inner_size > 0) {
-    int inner_radius = 0;
-    if (s_time_style == TIME_STYLE_ROUNDED) {
-      inner_radius = inner_size / 2;
-    } else if (s_time_style == TIME_STYLE_SOFT_SQUARE) {
-      inner_radius = 1;
-    }
-
-    graphics_context_set_fill_color(ctx, s_settings.background_color);
-    graphics_fill_rect(ctx,
-                       GRect(cx + outline, lower_y + outline,
-                             inner_size, inner_size),
-                       inner_radius,
-                       s_time_style == TIME_STYLE_SQUARE
-                           ? GCornerNone : GCornersAll);
-  }
+  draw_colon_dot(ctx, cx, lower_y, radius, corners, show_bt_disconnect);
 }
 
 static void draw_digit_24(GContext *ctx, int ox, int oy, int digit, int width) {
@@ -1749,6 +1746,7 @@ static void weather_cache_save(void) {
     .have_forecast = s_have_plus2_forecast ? 1 : 0,
   };
   persist_write_data(PLUS2_WEATHER_CACHE_PERSIST_KEY, &plus2, sizeof(plus2));
+  if (s_have_uv_index) persist_write_int(UV_INDEX_CACHE_PERSIST_KEY, s_uv_index_x10);
 }
 
 static void weather_cache_load(void) {
@@ -1795,6 +1793,11 @@ static void weather_cache_load(void) {
       s_plus2_temp_c_x10 = plus2.temperature_c_x10;
       s_have_plus2_forecast = plus2.have_forecast != 0;
     }
+  }
+
+  if (persist_exists(UV_INDEX_CACHE_PERSIST_KEY)) {
+    s_uv_index_x10 = persist_read_int(UV_INDEX_CACHE_PERSIST_KEY);
+    s_have_uv_index = s_uv_index_x10 >= 0;
   }
 
   APP_LOG(APP_LOG_LEVEL_INFO,
@@ -1978,6 +1981,38 @@ static void analog_draw_tapered_marker(GContext *ctx, GPoint inner, GPoint outer
   gpath_destroy(path);
 }
 
+static void analog_draw_tapered_marker_state(GContext *ctx,
+                                                GPoint inner, GPoint outer,
+                                                GColor marker_color,
+                                                bool outlined) {
+  analog_draw_tapered_marker(ctx, inner, outer, marker_color);
+  if (!outlined) return;
+
+  // Hollow the marker while preserving the existing tapered silhouette.
+  int32_t dx = outer.x - inner.x;
+  int32_t dy = outer.y - inner.y;
+  int32_t length = analog_point_distance(inner, outer);
+  if (length < 4) return;
+  int32_t px = (-dy * 1) / length;
+  int32_t py = ( dx * 1) / length;
+  GPoint inner_points[] = {
+    GPoint(inner.x + px, inner.y + py),
+    GPoint(outer.x + px * 2, outer.y + py * 2),
+    GPoint(outer.x - px * 2, outer.y - py * 2),
+    GPoint(inner.x - px, inner.y - py)
+  };
+  GPathInfo inner_info = {
+    .num_points = ARRAY_LENGTH(inner_points),
+    .points = inner_points
+  };
+  GPath *inner_path = gpath_create(&inner_info);
+  if (inner_path) {
+    graphics_context_set_fill_color(ctx, s_settings.background_color);
+    gpath_draw_filled(ctx, inner_path);
+    gpath_destroy(inner_path);
+  }
+}
+
 static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
                                GColor marker_color) {
   // For this development pass, keep the dial intentionally sparse: only the
@@ -2018,10 +2053,12 @@ static void analog_draw_side_cardinal_markers(GContext *ctx, GRect bounds,
 
   // The 3/9 markers stay horizontal, but use the same subtle outside flare as
   // the other hour ticks. For 9 the outer edge is left; for 3 it is right.
-  analog_draw_tapered_marker(ctx, GPoint(left_x2, cy), GPoint(left_x1, cy),
-                             marker_color);
-  analog_draw_tapered_marker(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy),
-                             marker_color);
+  // 9 o'clock mirrors the digital upper colon dot: outline while Quiet Time is active.
+  analog_draw_tapered_marker_state(ctx, GPoint(left_x2, cy), GPoint(left_x1, cy),
+                                   marker_color, quiet_time_is_active());
+  // 3 o'clock mirrors the digital Bluetooth indicator: outline when disconnected.
+  analog_draw_tapered_marker_state(ctx, GPoint(right_x1, cy), GPoint(right_x2, cy),
+                                   marker_color, !s_bluetooth_connected);
 }
 
 static void analog_draw_numerals(GContext *ctx, GRect bounds, GColor color) {
@@ -2297,6 +2334,34 @@ static void clock_update_proc(Layer *layer, GContext *ctx) {
 static void draw_battery_icon(GContext *ctx, GRect r, int percent, GColor color);
 static void draw_battery_icon_fat(GContext *ctx, GRect r, int percent, GColor color);
 static void draw_bluetooth_icon(GContext *ctx, GPoint c, int width, int height, GColor color, bool connected);
+static void draw_heart_outline(GContext *ctx, GPoint c, GColor color) {
+  GPoint pts[] = {
+    GPoint(c.x, c.y + 7), GPoint(c.x - 8, c.y),
+    GPoint(c.x - 8, c.y - 4), GPoint(c.x - 5, c.y - 7),
+    GPoint(c.x - 2, c.y - 7), GPoint(c.x, c.y - 4),
+    GPoint(c.x + 2, c.y - 7), GPoint(c.x + 5, c.y - 7),
+    GPoint(c.x + 8, c.y - 4), GPoint(c.x + 8, c.y),
+    GPoint(c.x, c.y + 7)
+  };
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+  for (size_t i = 1; i < ARRAY_LENGTH(pts); ++i) {
+    graphics_draw_line(ctx, pts[i - 1], pts[i]);
+  }
+}
+
+static void draw_steps_icon(GContext *ctx, GPoint c, GColor color) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_fill_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_fill_circle(ctx, GPoint(c.x, c.y - 7), 2);
+  graphics_draw_line(ctx, GPoint(c.x, c.y - 4), GPoint(c.x - 1, c.y + 2));
+  graphics_draw_line(ctx, GPoint(c.x - 1, c.y - 1), GPoint(c.x - 5, c.y + 2));
+  graphics_draw_line(ctx, GPoint(c.x - 1, c.y), GPoint(c.x + 4, c.y + 2));
+  graphics_draw_line(ctx, GPoint(c.x - 1, c.y + 2), GPoint(c.x - 5, c.y + 8));
+  graphics_draw_line(ctx, GPoint(c.x - 1, c.y + 2), GPoint(c.x + 4, c.y + 8));
+}
+
 
 // ── Header ────────────────────────────────────────────────────────────────────
 // Datebox starts at y=0 (top of screen) and extends to the underline row.
@@ -2341,6 +2406,25 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
         s_battery_percent, side_fg);
   else if (s_settings.top_right_slot == SLOT_BLUETOOTH && s_bluetooth_connected)
     draw_bluetooth_icon(ctx, GPoint(right_area.origin.x + right_area.size.w/2, 24), 34, 30, side_fg, true);
+
+  const int heart_y = 30;
+  if (s_heart_rate <= 0) {
+    if (s_settings.top_left_slot == SLOT_HEART_RATE)
+      draw_heart_outline(ctx, GPoint(left_area.origin.x + left_area.size.w / 2, heart_y), side_fg);
+    if (s_settings.top_center_slot == SLOT_HEART_RATE)
+      draw_heart_outline(ctx, GPoint(DATEBOX_X + DATEBOX_W / 2, heart_y), center_fg);
+    if (s_settings.top_right_slot == SLOT_HEART_RATE)
+      draw_heart_outline(ctx, GPoint(right_area.origin.x + right_area.size.w / 2, heart_y), side_fg);
+  }
+
+  // For compact no-label step counts, use the familiar walking icon on the
+  // outside edge so the digits remain visually anchored toward the clock.
+  if (s_step_count >= 0 && s_step_count <= 999) {
+    if (s_settings.top_left_slot == SLOT_STEPS && s_settings.top_left_hide_label)
+      draw_steps_icon(ctx, GPoint(left_area.origin.x + 6, 26), side_fg);
+    if (s_settings.top_right_slot == SLOT_STEPS && s_settings.top_right_hide_label)
+      draw_steps_icon(ctx, GPoint(right_area.origin.x + right_area.size.w - 6, 26), side_fg);
+  }
 }
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
@@ -2663,9 +2747,26 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect left_area = GRect(4, 0, HRBOX_X - BOX_GAP - 4, 14);
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, 14);
-  draw_slot_icon(ctx, s_settings.left_slot, left_area, gcolor_legible_over(s_settings.background_color), false);
+  GColor side_fg = gcolor_legible_over(s_settings.background_color);
+  draw_slot_icon(ctx, s_settings.left_slot, left_area, side_fg, false);
   draw_center_icon(ctx, s_settings.center_slot, center_fg);
-  draw_slot_icon(ctx, s_settings.right_slot, right_area, gcolor_legible_over(s_settings.background_color), true);
+  draw_slot_icon(ctx, s_settings.right_slot, right_area, side_fg, true);
+
+  if (s_heart_rate <= 0) {
+    if (s_settings.left_slot == SLOT_HEART_RATE)
+      draw_heart_outline(ctx, GPoint(4 + (HRBOX_X - BOX_GAP - 4) / 2, 29), side_fg);
+    if (s_settings.center_slot == CENTER_HEART_RATE)
+      draw_heart_outline(ctx, GPoint(HRBOX_X + BOX_W / 2, 29), center_fg);
+    if (s_settings.right_slot == SLOT_HEART_RATE)
+      draw_heart_outline(ctx, GPoint(right_x + right_area.size.w / 2, 29), side_fg);
+  }
+
+  if (s_step_count >= 0 && s_step_count <= 999) {
+    if (s_settings.left_slot == SLOT_STEPS && s_settings.left_hide_label)
+      draw_steps_icon(ctx, GPoint(10, 25), side_fg);
+    if (s_settings.right_slot == SLOT_STEPS && s_settings.right_hide_label)
+      draw_steps_icon(ctx, GPoint(SCREEN_W - 10, 25), side_fg);
+  }
 }
 
 static void update_time(struct tm *tick_time);
@@ -2685,7 +2786,9 @@ typedef enum {
   TXT_RISE,
   TXT_SET,
   TXT_HIGH_LOW,
-  TXT_TEMP
+  TXT_TEMP,
+  TXT_UV,
+  TXT_WEEK
 } WatchTextId;
 
 typedef struct {
@@ -2702,6 +2805,8 @@ typedef struct {
   const char *set;
   const char *high_low;
   const char *temp;
+  const char *uv;
+  const char *week;
   const char *days[7];
   const char *months[12];
 } WatchTranslation;
@@ -2709,63 +2814,63 @@ typedef struct {
 static const WatchTranslation TRANSLATIONS[] = {
   {
     "WEATHER", "STEPS", "HR", "BT", "DAY", "DATE", "MONTH",
-    "CAL", "DIST", "RISE", "SET", "H/L", "TEMP",
+    "CAL", "DIST", "RISE", "SET", "H/L", "TEMP", "UV", "WEEK",
     { "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT" },
     { "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
       "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" }
   },
   {
     "VÄDER", "STEG", "PULS", "BT", "DAG", "DATUM", "MÅNAD",
-    "KCAL", "DIST", "UPP", "NED", "H/L", "TEMP",
+    "KCAL", "DIST", "UPP", "NED", "H/L", "TEMP", "UV", "VECKA",
     { "SÖN", "MÅN", "TIS", "ONS", "TOR", "FRE", "LÖR" },
     { "JAN", "FEB", "MAR", "APR", "MAJ", "JUN",
       "JUL", "AUG", "SEP", "OKT", "NOV", "DEC" }
   },
   {
     "CLIMA", "PASOS", "PULSO", "BT", "DÍA", "FECHA", "MES",
-    "KCAL", "DIST", "SALE", "PONE", "M/M", "TEMP",
+    "KCAL", "DIST", "SALE", "PONE", "M/M", "TEMP", "UV", "SEM",
     { "DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB" },
     { "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
       "JUL", "AGO", "SEP", "OCT", "NOV", "DIC" }
   },
   {
     "MÉTÉO", "PAS", "POULS", "BT", "JOUR", "DATE", "MOIS",
-    "KCAL", "DIST", "LEVE", "COUC", "H/B", "TEMP",
+    "KCAL", "DIST", "LEVE", "COUC", "H/B", "TEMP", "UV", "SEM",
     { "DIM", "LUN", "MAR", "MER", "JEU", "VEN", "SAM" },
     { "JAN", "FÉV", "MAR", "AVR", "MAI", "JUN",
       "JUL", "AOÛ", "SEP", "OCT", "NOV", "DÉC" }
   },
   {
     "WETTER", "SCHR", "PULS", "BT", "TAG", "DATUM", "MONAT",
-    "KCAL", "DIST", "AUFG", "UNTR", "H/T", "TEMP",
+    "KCAL", "DIST", "AUFG", "UNTR", "H/T", "TEMP", "UV", "WOCHE",
     { "SO", "MO", "DI", "MI", "DO", "FR", "SA" },
     { "JAN", "FEB", "MÄR", "APR", "MAI", "JUN",
       "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ" }
   },
   {
     "TEMPO", "PASSOS", "PULSO", "BT", "DIA", "DATA", "MÊS",
-    "KCAL", "DIST", "NASCE", "PÕE", "M/M", "TEMP",
+    "KCAL", "DIST", "NASCE", "PÕE", "M/M", "TEMP", "UV", "SEM",
     { "DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB" },
     { "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
       "JUL", "AGO", "SET", "OUT", "NOV", "DEZ" }
   },
   {
     "TEMPS", "PASSOS", "POLS", "BT", "DIA", "DATA", "MES",
-    "KCAL", "DIST", "SURT", "POSTA", "M/M", "TEMP",
+    "KCAL", "DIST", "SURT", "POSTA", "M/M", "TEMP", "UV", "SETM",
     { "DG", "DL", "DT", "DC", "DJ", "DV", "DS" },
     { "GEN", "FEB", "MAR", "ABR", "MAI", "JUN",
       "JUL", "AGO", "SET", "OCT", "NOV", "DES" }
   },
   {
     "METEO", "PASSI", "BATT", "BT", "GIORNO", "DATA", "MESE",
-    "KCAL", "DIST", "ALBA", "TRAM", "M/M", "TEMP",
+    "KCAL", "DIST", "ALBA", "TRAM", "M/M", "TEMP", "UV", "SETT",
     { "DOM", "LUN", "MAR", "MER", "GIO", "VEN", "SAB" },
     { "GEN", "FEB", "MAR", "APR", "MAG", "GIU",
       "LUG", "AGO", "SET", "OTT", "NOV", "DIC" }
   },
   {
     "WEER", "STAPPEN", "HART", "BT", "DAG", "DATUM", "MAAND",
-    "KCAL", "AFST", "OP", "ONDER", "H/L", "TEMP",
+    "KCAL", "AFST", "OP", "ONDER", "H/L", "TEMP", "UV", "WEEK",
     { "ZON", "MAA", "DIN", "WOE", "DON", "VRI", "ZAT" },
     { "JAN", "FEB", "MRT", "APR", "MEI", "JUN",
       "JUL", "AUG", "SEP", "OKT", "NOV", "DEC" }
@@ -2794,6 +2899,8 @@ static const char *watch_text(WatchTextId id) {
     case TXT_SET: return t->set;
     case TXT_HIGH_LOW: return t->high_low;
     case TXT_TEMP: return t->temp;
+    case TXT_UV: return t->uv;
+    case TXT_WEEK: return t->week;
     default: return "";
   }
 }
@@ -2830,6 +2937,44 @@ static void format_time_zone_value(uint8_t preset_index,
   }
 }
 
+static const char *uv_index_text(void) {
+  if (!s_have_uv_index) {
+    snprintf(s_uv_buf, sizeof(s_uv_buf), "--");
+  } else if ((s_uv_index_x10 % 10) == 0) {
+    snprintf(s_uv_buf, sizeof(s_uv_buf), "%d", s_uv_index_x10 / 10);
+  } else {
+    snprintf(s_uv_buf, sizeof(s_uv_buf), "%d.%d",
+             s_uv_index_x10 / 10, s_uv_index_x10 % 10);
+  }
+  return s_uv_buf;
+}
+
+static bool year_is_leap(int year) {
+  return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+static int iso_weeks_in_year(int year) {
+  // ISO years have 53 weeks when Jan 1 is Thursday, or Wednesday in a leap year.
+  struct tm jan1 = {0};
+  jan1.tm_year = year - 1900;
+  jan1.tm_mon = 0;
+  jan1.tm_mday = 1;
+  mktime(&jan1);
+  int wday = jan1.tm_wday == 0 ? 7 : jan1.tm_wday;
+  return (wday == 4 || (wday == 3 && year_is_leap(year))) ? 53 : 52;
+}
+
+static int iso_week_of_year(const struct tm *t) {
+  if (!t) return 1;
+  int year = t->tm_year + 1900;
+  int iso_wday = t->tm_wday == 0 ? 7 : t->tm_wday;
+  int week = (t->tm_yday + 11 - iso_wday) / 7;
+  if (week < 1) return iso_weeks_in_year(year - 1);
+  int weeks_this_year = iso_weeks_in_year(year);
+  if (week > weeks_this_year) return 1;
+  return week;
+}
+
 static const char *side_slot_label(uint8_t slot) {
   switch (slot) {
     case SLOT_STEPS: return watch_text(TXT_STEPS);
@@ -2849,6 +2994,8 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_FORECAST: return "TOMORROW";
     case SLOT_RAIN_CHANCE: return "RAIN";
     case SLOT_PLUS2_FORECAST: return "+2 HOURS";
+    case SLOT_UV_INDEX: return watch_text(TXT_UV);
+    case SLOT_WEEK_OF_YEAR: return watch_text(TXT_WEEK);
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -2864,7 +3011,7 @@ static const char *side_slot_value(uint8_t slot) {
       return s_battery_buf;
     case SLOT_HEART_RATE:
       if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
-      else snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
+      else s_hr_buf[0] = '\0';
       return s_hr_buf;
     case SLOT_BLUETOOTH:
       return "";
@@ -2900,6 +3047,10 @@ static const char *side_slot_value(uint8_t slot) {
       return rain_chance_text();
     case SLOT_PLUS2_FORECAST:
       return plus2_forecast_text();
+    case SLOT_UV_INDEX:
+      return uv_index_text();
+    case SLOT_WEEK_OF_YEAR:
+      return s_week_buf;
     case SLOT_BATTERY_ICON:
       return "";
     case SLOT_BATTERY_PERCENT:
@@ -2965,6 +3116,8 @@ static const char *center_slot_label(void) {
     case CENTER_BATTERY_PERCENT: return "";
     case CENTER_SECONDS: return "";
     case CENTER_RAIN_CHANCE: return "RAIN";
+    case CENTER_UV_INDEX: return watch_text(TXT_UV);
+    case CENTER_WEEK_OF_YEAR: return watch_text(TXT_WEEK);
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
     case CENTER_WEATHER: return watch_text(TXT_TEMP);
     case CENTER_STEPS: return watch_text(TXT_STEPS);
@@ -2990,6 +3143,10 @@ static const char *center_slot_value(void) {
       return s_seconds_buf;
     case CENTER_RAIN_CHANCE:
       return rain_chance_text();
+    case CENTER_UV_INDEX:
+      return uv_index_text();
+    case CENTER_WEEK_OF_YEAR:
+      return s_week_buf;
     case CENTER_BLUETOOTH: return "";
     case CENTER_WEATHER: return s_weather_buf;
     case CENTER_STEPS:
@@ -2998,7 +3155,7 @@ static const char *center_slot_value(void) {
     case CENTER_HEART_RATE:
     default:
       if (s_heart_rate > 0) snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", s_heart_rate);
-      else snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
+      else s_hr_buf[0] = '\0';
       return s_hr_buf;
   }
 }
@@ -3015,14 +3172,18 @@ static bool side_slot_has_optional_label(uint8_t slot) {
          slot == SLOT_TIME_ZONE ||
          slot == SLOT_FORECAST ||
          slot == SLOT_RAIN_CHANCE ||
-         slot == SLOT_PLUS2_FORECAST;
+         slot == SLOT_PLUS2_FORECAST ||
+         slot == SLOT_UV_INDEX ||
+         slot == SLOT_WEEK_OF_YEAR;
 }
 
 static bool center_slot_has_optional_label(uint8_t slot) {
   return slot == CENTER_HEART_RATE ||
          slot == CENTER_WEATHER ||
          slot == CENTER_STEPS ||
-         slot == CENTER_RAIN_CHANCE;
+         slot == CENTER_RAIN_CHANCE ||
+         slot == CENTER_UV_INDEX ||
+         slot == CENTER_WEEK_OF_YEAR;
 }
 
 static bool weather_value_needs_smaller_font(void) {
@@ -3219,6 +3380,19 @@ static void update_header_content(void) {
             top_right_w,
             right_calendar ? HEADER_H - 5 :
               (right_full_value ? HEADER_H - 5 : 34)));
+
+  if (s_step_count >= 0 && s_step_count <= 999) {
+    if (s_settings.top_left_slot == SLOT_STEPS && left_label_hidden) {
+      GRect f = layer_get_frame(text_layer_get_layer(s_top_left_val));
+      f.origin.x += 14; f.size.w -= 14;
+      layer_set_frame(text_layer_get_layer(s_top_left_val), f);
+    }
+    if (s_settings.top_right_slot == SLOT_STEPS && right_label_hidden) {
+      GRect f = layer_get_frame(text_layer_get_layer(s_top_right_val));
+      f.size.w -= 14;
+      layer_set_frame(text_layer_get_layer(s_top_right_val), f);
+    }
+  }
 
   text_layer_set_text_alignment(
       s_top_left_label,
@@ -3470,6 +3644,19 @@ static void update_footer_content(void) {
   // weather icon may overlap the far edge slightly; this is preferable to
   // shrinking the TextLayer enough that Pebble replaces the degree symbol
   // with an ellipsis.
+  if (s_step_count >= 0 && s_step_count <= 999) {
+    if (s_settings.left_slot == SLOT_STEPS && left_label_hidden) {
+      GRect f = layer_get_frame(text_layer_get_layer(s_left_val));
+      f.origin.x += 14; f.size.w -= 14;
+      layer_set_frame(text_layer_get_layer(s_left_val), f);
+    }
+    if (s_settings.right_slot == SLOT_STEPS && right_label_hidden) {
+      GRect f = layer_get_frame(text_layer_get_layer(s_right_val));
+      f.size.w -= 14;
+      layer_set_frame(text_layer_get_layer(s_right_val), f);
+    }
+  }
+
   text_layer_set_text_alignment(
       s_left_label,
       (s_settings.left_slot == SLOT_BLUETOOTH && !s_bluetooth_connected)
@@ -3834,6 +4021,7 @@ static void focus_handler(bool in_focus) {
   cancel_sunlight_fallback();
   cancel_tap_reveal();
   refresh_conditional_ui();
+  if (s_clock_layer) layer_mark_dirty(s_clock_layer);
 }
 
 static void update_bar_input_services(void) {
@@ -4045,7 +4233,7 @@ static void connection_handler(bool connected) {
   update_footer_content();
   update_header_content();
 
-  if (changed && s_bluetooth_colon && s_clock_layer) {
+  if (changed && s_clock_layer && (s_bluetooth_colon || s_analog_clock)) {
     layer_mark_dirty(s_clock_layer);
   }
 }
@@ -4701,6 +4889,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         weather_changed = true;
         break;
 
+      case KEY_UV_INDEX: {
+        int uv = (int)tuple_to_int32(t, -1);
+        if (uv >= 0 && uv <= 300) {
+          s_uv_index_x10 = uv;
+          s_have_uv_index = true;
+          weather_changed = true;
+        }
+        break;
+      }
+
 #if WATCHFACE_PRO
       case KEY_ACCENT_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
@@ -4711,7 +4909,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) {
+        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -4726,7 +4924,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             value == CENTER_BATTERY_ICON ||
             value == CENTER_BATTERY_PERCENT ||
             value == CENTER_SECONDS ||
-            value == CENTER_RAIN_CHANCE) {
+            value == CENTER_RAIN_CHANCE ||
+            value == CENTER_UV_INDEX ||
+            value == CENTER_WEEK_OF_YEAR) {
           s_settings.center_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
           layout_changed = true;
@@ -4736,7 +4936,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) {
+        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -4746,7 +4946,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -4756,7 +4956,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             value == SLOT_BATTERY_ICON ||
             value == SLOT_BATTERY_PERCENT ||
             value == SLOT_SECONDS ||
-            value == SLOT_RAIN_CHANCE) {
+            value == SLOT_RAIN_CHANCE ||
+            value == SLOT_UV_INDEX ||
+            value == SLOT_WEEK_OF_YEAR) {
           s_settings.top_center_slot = (uint8_t)value;
           layout_changed = true;
         }
@@ -4764,7 +4966,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_PLUS2_FORECAST) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -5411,6 +5613,7 @@ static void update_time(struct tm *tick_time) {
   snprintf(s_day_buf, sizeof(s_day_buf), "%s", translation->days[tick_time->tm_wday]);
   strftime(s_date_buf, sizeof(s_date_buf), "%e", tick_time);
   snprintf(s_month_buf, sizeof(s_month_buf), "%s", translation->months[tick_time->tm_mon]);
+  snprintf(s_week_buf, sizeof(s_week_buf), "%d", iso_week_of_year(tick_time));
 
   update_header_content();
   update_footer_content();
