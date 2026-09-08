@@ -1,12 +1,9 @@
-# Big Time 1.4.8 Production Release
+# Big Time 1.4.11 Production Release
 
 ## Changes
-- Added Quiet Time status to the digital clock: the upper colon dot is outlined while Quiet Time is active.
-- Added analog status indicators: the 9 o’clock dash outlines for Quiet Time and the 3 o’clock dash outlines when Bluetooth is disconnected.
-- Replaced missing heart-rate “--” values with an outlined heart icon.
-- Added a compact steps icon beside hidden-label step values when the count is three digits or fewer, positioned on the outside edge of left/right data slots.
-- Added UV Index as a configurable data item using the existing Open-Meteo weather refresh/cache pipeline.
-- Added ISO Week of Year as a configurable data item.
+- Status indicators now render as complete outlined rectangles instead of appearing like equals signs.
+- Digital Quiet Time/Bluetooth colon indicators use a clear 2 px rectangular outline.
+- Analog 9 o'clock Quiet Time and 3 o'clock Bluetooth status markers use the same complete rectangular outline.
 
 ## Production safeguards
 - CONFIG_TEST_MODE remains disabled.

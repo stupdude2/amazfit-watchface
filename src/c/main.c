@@ -1540,21 +1540,28 @@ static void draw_one(GContext *ctx, int cell_x, int oy) {
 static void draw_colon_dot(GContext *ctx, int x, int y, int radius,
                            GCornerMask corners, bool outlined) {
   GRect outer = GRect(x, y, COLON_DOT, COLON_DOT);
+
+  if (outlined) {
+    // Draw a true hollow rectangle for status indication. Carving a smaller
+    // filled shape out of the normal colon dot made the narrow side strokes
+    // visually disappear, which could read as an equals sign.
+    graphics_context_set_fill_color(ctx, s_settings.background_color);
+    graphics_fill_rect(ctx, outer, 0, GCornerNone);
+
+    // Build the border explicitly from four filled bars. graphics_draw_rect()
+    // with a thick stroke can lose the short vertical sides on Pebble's
+    // rasterizer, making the indicator resemble an equals sign.
+    graphics_context_set_fill_color(ctx, s_clock_draw_color);
+    const int t = 2;
+    graphics_fill_rect(ctx, GRect(outer.origin.x, outer.origin.y, outer.size.w, t), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(outer.origin.x, outer.origin.y + outer.size.h - t, outer.size.w, t), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(outer.origin.x, outer.origin.y + t, t, outer.size.h - 2 * t), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(outer.origin.x + outer.size.w - t, outer.origin.y + t, t, outer.size.h - 2 * t), 0, GCornerNone);
+    return;
+  }
+
   graphics_context_set_fill_color(ctx, s_clock_draw_color);
   graphics_fill_rect(ctx, outer, radius, corners);
-  if (!outlined) return;
-
-  const int outline = 2;
-  int inner_size = COLON_DOT - (outline * 2);
-  if (inner_size <= 0) return;
-  int inner_radius = 0;
-  if (s_time_style == TIME_STYLE_ROUNDED) inner_radius = inner_size / 2;
-  else if (s_time_style == TIME_STYLE_SOFT_SQUARE) inner_radius = 1;
-  graphics_context_set_fill_color(ctx, s_settings.background_color);
-  graphics_fill_rect(ctx,
-                     GRect(x + outline, y + outline, inner_size, inner_size),
-                     inner_radius,
-                     s_time_style == TIME_STYLE_SQUARE ? GCornerNone : GCornersAll);
 }
 
 static void draw_colon(GContext *ctx, int ox, int oy) {
@@ -1993,32 +2000,31 @@ static void analog_draw_tapered_marker_state(GContext *ctx,
                                                 GPoint inner, GPoint outer,
                                                 GColor marker_color,
                                                 bool outlined) {
-  analog_draw_tapered_marker(ctx, inner, outer, marker_color);
-  if (!outlined) return;
-
-  // Hollow the marker while preserving the existing tapered silhouette.
-  int32_t dx = outer.x - inner.x;
-  int32_t dy = outer.y - inner.y;
-  int32_t length = analog_point_distance(inner, outer);
-  if (length < 4) return;
-  int32_t px = (-dy * 1) / length;
-  int32_t py = ( dx * 1) / length;
-  GPoint inner_points[] = {
-    GPoint(inner.x + px, inner.y + py),
-    GPoint(outer.x + px * 2, outer.y + py * 2),
-    GPoint(outer.x - px * 2, outer.y - py * 2),
-    GPoint(inner.x - px, inner.y - py)
-  };
-  GPathInfo inner_info = {
-    .num_points = ARRAY_LENGTH(inner_points),
-    .points = inner_points
-  };
-  GPath *inner_path = gpath_create(&inner_info);
-  if (inner_path) {
-    graphics_context_set_fill_color(ctx, s_settings.background_color);
-    gpath_draw_filled(ctx, inner_path);
-    gpath_destroy(inner_path);
+  if (!outlined) {
+    analog_draw_tapered_marker(ctx, inner, outer, marker_color);
+    return;
   }
+
+  // The 3/9 status markers are horizontal. When active, render them as a
+  // complete hollow rectangle so both vertical edges remain clearly visible.
+  const int marker_height = 8;
+  int left = inner.x < outer.x ? inner.x : outer.x;
+  int right = inner.x > outer.x ? inner.x : outer.x;
+  int center_y = (inner.y + outer.y) / 2;
+  GRect outline_rect = GRect(left, center_y - marker_height / 2,
+                             right - left + 1, marker_height);
+
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
+  graphics_fill_rect(ctx, outline_rect, 0, GCornerNone);
+
+  // Explicit four-sided border; this keeps the short vertical ends visible
+  // on-device instead of allowing the marker to read as an equals sign.
+  graphics_context_set_fill_color(ctx, marker_color);
+  const int t = 2;
+  graphics_fill_rect(ctx, GRect(outline_rect.origin.x, outline_rect.origin.y, outline_rect.size.w, t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(outline_rect.origin.x, outline_rect.origin.y + outline_rect.size.h - t, outline_rect.size.w, t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(outline_rect.origin.x, outline_rect.origin.y + t, t, outline_rect.size.h - 2 * t), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(outline_rect.origin.x + outline_rect.size.w - t, outline_rect.origin.y + t, t, outline_rect.size.h - 2 * t), 0, GCornerNone);
 }
 
 static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
@@ -2359,15 +2365,12 @@ static void draw_heart_outline(GContext *ctx, GPoint c, GColor color) {
 }
 
 static void draw_steps_icon(GContext *ctx, GPoint c, GColor color) {
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_fill_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_fill_circle(ctx, GPoint(c.x, c.y - 7), 2);
-  graphics_draw_line(ctx, GPoint(c.x, c.y - 4), GPoint(c.x - 1, c.y + 2));
-  graphics_draw_line(ctx, GPoint(c.x - 1, c.y - 1), GPoint(c.x - 5, c.y + 2));
-  graphics_draw_line(ctx, GPoint(c.x - 1, c.y), GPoint(c.x + 4, c.y + 2));
-  graphics_draw_line(ctx, GPoint(c.x - 1, c.y + 2), GPoint(c.x - 5, c.y + 8));
-  graphics_draw_line(ctx, GPoint(c.x - 1, c.y + 2), GPoint(c.x + 4, c.y + 8));
+  // Use Pebble's built-in athletic-shoe emoji glyph rather than maintaining a
+  // hand-drawn steps symbol. System text rendering supplies the platform icon.
+  GRect r = GRect(c.x - 8, c.y - 10, 16, 20);
+  graphics_context_set_text_color(ctx, color);
+  graphics_draw_text(ctx, "👟", fonts_get_system_font(FONT_KEY_GOTHIC_18),
+                     r, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
 
