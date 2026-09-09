@@ -1,0 +1,7 @@
+Big Time 3.3.9 - Weather Refresh persistence fix
+
+Fixed Clay 1.x settings handling for WEATHER_REFRESH. Clay returns numeric AppMessage keys,
+so the previous string-key lookup never saved the selected refresh interval.
+The selected 15/30/60/120/180/360 minute value is now saved to phone localStorage,
+used by the refresh scheduler, and restored when Settings is reopened.
+The same numeric-key correction was applied to the special LANGUAGE persistence path.
