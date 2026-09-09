@@ -725,17 +725,24 @@ Pebble.addEventListener('webviewclosed', function(e) {
   try {
     var settings = clay.getSettings(e.response);
 
-    if (settings && typeof settings.LANGUAGE !== 'undefined') {
-      var savedLanguage = parseInt(settings.LANGUAGE, 10);
+    // Clay 1.x converts messageKey names to their numeric AppMessage keys.
+    // Handle these special settings through message_keys instead of looking
+    // for literal string property names. WEATHER_REFRESH is phone-side only,
+    // so consume it here and do not forward it to the watch.
+    var languageKey = messageKeys.LANGUAGE;
+    if (settings && typeof settings[languageKey] !== 'undefined') {
+      var savedLanguage = parseInt(settings[languageKey], 10);
       sessionWatchLanguage = savedLanguage;
       pendingSavedLanguage = savedLanguage;
       storeLanguage(savedLanguage);
       console.log('Language saved; awaiting watch confirmation: ' + savedLanguage);
     }
 
-    if (settings && typeof settings.WEATHER_REFRESH !== 'undefined') {
-      setWeatherRefreshMinutes(settings.WEATHER_REFRESH);
-      delete settings.WEATHER_REFRESH;
+    var weatherRefreshKey = messageKeys.WEATHER_REFRESH;
+    if (settings && typeof settings[weatherRefreshKey] !== 'undefined') {
+      setWeatherRefreshMinutes(settings[weatherRefreshKey]);
+      delete settings[weatherRefreshKey];
+      console.log('Weather refresh saved: ' + getWeatherRefreshMinutes() + ' minutes');
     }
 
     if (settings && Number(settings.TRY_PRO_FREE) !== 0) {
