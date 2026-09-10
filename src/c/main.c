@@ -1236,8 +1236,8 @@ static char s_custom_url_label[13];
 typedef enum { CUSTOM_SLOT_TOP_LEFT=0, CUSTOM_SLOT_TOP_CENTER, CUSTOM_SLOT_TOP_RIGHT, CUSTOM_SLOT_LEFT, CUSTOM_SLOT_CENTER, CUSTOM_SLOT_RIGHT, CUSTOM_SLOT_COUNT } CustomUrlSlotIndex;
 static char s_custom_url_values[CUSTOM_SLOT_COUNT][16];
 static char s_custom_url_labels[CUSTOM_SLOT_COUNT][13];
-static const char *custom_url_value_for(CustomUrlSlotIndex i){ return (i>=0&&i<CUSTOM_SLOT_COUNT&&s_custom_url_values[i][0])?s_custom_url_values[i]:"--"; }
-static const char *custom_url_label_for(CustomUrlSlotIndex i){ return (i>=0&&i<CUSTOM_SLOT_COUNT)?s_custom_url_labels[i]:""; }
+static const char *custom_url_value_for(CustomUrlSlotIndex i){ return (i<CUSTOM_SLOT_COUNT&&s_custom_url_values[i][0])?s_custom_url_values[i]:"--"; }
+static const char *custom_url_label_for(CustomUrlSlotIndex i){ return (i<CUSTOM_SLOT_COUNT)?s_custom_url_labels[i]:""; }
 static int  s_step_count  = 0;
 static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
