@@ -160,9 +160,6 @@ static bool conditional_ui_is_visible(void);
 #define KEY_LEFT_CUSTOM_URL_VALUE 86
 #define KEY_CENTER_CUSTOM_URL_VALUE 87
 #define KEY_RIGHT_CUSTOM_URL_VALUE 88
-#define KEY_SEPARATE_DATA_BACKGROUND_COLOR 89
-#define KEY_TOP_DATA_BACKGROUND_COLOR      90
-#define KEY_BOTTOM_DATA_BACKGROUND_COLOR   91
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -584,9 +581,6 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define CUSTOM_URL_LABEL_PERSIST_KEY       1121
 #define CUSTOM_URL_SLOT_VALUE_PERSIST_BASE 1130
 #define CUSTOM_URL_SLOT_LABEL_PERSIST_BASE 1140
-#define SEPARATE_DATA_BACKGROUND_PERSIST_KEY 1150
-#define TOP_DATA_BACKGROUND_COLOR_PERSIST_KEY 1151
-#define BOTTOM_DATA_BACKGROUND_COLOR_PERSIST_KEY 1152
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -726,9 +720,6 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
     case KEY_EXPAND_DIGITAL_CLOCK:
-    case KEY_SEPARATE_DATA_BACKGROUND_COLOR:
-    case KEY_TOP_DATA_BACKGROUND_COLOR:
-    case KEY_BOTTOM_DATA_BACKGROUND_COLOR:
       return true;
     default:
       return false;
@@ -1267,19 +1258,6 @@ static bool s_analog_clock = false;
 static bool s_expand_digital_clock = false;
 static bool s_analog_second_hand = false;
 static bool s_progress_track_battery = false;
-// Optional independent backgrounds for the top and bottom data bars.
-// The center accent boxes intentionally continue to use Accent Color.
-static bool s_separate_data_background_color = false;
-static GColor s_top_data_background_color;
-static GColor s_bottom_data_background_color;
-
-static GColor top_data_background_color(void) {
-  return s_separate_data_background_color ? s_top_data_background_color : s_settings.background_color;
-}
-
-static GColor bottom_data_background_color(void) {
-  return s_separate_data_background_color ? s_bottom_data_background_color : s_settings.background_color;
-}
 typedef enum {
   TIME_STYLE_SQUARE = 0,
   TIME_STYLE_ROUNDED = 1,
@@ -1303,21 +1281,6 @@ static void load_split_clock_colors(void) {
   s_minute_color = s_settings.clock_color;
   s_second_hand_color = GColorWhite;
   s_split_clock_colors = false;
-  s_separate_data_background_color = false;
-  s_top_data_background_color = s_settings.background_color;
-  s_bottom_data_background_color = s_settings.background_color;
-
-  if (persist_exists(SEPARATE_DATA_BACKGROUND_PERSIST_KEY)) {
-    s_separate_data_background_color = persist_read_int(SEPARATE_DATA_BACKGROUND_PERSIST_KEY) != 0;
-  }
-  if (persist_exists(TOP_DATA_BACKGROUND_COLOR_PERSIST_KEY)) {
-    uint32_t hex = (uint32_t)persist_read_int(TOP_DATA_BACKGROUND_COLOR_PERSIST_KEY) & 0xFFFFFF;
-    s_top_data_background_color = GColorFromHEX(hex);
-  }
-  if (persist_exists(BOTTOM_DATA_BACKGROUND_COLOR_PERSIST_KEY)) {
-    uint32_t hex = (uint32_t)persist_read_int(BOTTOM_DATA_BACKGROUND_COLOR_PERSIST_KEY) & 0xFFFFFF;
-    s_bottom_data_background_color = GColorFromHEX(hex);
-  }
 
   if (persist_exists(HOUR_COLOR_PERSIST_KEY)) {
     uint32_t hex = (uint32_t)persist_read_int(HOUR_COLOR_PERSIST_KEY) & 0xFFFFFF;
@@ -2438,8 +2401,7 @@ static void draw_heart_outline(GContext *ctx, GPoint c, GColor color) {
 // The header layer itself starts at y=0 so DATEBOX_Y=0 reaches the screen top.
 static void header_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  GColor data_bg = top_data_background_color();
-  graphics_context_set_fill_color(ctx, data_bg);
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(DATEBOX_X, DATEBOX_Y, DATEBOX_W, DATEBOX_H), 0, GCornerNone);
@@ -2448,7 +2410,7 @@ static void header_update_proc(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, GRect(0, line_y, DATEBOX_X - UNDERLINE_GAP, 2), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(DATEBOX_X + DATEBOX_W + UNDERLINE_GAP, line_y, SCREEN_W - DATEBOX_X - DATEBOX_W - UNDERLINE_GAP, 2), 0, GCornerNone);
 
-  GColor side_fg = gcolor_legible_over(data_bg);
+  GColor side_fg = gcolor_legible_over(s_settings.background_color);
   GColor center_fg = gcolor_legible_over(s_settings.accent_color);
   GRect left_area = GRect(4, 0, DATEBOX_X - BOX_GAP - 4, HEADER_H);
   int right_x = DATEBOX_X + DATEBOX_W + BOX_GAP;
@@ -2799,8 +2761,7 @@ static void draw_center_icon(GContext *ctx, uint8_t slot, GColor color) {
 // HR box fills from y=0 to bottom of screen (footer layer extends to screen bottom).
 static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  GColor data_bg = bottom_data_background_color();
-  graphics_context_set_fill_color(ctx, data_bg);
+  graphics_context_set_fill_color(ctx, s_settings.background_color);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_settings.accent_color);
   graphics_fill_rect(ctx, GRect(HRBOX_X, HRBOX_Y, BOX_W, b.size.h), 0, GCornerNone);
@@ -2811,7 +2772,7 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
   GRect left_area = GRect(4, 0, HRBOX_X - BOX_GAP - 4, 14);
   int right_x = HRBOX_X + BOX_W + BOX_GAP;
   GRect right_area = GRect(right_x, 0, SCREEN_W - right_x - 4, 14);
-  GColor side_fg = gcolor_legible_over(data_bg);
+  GColor side_fg = gcolor_legible_over(s_settings.background_color);
   draw_slot_icon(ctx, s_settings.left_slot, left_area, side_fg, false);
   draw_center_icon(ctx, s_settings.center_slot, center_fg);
   draw_slot_icon(ctx, s_settings.right_slot, right_area, side_fg, true);
@@ -4305,17 +4266,16 @@ static void update_accent_text_contrast(void) {
 }
 
 static void update_background_contrast(void) {
-  GColor top_fg = gcolor_legible_over(top_data_background_color());
-  GColor bottom_fg = gcolor_legible_over(bottom_data_background_color());
+  GColor fg = gcolor_legible_over(s_settings.background_color);
 
-  if (s_top_left_label) text_layer_set_text_color(s_top_left_label, top_fg);
-  if (s_top_left_val) text_layer_set_text_color(s_top_left_val, top_fg);
-  if (s_top_right_label) text_layer_set_text_color(s_top_right_label, top_fg);
-  if (s_top_right_val) text_layer_set_text_color(s_top_right_val, top_fg);
-  if (s_left_label) text_layer_set_text_color(s_left_label, bottom_fg);
-  if (s_left_val) text_layer_set_text_color(s_left_val, bottom_fg);
-  if (s_right_label) text_layer_set_text_color(s_right_label, bottom_fg);
-  if (s_right_val) text_layer_set_text_color(s_right_val, bottom_fg);
+  if (s_top_left_label) text_layer_set_text_color(s_top_left_label, fg);
+  if (s_top_left_val) text_layer_set_text_color(s_top_left_val, fg);
+  if (s_top_right_label) text_layer_set_text_color(s_top_right_label, fg);
+  if (s_top_right_val) text_layer_set_text_color(s_top_right_val, fg);
+  if (s_left_label) text_layer_set_text_color(s_left_label, fg);
+  if (s_left_val) text_layer_set_text_color(s_left_val, fg);
+  if (s_right_label) text_layer_set_text_color(s_right_label, fg);
+  if (s_right_val) text_layer_set_text_color(s_right_val, fg);
 
   if (s_window) window_set_background_color(s_window, s_settings.background_color);
   update_weather_icon(s_weather_icon);
@@ -5426,40 +5386,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
                 enabled ? "BATTERY" : "STEPS");
         break;
       }
-
-      case KEY_SEPARATE_DATA_BACKGROUND_COLOR: {
-        bool enabled = tuple_to_int32(t, s_separate_data_background_color ? 1 : 0) != 0;
-        if (enabled == s_separate_data_background_color) break;
-        s_separate_data_background_color = enabled;
-        persist_write_int(SEPARATE_DATA_BACKGROUND_PERSIST_KEY, enabled ? 1 : 0);
-        update_background_contrast();
-        update_header_content();
-        update_footer_content();
-        APP_LOG(APP_LOG_LEVEL_INFO, "Separate data background color -> %d", enabled ? 1 : 0);
-        break;
-      }
-
-      case KEY_TOP_DATA_BACKGROUND_COLOR:
-        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
-          uint32_t value = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
-          s_top_data_background_color = GColorFromHEX(value);
-          persist_write_int(TOP_DATA_BACKGROUND_COLOR_PERSIST_KEY, (int32_t)value);
-          update_background_contrast();
-          update_header_content();
-          APP_LOG(APP_LOG_LEVEL_INFO, "Top data background -> 0x%06lX", (unsigned long)value);
-        }
-        break;
-
-      case KEY_BOTTOM_DATA_BACKGROUND_COLOR:
-        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
-          uint32_t value = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
-          s_bottom_data_background_color = GColorFromHEX(value);
-          persist_write_int(BOTTOM_DATA_BACKGROUND_COLOR_PERSIST_KEY, (int32_t)value);
-          update_background_contrast();
-          update_footer_content();
-          APP_LOG(APP_LOG_LEVEL_INFO, "Bottom data background -> 0x%06lX", (unsigned long)value);
-        }
-        break;
 
       case KEY_BACKGROUND_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {

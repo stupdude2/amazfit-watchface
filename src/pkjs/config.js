@@ -341,12 +341,7 @@ if (edition.isPro) {
       { "type": "toggle", "messageKey": "EXPAND_DIGITAL_CLOCK", "defaultValue": false,
         "label": "Expand Digital Clock",
         "description": "Vertically expands the digital digits into space freed when the top bar, bottom bar, or progress bar is hidden." },
-      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" },
-      { "type": "toggle", "messageKey": "SEPARATE_DATA_BACKGROUND_COLOR", "defaultValue": false,
-        "label": "Separate Data Background Color",
-        "description": "Use independent background colors for the top and bottom data bars." },
-      { "type": "color", "messageKey": "TOP_DATA_BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Top Data Bar Color", "layout": "COLOR" },
-      { "type": "color", "messageKey": "BOTTOM_DATA_BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Bottom Data Bar Color", "layout": "COLOR" }
+      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
     ]
   });
 
