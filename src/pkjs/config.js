@@ -14,6 +14,7 @@ var sideOptions = [
   { "label": "Forecast +2 Hours", "value": "19" },
   { "label": "UV Index", "value": "20" },
   { "label": "Week of Year", "value": "21" },
+  { "label": "Custom URL", "value": "22" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Day of Week", "value": "5" },
@@ -75,6 +76,7 @@ var topCenterOptions = [
   { "label": "Rain Chance", "value": "18" },
   { "label": "UV Index", "value": "20" },
   { "label": "Week of Year", "value": "21" },
+  { "label": "Custom URL", "value": "22" },
   { "label": "Heart Rate", "value": "3" },
   { "label": "Bluetooth", "value": "4" },
   { "label": "Date", "value": "6" }
@@ -89,6 +91,7 @@ var centerOptions = [
   { "label": "Rain Chance", "value": "11" },
   { "label": "UV Index", "value": "12" },
   { "label": "Week of Year", "value": "13" },
+  { "label": "Custom URL", "value": "14" },
   { "label": "Bluetooth", "value": "2" },
   { "label": "Weather", "value": "3" },
   { "label": "Date", "value": "6" }
@@ -230,6 +233,50 @@ var config = [
     ]
   }
 ];
+
+if (edition.isPro) {
+  config.push({
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Custom URL Data" },
+      {
+        "type": "input",
+        "messageKey": "CUSTOM_URL",
+        "defaultValue": "",
+        "label": "URL",
+        "description": "Public HTTP/HTTPS endpoint returning a short plain-text value.",
+        "attributes": { "type": "url", "placeholder": "https://example.com/value" }
+      },
+      {
+        "type": "input",
+        "messageKey": "CUSTOM_URL_LABEL",
+        "defaultValue": "",
+        "label": "Optional Label",
+        "description": "Leave blank to use the larger no-label value style.",
+        "attributes": { "placeholder": "STATUS", "maxlength": "12" }
+      },
+      {
+        "type": "select",
+        "messageKey": "CUSTOM_URL_REFRESH",
+        "defaultValue": "15",
+        "serializeValueAs": "integer",
+        "label": "Refresh Interval",
+        "options": [
+          { "label": "5 Minutes", "value": "5" },
+          { "label": "15 Minutes", "value": "15" },
+          { "label": "30 Minutes", "value": "30" },
+          { "label": "1 Hour", "value": "60" },
+          { "label": "2 Hours", "value": "120" },
+          { "label": "6 Hours", "value": "360" }
+        ]
+      },
+      {
+        "type": "text",
+        "defaultValue": "Select Custom URL in any data slot to display the returned value. The last successful value is cached between refreshes."
+      }
+    ]
+  });
+}
 
 if (!edition.isPro) {
   config.push({

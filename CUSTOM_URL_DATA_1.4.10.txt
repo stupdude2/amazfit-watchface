@@ -1,0 +1,7 @@
+Big Time 1.4.10 Custom URL Data
+
+- Adds one configurable public HTTP/HTTPS plain-text data source.
+- Optional 12-character label; blank label uses established no-label sizing.
+- Refresh intervals: 5, 15, 30, 60, 120, or 360 minutes.
+- Last successful value is cached on phone and watch.
+- Custom URL appears in top/bottom side and center data selectors.

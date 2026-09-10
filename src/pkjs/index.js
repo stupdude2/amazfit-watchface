@@ -379,6 +379,9 @@ function customClay(minified) {
         setValue('TEMP_UNIT', '0');
         setValue('LANGUAGE', '0');
         setValue('WEATHER_REFRESH', '60');
+        setValue('CUSTOM_URL', '');
+        setValue('CUSTOM_URL_LABEL', '');
+        setValue('CUSTOM_URL_REFRESH', '15');
         setValue('TOP_LEFT_TIME_ZONE', '0');
         setValue('TOP_RIGHT_TIME_ZONE', '0');
         setValue('LEFT_TIME_ZONE', '0');
@@ -620,6 +623,12 @@ function openSettingsPage() {
     // value stored by Big Time rather than sending it to the watch.
     clay.setSettings('WEATHER_REFRESH', String(getWeatherRefreshMinutes()));
 
+    // Custom URL data is phone-side network configuration. Keep it synced
+    // from Big Time's own localStorage on every settings open.
+    clay.setSettings('CUSTOM_URL', getCustomUrl());
+    clay.setSettings('CUSTOM_URL_LABEL', getCustomUrlLabel());
+    clay.setSettings('CUSTOM_URL_REFRESH', String(getCustomUrlRefreshMinutes()));
+
     console.log('Opening Clay configuration page; pro=' + sessionProUnlocked);
     Pebble.openURL(clay.generateUrl());
   } catch (e) {
@@ -745,6 +754,29 @@ Pebble.addEventListener('webviewclosed', function(e) {
       console.log('Weather refresh saved: ' + getWeatherRefreshMinutes() + ' minutes');
     }
 
+    var customUrlChanged = false;
+    var customUrlKey = messageKeys.CUSTOM_URL;
+    if (settings && typeof settings[customUrlKey] !== 'undefined') {
+      setCustomUrl(settings[customUrlKey]);
+      delete settings[customUrlKey];
+      customUrlChanged = true;
+    }
+
+    var customUrlLabelKey = messageKeys.CUSTOM_URL_LABEL;
+    if (settings && typeof settings[customUrlLabelKey] !== 'undefined') {
+      setCustomUrlLabel(settings[customUrlLabelKey]);
+      // Send the sanitized label to the watch rather than Clay's raw value.
+      settings[customUrlLabelKey] = getCustomUrlLabel();
+      customUrlChanged = true;
+    }
+
+    var customUrlRefreshKey = messageKeys.CUSTOM_URL_REFRESH;
+    if (settings && typeof settings[customUrlRefreshKey] !== 'undefined') {
+      setCustomUrlRefreshMinutes(settings[customUrlRefreshKey]);
+      delete settings[customUrlRefreshKey];
+      customUrlChanged = true;
+    }
+
     if (settings && Number(settings.TRY_PRO_FREE) !== 0) {
       var now = Math.floor(Date.now() / 1000);
       var existingExpiry = getStoredTrialExpiry();
@@ -767,7 +799,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
     Pebble.sendAppMessage(
       settings,
-      function() { console.log('Sent config data to Pebble'); },
+      function() {
+        console.log('Sent config data to Pebble');
+        if (customUrlChanged) refreshCustomUrl(true);
+      },
       function(err) {
         console.log('Failed to send config data: ' + JSON.stringify(err));
       }
@@ -778,6 +813,164 @@ Pebble.addEventListener('webviewclosed', function(e) {
 });
 
 var messageKeys = require('message_keys');
+
+// ── Custom URL data ──────────────────────────────────────────────────────────
+// One user-configurable public HTTP/HTTPS endpoint. The phone companion does
+// the network request and sends only the short display value to the watch.
+var CUSTOM_URL_SETTING_KEY = 'big_time_custom_url_v1';
+var CUSTOM_URL_LABEL_SETTING_KEY = 'big_time_custom_url_label_v1';
+var CUSTOM_URL_REFRESH_SETTING_KEY = 'big_time_custom_url_refresh_minutes_v1';
+var CUSTOM_URL_CACHE_VALUE_KEY = 'big_time_custom_url_cache_value_v1';
+var CUSTOM_URL_CACHE_TIME_KEY = 'big_time_custom_url_cache_time_v1';
+var DEFAULT_CUSTOM_URL_REFRESH_MINUTES = 15;
+var customUrlTimer = null;
+
+function cleanCustomUrl(value) {
+  value = String(value || '').replace(/^\s+|\s+$/g, '');
+  if (!/^https?:\/\//i.test(value)) return '';
+  return value.substring(0, 512);
+}
+
+function cleanCustomUrlLabel(value) {
+  value = String(value || '').replace(/^\s+|\s+$/g, '');
+  return value.substring(0, 12);
+}
+
+function cleanCustomUrlValue(value) {
+  value = String(value == null ? '' : value)
+      .replace(/\s+/g, ' ')
+      .replace(/^\s+|\s+$/g, '');
+  return value.substring(0, 15);
+}
+
+function getCustomUrl() {
+  try { return cleanCustomUrl(localStorage.getItem(CUSTOM_URL_SETTING_KEY)); }
+  catch (e) { return ''; }
+}
+
+function setCustomUrl(value) {
+  value = cleanCustomUrl(value);
+  try { localStorage.setItem(CUSTOM_URL_SETTING_KEY, value); } catch (e) {}
+  scheduleNextCustomUrlRefresh();
+}
+
+function getCustomUrlLabel() {
+  try { return cleanCustomUrlLabel(localStorage.getItem(CUSTOM_URL_LABEL_SETTING_KEY)); }
+  catch (e) { return ''; }
+}
+
+function setCustomUrlLabel(value) {
+  value = cleanCustomUrlLabel(value);
+  try { localStorage.setItem(CUSTOM_URL_LABEL_SETTING_KEY, value); } catch (e) {}
+}
+
+function getCustomUrlRefreshMinutes() {
+  try {
+    var value = parseInt(localStorage.getItem(CUSTOM_URL_REFRESH_SETTING_KEY), 10);
+    if (value === 5 || value === 15 || value === 30 || value === 60 ||
+        value === 120 || value === 360) return value;
+  } catch (e) {}
+  return DEFAULT_CUSTOM_URL_REFRESH_MINUTES;
+}
+
+function setCustomUrlRefreshMinutes(value) {
+  value = parseInt(value, 10);
+  if (value !== 5 && value !== 15 && value !== 30 && value !== 60 &&
+      value !== 120 && value !== 360) value = DEFAULT_CUSTOM_URL_REFRESH_MINUTES;
+  try { localStorage.setItem(CUSTOM_URL_REFRESH_SETTING_KEY, String(value)); }
+  catch (e) {}
+  scheduleNextCustomUrlRefresh();
+}
+
+function getCachedCustomUrlValue() {
+  try { return cleanCustomUrlValue(localStorage.getItem(CUSTOM_URL_CACHE_VALUE_KEY)); }
+  catch (e) { return ''; }
+}
+
+function getCachedCustomUrlTime() {
+  try {
+    var value = parseInt(localStorage.getItem(CUSTOM_URL_CACHE_TIME_KEY), 10);
+    return isNaN(value) ? 0 : value;
+  } catch (e) { return 0; }
+}
+
+function storeCachedCustomUrlValue(value) {
+  value = cleanCustomUrlValue(value);
+  try {
+    localStorage.setItem(CUSTOM_URL_CACHE_VALUE_KEY, value);
+    localStorage.setItem(CUSTOM_URL_CACHE_TIME_KEY, String(Date.now()));
+  } catch (e) {}
+}
+
+function sendCustomUrlPayload(value) {
+  var payload = {
+    'CUSTOM_URL_VALUE': cleanCustomUrlValue(value),
+    'CUSTOM_URL_LABEL': getCustomUrlLabel()
+  };
+  Pebble.sendAppMessage(payload,
+    function() { console.log('Custom URL data sent: ' + payload.CUSTOM_URL_VALUE); },
+    function(e) { console.log('Custom URL send failed: ' + JSON.stringify(e)); });
+}
+
+function customUrlRefreshDue() {
+  if (!getCustomUrl()) return false;
+  var timestamp = getCachedCustomUrlTime();
+  return !timestamp || (Date.now() - timestamp) >=
+      getCustomUrlRefreshMinutes() * 60 * 1000;
+}
+
+function scheduleNextCustomUrlRefresh() {
+  if (customUrlTimer) {
+    clearTimeout(customUrlTimer);
+    customUrlTimer = null;
+  }
+  if (!getCustomUrl()) return;
+  var age = Date.now() - getCachedCustomUrlTime();
+  var delay = getCustomUrlRefreshMinutes() * 60 * 1000 - Math.max(0, age);
+  if (delay < 1000) delay = 1000;
+  customUrlTimer = setTimeout(function() { refreshCustomUrl(false); }, delay);
+}
+
+function refreshCustomUrl(force) {
+  var url = getCustomUrl();
+  if (!url) {
+    sendCustomUrlPayload('');
+    return;
+  }
+  if (!force && !customUrlRefreshDue()) {
+    scheduleNextCustomUrlRefresh();
+    return;
+  }
+
+  var xhr = new XMLHttpRequest();
+  xhr.onload = function() {
+    if (xhr.status < 200 || xhr.status >= 300) {
+      console.log('Custom URL HTTP error: ' + xhr.status);
+      scheduleNextCustomUrlRefresh();
+      return;
+    }
+    var value = cleanCustomUrlValue(xhr.responseText);
+    if (!value) {
+      console.log('Custom URL returned an empty value');
+      scheduleNextCustomUrlRefresh();
+      return;
+    }
+    storeCachedCustomUrlValue(value);
+    sendCustomUrlPayload(value);
+    scheduleNextCustomUrlRefresh();
+  };
+  xhr.onerror = function() {
+    console.log('Custom URL network error');
+    scheduleNextCustomUrlRefresh();
+  };
+  try {
+    xhr.open('GET', url);
+    xhr.send();
+  } catch (e) {
+    console.log('Custom URL request failed: ' + e);
+    scheduleNextCustomUrlRefresh();
+  }
+}
 
 // ── Weather via Open-Meteo ───────────────────────────────────────────────────
 // Pebble's current C-watchface guidance is to use PebbleKit JS on the phone for
@@ -1226,6 +1419,12 @@ Pebble.addEventListener('ready', function() {
   }
 
   refreshWeatherIfDue();
+
+  var cachedCustomValue = getCachedCustomUrlValue();
+  if (cachedCustomValue || getCustomUrlLabel()) {
+    sendCustomUrlPayload(cachedCustomValue);
+  }
+  refreshCustomUrl(false);
 });
 
 // Runtime Pro status is authoritative from the watch/C side.

@@ -78,7 +78,11 @@
       "STEPBAR_VISIBILITY": 57,
       "EXPAND_DIGITAL_CLOCK": 58,
       "UV_INDEX": 59,
-      "QUIET_TIME_INDICATOR": 60
+      "QUIET_TIME_INDICATOR": 60,
+      "CUSTOM_URL": 61,
+      "CUSTOM_URL_LABEL": 62,
+      "CUSTOM_URL_REFRESH": 63,
+      "CUSTOM_URL_VALUE": 64
     },
     "projectType": "native",
     "resources": {
@@ -146,8 +150,9 @@
     "uuid": "ced51275-d445-4b7e-89f6-9e41110ed4da",
     "watchapp": {
       "watchface": true
-    }
+    },
+    "versionLabel": "1.4.10"
   },
-  "version": "3.3.9",
-  "versionLabel": "3.3.12"
+  "version": "1.4.10",
+  "versionLabel": "1.4.12"
 }

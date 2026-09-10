@@ -144,6 +144,10 @@ static bool conditional_ui_is_visible(void);
 #define KEY_PLUS2_TEMP             51
 #define KEY_BLUETOOTH_COLON        52
 #define KEY_QUIET_TIME_INDICATOR   60
+#define KEY_CUSTOM_URL              61
+#define KEY_CUSTOM_URL_LABEL        62
+#define KEY_CUSTOM_URL_REFRESH      63
+#define KEY_CUSTOM_URL_VALUE        64
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -184,7 +188,8 @@ typedef enum {
   SLOT_RAIN_CHANCE = 18,
   SLOT_PLUS2_FORECAST = 19,
   SLOT_UV_INDEX = 20,
-  SLOT_WEEK_OF_YEAR = 21
+  SLOT_WEEK_OF_YEAR = 21,
+  SLOT_CUSTOM_URL = 22
 } SideSlotContent;
 
 typedef enum {
@@ -201,7 +206,8 @@ typedef enum {
   CENTER_SECONDS = 10,
   CENTER_RAIN_CHANCE = 11,
   CENTER_UV_INDEX = 12,
-  CENTER_WEEK_OF_YEAR = 13
+  CENTER_WEEK_OF_YEAR = 13,
+  CENTER_CUSTOM_URL = 14
 } CenterSlotContent;
 
 typedef enum {
@@ -559,6 +565,8 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define STEPBAR_VISIBILITY_PERSIST_KEY 1117
 #define EXPAND_DIGITAL_CLOCK_PERSIST_KEY 1118
 #define UV_INDEX_CACHE_PERSIST_KEY        1119
+#define CUSTOM_URL_VALUE_PERSIST_KEY       1120
+#define CUSTOM_URL_LABEL_PERSIST_KEY       1121
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -707,7 +715,7 @@ static bool key_is_pro_customization(uint32_t key) {
 static bool settings_values_valid(const WatchfaceSettings *settings) {
   if (!settings) return false;
   return settings->version == SETTINGS_VERSION &&
-         settings->left_slot <= SLOT_WEEK_OF_YEAR &&
+         settings->left_slot <= SLOT_CUSTOM_URL &&
          ((settings->center_slot <= CENTER_MONTH &&
            settings->center_slot != CENTER_STEPS) ||
           settings->center_slot == CENTER_BATTERY_ICON ||
@@ -715,9 +723,10 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
           settings->center_slot == CENTER_SECONDS ||
           settings->center_slot == CENTER_RAIN_CHANCE ||
           settings->center_slot == CENTER_UV_INDEX ||
-          settings->center_slot == CENTER_WEEK_OF_YEAR) &&
-         settings->right_slot <= SLOT_WEEK_OF_YEAR &&
-         settings->top_left_slot <= SLOT_WEEK_OF_YEAR &&
+          settings->center_slot == CENTER_WEEK_OF_YEAR ||
+          settings->center_slot == CENTER_CUSTOM_URL) &&
+         settings->right_slot <= SLOT_CUSTOM_URL &&
+         settings->top_left_slot <= SLOT_CUSTOM_URL &&
          ((settings->top_center_slot <= SLOT_MONTH &&
            settings->top_center_slot != SLOT_STEPS) ||
           settings->top_center_slot == SLOT_BATTERY_ICON ||
@@ -725,8 +734,9 @@ static bool settings_values_valid(const WatchfaceSettings *settings) {
           settings->top_center_slot == SLOT_SECONDS ||
           settings->top_center_slot == SLOT_RAIN_CHANCE ||
           settings->top_center_slot == SLOT_UV_INDEX ||
-          settings->top_center_slot == SLOT_WEEK_OF_YEAR) &&
-         settings->top_right_slot <= SLOT_WEEK_OF_YEAR &&
+          settings->top_center_slot == SLOT_WEEK_OF_YEAR ||
+          settings->top_center_slot == SLOT_CUSTOM_URL) &&
+         settings->top_right_slot <= SLOT_CUSTOM_URL &&
          settings->footer_mode <= BAR_TAP_SHAKE_BACKLIGHT &&
          settings->header_mode <= BAR_TAP_SHAKE_BACKLIGHT &&
          settings->stepbar_mode <= STEPBAR_LEFT_TO_RIGHT_ABOVE_BACKLIGHT &&
@@ -1207,6 +1217,8 @@ static char s_plus2_buf[12];
 static char s_rain_buf[8];
 static char s_uv_buf[8];
 static char s_week_buf[4];
+static char s_custom_url_value[16];
+static char s_custom_url_label[13];
 static int  s_step_count  = 0;
 static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
@@ -2984,6 +2996,7 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_PLUS2_FORECAST: return "+2 HOURS";
     case SLOT_UV_INDEX: return watch_text(TXT_UV);
     case SLOT_WEEK_OF_YEAR: return watch_text(TXT_WEEK);
+    case SLOT_CUSTOM_URL: return s_custom_url_label;
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -3039,6 +3052,8 @@ static const char *side_slot_value(uint8_t slot) {
       return uv_index_text();
     case SLOT_WEEK_OF_YEAR:
       return s_week_buf;
+    case SLOT_CUSTOM_URL:
+      return s_custom_url_value[0] ? s_custom_url_value : "--";
     case SLOT_BATTERY_ICON:
       return "";
     case SLOT_BATTERY_PERCENT:
@@ -3106,6 +3121,7 @@ static const char *center_slot_label(void) {
     case CENTER_RAIN_CHANCE: return "RAIN";
     case CENTER_UV_INDEX: return watch_text(TXT_UV);
     case CENTER_WEEK_OF_YEAR: return watch_text(TXT_WEEK);
+    case CENTER_CUSTOM_URL: return s_custom_url_label;
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
     case CENTER_WEATHER: return watch_text(TXT_TEMP);
     case CENTER_STEPS: return watch_text(TXT_STEPS);
@@ -3135,6 +3151,8 @@ static const char *center_slot_value(void) {
       return uv_index_text();
     case CENTER_WEEK_OF_YEAR:
       return s_week_buf;
+    case CENTER_CUSTOM_URL:
+      return s_custom_url_value[0] ? s_custom_url_value : "--";
     case CENTER_BLUETOOTH: return "";
     case CENTER_WEATHER: return s_weather_buf;
     case CENTER_STEPS:
@@ -3162,7 +3180,8 @@ static bool side_slot_has_optional_label(uint8_t slot) {
          slot == SLOT_RAIN_CHANCE ||
          slot == SLOT_PLUS2_FORECAST ||
          slot == SLOT_UV_INDEX ||
-         slot == SLOT_WEEK_OF_YEAR;
+         slot == SLOT_WEEK_OF_YEAR ||
+         slot == SLOT_CUSTOM_URL;
 }
 
 static bool center_slot_has_optional_label(uint8_t slot) {
@@ -3171,7 +3190,8 @@ static bool center_slot_has_optional_label(uint8_t slot) {
          slot == CENTER_STEPS ||
          slot == CENTER_RAIN_CHANCE ||
          slot == CENTER_UV_INDEX ||
-         slot == CENTER_WEEK_OF_YEAR;
+         slot == CENTER_WEEK_OF_YEAR ||
+         slot == CENTER_CUSTOM_URL;
 }
 
 static bool weather_value_needs_smaller_font(void) {
@@ -3200,6 +3220,7 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == SLOT_TIME_ZONE) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
+  if (slot == SLOT_CUSTOM_URL && strlen(s_custom_url_value) > 4) return true;
   if (slot == SLOT_PLUS2_FORECAST && s_have_plus2_forecast) {
     int display_temp = display_temp_from_c_x10(s_plus2_temp_c_x10);
     if (display_temp >= 100 || display_temp <= -10) return true;
@@ -3210,6 +3231,7 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
 static bool center_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == CENTER_STEPS && s_step_count >= 10000) return true;
   if (slot == CENTER_WEATHER && weather_value_needs_smaller_font()) return true;
+  if (slot == CENTER_CUSTOM_URL && strlen(s_custom_url_value) > 4) return true;
   return false;
 }
 
@@ -3235,13 +3257,16 @@ static void update_header_content(void) {
   const bool right_calendar = slot_is_calendar(s_settings.top_right_slot);
 
   const bool left_label_hidden =
-      s_settings.top_left_hide_label &&
+      (s_settings.top_left_hide_label ||
+       (s_settings.top_left_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
       side_slot_has_optional_label(s_settings.top_left_slot);
   const bool center_label_hidden =
-      s_settings.top_center_hide_label &&
+      (s_settings.top_center_hide_label ||
+       (s_settings.top_center_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
       side_slot_has_optional_label(s_settings.top_center_slot);
   const bool right_label_hidden =
-      s_settings.top_right_hide_label &&
+      (s_settings.top_right_hide_label ||
+       (s_settings.top_right_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
       side_slot_has_optional_label(s_settings.top_right_slot);
 
   const bool left_large = left_calendar || left_label_hidden ||
@@ -3458,13 +3483,16 @@ static void update_footer_content(void) {
   const bool right_calendar = slot_is_calendar(s_settings.right_slot);
 
   const bool left_label_hidden =
-      s_settings.left_hide_label &&
+      (s_settings.left_hide_label ||
+       (s_settings.left_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
       side_slot_has_optional_label(s_settings.left_slot);
   const bool center_label_hidden =
-      s_settings.center_hide_label &&
+      (s_settings.center_hide_label ||
+       (s_settings.center_slot == CENTER_CUSTOM_URL && !s_custom_url_label[0])) &&
       center_slot_has_optional_label(s_settings.center_slot);
   const bool right_label_hidden =
-      s_settings.right_hide_label &&
+      (s_settings.right_hide_label ||
+       (s_settings.right_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
       side_slot_has_optional_label(s_settings.right_slot);
 
   const bool left_large = left_calendar || left_label_hidden ||
@@ -4864,6 +4892,24 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_CUSTOM_URL_LABEL:
+        if (t->type == TUPLE_CSTRING && t->value && t->value->cstring) {
+          snprintf(s_custom_url_label, sizeof(s_custom_url_label), "%s", t->value->cstring);
+          persist_write_string(CUSTOM_URL_LABEL_PERSIST_KEY, s_custom_url_label);
+          layout_changed = true;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Custom URL label -> %s", s_custom_url_label);
+        }
+        break;
+
+      case KEY_CUSTOM_URL_VALUE:
+        if (t->type == TUPLE_CSTRING && t->value && t->value->cstring) {
+          snprintf(s_custom_url_value, sizeof(s_custom_url_value), "%s", t->value->cstring);
+          persist_write_string(CUSTOM_URL_VALUE_PERSIST_KEY, s_custom_url_value);
+          layout_changed = true;
+          APP_LOG(APP_LOG_LEVEL_INFO, "Custom URL value -> %s", s_custom_url_value);
+        }
+        break;
+
 #if WATCHFACE_PRO
       case KEY_ACCENT_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
@@ -4874,7 +4920,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) {
+        if (value >= SLOT_WEATHER && value <= SLOT_CUSTOM_URL) {
           s_settings.left_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Left slot -> %ld", (long)value);
           layout_changed = true;
@@ -4891,7 +4937,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             value == CENTER_SECONDS ||
             value == CENTER_RAIN_CHANCE ||
             value == CENTER_UV_INDEX ||
-            value == CENTER_WEEK_OF_YEAR) {
+            value == CENTER_WEEK_OF_YEAR ||
+            value == CENTER_CUSTOM_URL) {
           s_settings.center_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Center slot -> %ld", (long)value);
           layout_changed = true;
@@ -4901,7 +4948,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) {
+        if (value >= SLOT_WEATHER && value <= SLOT_CUSTOM_URL) {
           s_settings.right_slot = (uint8_t)value;
           APP_LOG(APP_LOG_LEVEL_INFO, "Right slot -> %ld", (long)value);
           layout_changed = true;
@@ -4911,7 +4958,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_TOP_LEFT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_left_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_CUSTOM_URL) { s_settings.top_left_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
       case KEY_TOP_CENTER_SLOT: {
@@ -4923,7 +4970,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
             value == SLOT_SECONDS ||
             value == SLOT_RAIN_CHANCE ||
             value == SLOT_UV_INDEX ||
-            value == SLOT_WEEK_OF_YEAR) {
+            value == SLOT_WEEK_OF_YEAR ||
+            value == SLOT_CUSTOM_URL) {
           s_settings.top_center_slot = (uint8_t)value;
           layout_changed = true;
         }
@@ -4931,7 +4979,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
       case KEY_TOP_RIGHT_SLOT: {
         int32_t value = tuple_to_int32(t, s_settings.top_right_slot);
-        if (value >= SLOT_WEATHER && value <= SLOT_WEEK_OF_YEAR) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
+        if (value >= SLOT_WEATHER && value <= SLOT_CUSTOM_URL) { s_settings.top_right_slot = (uint8_t)value; layout_changed = true; }
         break;
       }
 
@@ -5933,6 +5981,16 @@ static void init(void) {
   // still pending.
   s_bluetooth_connected = connection_service_peek_pebble_app_connection();
   weather_cache_load();
+  if (persist_exists(CUSTOM_URL_VALUE_PERSIST_KEY)) {
+    persist_read_string(CUSTOM_URL_VALUE_PERSIST_KEY, s_custom_url_value, sizeof(s_custom_url_value));
+  } else {
+    s_custom_url_value[0] = '\0';
+  }
+  if (persist_exists(CUSTOM_URL_LABEL_PERSIST_KEY)) {
+    persist_read_string(CUSTOM_URL_LABEL_PERSIST_KEY, s_custom_url_label, sizeof(s_custom_url_label));
+  } else {
+    s_custom_url_label[0] = '\0';
+  }
 
   // weather_cache_load() restores the raw Celsius value and availability flag.
   // Rebuild the display string immediately so cached temperature and cached
