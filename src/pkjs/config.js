@@ -119,6 +119,42 @@ var statusText =
         formatTrialRemaining(edition.trialRemaining) + "."
       : "Free";
 
+function customUrlSlotItems(prefix) {
+  return [
+    {
+      "type": "input",
+      "messageKey": prefix + "_CUSTOM_URL",
+      "defaultValue": "",
+      "label": "Custom URL",
+      "description": "Public HTTP/HTTPS endpoint returning a short plain-text value.",
+      "attributes": { "type": "url", "placeholder": "https://example.com/value" }
+    },
+    {
+      "type": "input",
+      "messageKey": prefix + "_CUSTOM_URL_LABEL",
+      "defaultValue": "",
+      "label": "Optional Label",
+      "description": "Optional text shown above the value. Use the slot’s Hide Label toggle to hide it.",
+      "attributes": { "placeholder": "STATUS", "maxlength": "12" }
+    },
+    {
+      "type": "select",
+      "messageKey": prefix + "_CUSTOM_URL_REFRESH",
+      "defaultValue": "15",
+      "serializeValueAs": "integer",
+      "label": "Refresh Interval",
+      "options": [
+        { "label": "5 Minutes", "value": "5" },
+        { "label": "15 Minutes", "value": "15" },
+        { "label": "30 Minutes", "value": "30" },
+        { "label": "1 Hour", "value": "60" },
+        { "label": "2 Hours", "value": "120" },
+        { "label": "6 Hours", "value": "360" }
+      ]
+    }
+  ];
+}
+
 var config = [
   {
     "type": "heading",
@@ -234,49 +270,6 @@ var config = [
   }
 ];
 
-if (edition.isPro) {
-  config.push({
-    "type": "section",
-    "items": [
-      { "type": "heading", "defaultValue": "Custom URL Data" },
-      {
-        "type": "input",
-        "messageKey": "CUSTOM_URL",
-        "defaultValue": "",
-        "label": "URL",
-        "description": "Public HTTP/HTTPS endpoint returning a short plain-text value.",
-        "attributes": { "type": "url", "placeholder": "https://example.com/value" }
-      },
-      {
-        "type": "input",
-        "messageKey": "CUSTOM_URL_LABEL",
-        "defaultValue": "",
-        "label": "Optional Label",
-        "description": "Leave blank to use the larger no-label value style.",
-        "attributes": { "placeholder": "STATUS", "maxlength": "12" }
-      },
-      {
-        "type": "select",
-        "messageKey": "CUSTOM_URL_REFRESH",
-        "defaultValue": "15",
-        "serializeValueAs": "integer",
-        "label": "Refresh Interval",
-        "options": [
-          { "label": "5 Minutes", "value": "5" },
-          { "label": "15 Minutes", "value": "15" },
-          { "label": "30 Minutes", "value": "30" },
-          { "label": "1 Hour", "value": "60" },
-          { "label": "2 Hours", "value": "120" },
-          { "label": "6 Hours", "value": "360" }
-        ]
-      },
-      {
-        "type": "text",
-        "defaultValue": "Select Custom URL in any data slot to display the returned value. The last successful value is cached between refreshes."
-      }
-    ]
-  });
-}
 
 if (!edition.isPro) {
   config.push({
@@ -375,12 +368,15 @@ if (edition.isPro) {
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Top Bar" },
-      { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
+      { "type": "select", "messageKey": "TOP_LEFT_SLOT", "defaultValue": "5", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions }
+    ].concat(customUrlSlotItems("TOP_LEFT")).concat([
       { "type": "select", "messageKey": "TOP_LEFT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Top Left Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "TOP_LEFT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
-      { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions },
+      { "type": "select", "messageKey": "TOP_CENTER_SLOT", "defaultValue": "6", "serializeValueAs": "integer", "label": "Center", "options": topCenterOptions }
+    ]).concat(customUrlSlotItems("TOP_CENTER")).concat([
       { "type": "toggle", "messageKey": "TOP_CENTER_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
-      { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
+      { "type": "select", "messageKey": "TOP_RIGHT_SLOT", "defaultValue": "7", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions }
+    ]).concat(customUrlSlotItems("TOP_RIGHT")).concat([
       { "type": "select", "messageKey": "TOP_RIGHT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Top Right Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "TOP_RIGHT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       {
@@ -394,19 +390,22 @@ if (edition.isPro) {
           { "label": "Always Hidden", "value": "2" }
         ]
       }
-    ]
+    ])
   });
 
   config.push({
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Bottom Bar" },
-      { "type": "select", "messageKey": "LEFT_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions },
+      { "type": "select", "messageKey": "LEFT_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Left Side", "options": sideOptions }
+    ].concat(customUrlSlotItems("LEFT")).concat([
       { "type": "select", "messageKey": "LEFT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Bottom Left Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "LEFT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
-      { "type": "select", "messageKey": "CENTER_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Center", "options": centerOptions },
+      { "type": "select", "messageKey": "CENTER_SLOT", "defaultValue": "0", "serializeValueAs": "integer", "label": "Center", "options": centerOptions }
+    ]).concat(customUrlSlotItems("CENTER")).concat([
       { "type": "toggle", "messageKey": "CENTER_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
-      { "type": "select", "messageKey": "RIGHT_SLOT", "defaultValue": "1", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions },
+      { "type": "select", "messageKey": "RIGHT_SLOT", "defaultValue": "1", "serializeValueAs": "integer", "label": "Right Side", "options": sideOptions }
+    ]).concat(customUrlSlotItems("RIGHT")).concat([
       { "type": "select", "messageKey": "RIGHT_TIME_ZONE", "defaultValue": "0", "serializeValueAs": "integer", "label": "Bottom Right Time Zone", "options": timeZoneOptions },
       { "type": "toggle", "messageKey": "RIGHT_HIDE_LABEL", "defaultValue": false, "label": "Hide Label", "description": "Enlarge this value by hiding its label." },
       {
@@ -420,7 +419,7 @@ if (edition.isPro) {
           { "label": "Always Hidden", "value": "2" }
         ]
       }
-    ]
+    ])
   });
 
   config.push({

@@ -148,6 +148,18 @@ static bool conditional_ui_is_visible(void);
 #define KEY_CUSTOM_URL_LABEL        62
 #define KEY_CUSTOM_URL_REFRESH      63
 #define KEY_CUSTOM_URL_VALUE        64
+#define KEY_TOP_LEFT_CUSTOM_URL_LABEL 66
+#define KEY_TOP_CENTER_CUSTOM_URL_LABEL 69
+#define KEY_TOP_RIGHT_CUSTOM_URL_LABEL 72
+#define KEY_LEFT_CUSTOM_URL_LABEL 75
+#define KEY_CENTER_CUSTOM_URL_LABEL 78
+#define KEY_RIGHT_CUSTOM_URL_LABEL 81
+#define KEY_TOP_LEFT_CUSTOM_URL_VALUE 83
+#define KEY_TOP_CENTER_CUSTOM_URL_VALUE 84
+#define KEY_TOP_RIGHT_CUSTOM_URL_VALUE 85
+#define KEY_LEFT_CUSTOM_URL_VALUE 86
+#define KEY_CENTER_CUSTOM_URL_VALUE 87
+#define KEY_RIGHT_CUSTOM_URL_VALUE 88
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -567,6 +579,8 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define UV_INDEX_CACHE_PERSIST_KEY        1119
 #define CUSTOM_URL_VALUE_PERSIST_KEY       1120
 #define CUSTOM_URL_LABEL_PERSIST_KEY       1121
+#define CUSTOM_URL_SLOT_VALUE_PERSIST_BASE 1130
+#define CUSTOM_URL_SLOT_LABEL_PERSIST_BASE 1140
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -1219,6 +1233,11 @@ static char s_uv_buf[8];
 static char s_week_buf[4];
 static char s_custom_url_value[16];
 static char s_custom_url_label[13];
+typedef enum { CUSTOM_SLOT_TOP_LEFT=0, CUSTOM_SLOT_TOP_CENTER, CUSTOM_SLOT_TOP_RIGHT, CUSTOM_SLOT_LEFT, CUSTOM_SLOT_CENTER, CUSTOM_SLOT_RIGHT, CUSTOM_SLOT_COUNT } CustomUrlSlotIndex;
+static char s_custom_url_values[CUSTOM_SLOT_COUNT][16];
+static char s_custom_url_labels[CUSTOM_SLOT_COUNT][13];
+static const char *custom_url_value_for(CustomUrlSlotIndex i){ return (i>=0&&i<CUSTOM_SLOT_COUNT&&s_custom_url_values[i][0])?s_custom_url_values[i]:"--"; }
+static const char *custom_url_label_for(CustomUrlSlotIndex i){ return (i>=0&&i<CUSTOM_SLOT_COUNT)?s_custom_url_labels[i]:""; }
 static int  s_step_count  = 0;
 static int  s_active_kcal = 0;
 static int  s_distance_m = 0;
@@ -2996,7 +3015,7 @@ static const char *side_slot_label(uint8_t slot) {
     case SLOT_PLUS2_FORECAST: return "+2 HOURS";
     case SLOT_UV_INDEX: return watch_text(TXT_UV);
     case SLOT_WEEK_OF_YEAR: return watch_text(TXT_WEEK);
-    case SLOT_CUSTOM_URL: return s_custom_url_label;
+    case SLOT_CUSTOM_URL: return "";
     case SLOT_WEATHER:
     default: return watch_text(TXT_WEATHER);
   }
@@ -3053,7 +3072,7 @@ static const char *side_slot_value(uint8_t slot) {
     case SLOT_WEEK_OF_YEAR:
       return s_week_buf;
     case SLOT_CUSTOM_URL:
-      return s_custom_url_value[0] ? s_custom_url_value : "--";
+      return "--";
     case SLOT_BATTERY_ICON:
       return "";
     case SLOT_BATTERY_PERCENT:
@@ -3073,18 +3092,21 @@ static const char *time_zone_label(uint8_t preset_index) {
 }
 
 static const char *top_side_slot_label(uint8_t slot, bool left_side) {
+  if (slot == SLOT_CUSTOM_URL) return custom_url_label_for(left_side ? CUSTOM_SLOT_TOP_LEFT : CUSTOM_SLOT_TOP_RIGHT);
   if (slot != SLOT_TIME_ZONE) return top_slot_label(slot);
   return time_zone_label(
       left_side ? s_top_left_time_zone : s_top_right_time_zone);
 }
 
 static const char *bottom_side_slot_label(uint8_t slot, bool left_side) {
+  if (slot == SLOT_CUSTOM_URL) return custom_url_label_for(left_side ? CUSTOM_SLOT_LEFT : CUSTOM_SLOT_RIGHT);
   if (slot != SLOT_TIME_ZONE) return side_slot_label(slot);
   return time_zone_label(
       left_side ? s_left_time_zone : s_right_time_zone);
 }
 
 static const char *top_side_slot_value(uint8_t slot, bool left_side) {
+  if (slot == SLOT_CUSTOM_URL) return custom_url_value_for(left_side ? CUSTOM_SLOT_TOP_LEFT : CUSTOM_SLOT_TOP_RIGHT);
   if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
 
   if (left_side) {
@@ -3099,6 +3121,7 @@ static const char *top_side_slot_value(uint8_t slot, bool left_side) {
 }
 
 static const char *bottom_side_slot_value(uint8_t slot, bool left_side) {
+  if (slot == SLOT_CUSTOM_URL) return custom_url_value_for(left_side ? CUSTOM_SLOT_LEFT : CUSTOM_SLOT_RIGHT);
   if (slot != SLOT_TIME_ZONE) return side_slot_value(slot);
 
   if (left_side) {
@@ -3121,7 +3144,7 @@ static const char *center_slot_label(void) {
     case CENTER_RAIN_CHANCE: return "RAIN";
     case CENTER_UV_INDEX: return watch_text(TXT_UV);
     case CENTER_WEEK_OF_YEAR: return watch_text(TXT_WEEK);
-    case CENTER_CUSTOM_URL: return s_custom_url_label;
+    case CENTER_CUSTOM_URL: return custom_url_label_for(CUSTOM_SLOT_CENTER);
     case CENTER_BLUETOOTH: return s_bluetooth_connected ? "" : watch_text(TXT_BT);
     case CENTER_WEATHER: return watch_text(TXT_TEMP);
     case CENTER_STEPS: return watch_text(TXT_STEPS);
@@ -3152,7 +3175,7 @@ static const char *center_slot_value(void) {
     case CENTER_WEEK_OF_YEAR:
       return s_week_buf;
     case CENTER_CUSTOM_URL:
-      return s_custom_url_value[0] ? s_custom_url_value : "--";
+      return custom_url_value_for(CUSTOM_SLOT_CENTER);
     case CENTER_BLUETOOTH: return "";
     case CENTER_WEATHER: return s_weather_buf;
     case CENTER_STEPS:
@@ -3211,7 +3234,7 @@ static bool weather_value_needs_smaller_font(void) {
   return display_temp >= 100 || display_temp <= -10;
 }
 
-static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
+static bool side_slot_needs_medium_hidden_font(uint8_t slot, CustomUrlSlotIndex custom_idx) {
   // Distance is intentionally medium at all times because its unit makes the
   // rendered value wider than the other single-value metrics.
   if (slot == SLOT_DISTANCE) return true;
@@ -3220,7 +3243,7 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == SLOT_TIME_ZONE) return true;
   if (slot == SLOT_STEPS && s_step_count >= 10000) return true;
   if (slot == SLOT_WEATHER && weather_value_needs_smaller_font()) return true;
-  if (slot == SLOT_CUSTOM_URL && strlen(s_custom_url_value) > 4) return true;
+  if (slot == SLOT_CUSTOM_URL && strlen(custom_url_value_for(custom_idx)) > 4) return true;
   if (slot == SLOT_PLUS2_FORECAST && s_have_plus2_forecast) {
     int display_temp = display_temp_from_c_x10(s_plus2_temp_c_x10);
     if (display_temp >= 100 || display_temp <= -10) return true;
@@ -3231,7 +3254,7 @@ static bool side_slot_needs_medium_hidden_font(uint8_t slot) {
 static bool center_slot_needs_medium_hidden_font(uint8_t slot) {
   if (slot == CENTER_STEPS && s_step_count >= 10000) return true;
   if (slot == CENTER_WEATHER && weather_value_needs_smaller_font()) return true;
-  if (slot == CENTER_CUSTOM_URL && strlen(s_custom_url_value) > 4) return true;
+  if (slot == CENTER_CUSTOM_URL && strlen(custom_url_value_for(CUSTOM_SLOT_CENTER)) > 4) return true;
   return false;
 }
 
@@ -3240,12 +3263,14 @@ static bool slot_is_calendar(uint8_t slot) {
 }
 
 static const char *top_slot_label(uint8_t slot) {
+  if (slot == SLOT_CUSTOM_URL) return custom_url_label_for(CUSTOM_SLOT_TOP_CENTER);
   // Preserve the original clean DAY / DATE / MONTH header look: calendar
   // items use the large value only, without a redundant label above them.
   return slot_is_calendar(slot) ? "" : side_slot_label(slot);
 }
 
 static const char *top_slot_value(uint8_t slot) {
+  if (slot == SLOT_CUSTOM_URL) return custom_url_value_for(CUSTOM_SLOT_TOP_CENTER);
   return side_slot_value(slot);
 }
 
@@ -3258,15 +3283,15 @@ static void update_header_content(void) {
 
   const bool left_label_hidden =
       (s_settings.top_left_hide_label ||
-       (s_settings.top_left_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
+       (s_settings.top_left_slot == SLOT_CUSTOM_URL && !s_custom_url_labels[CUSTOM_SLOT_TOP_LEFT][0])) &&
       side_slot_has_optional_label(s_settings.top_left_slot);
   const bool center_label_hidden =
       (s_settings.top_center_hide_label ||
-       (s_settings.top_center_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
+       (s_settings.top_center_slot == SLOT_CUSTOM_URL && !s_custom_url_labels[CUSTOM_SLOT_TOP_CENTER][0])) &&
       side_slot_has_optional_label(s_settings.top_center_slot);
   const bool right_label_hidden =
       (s_settings.top_right_hide_label ||
-       (s_settings.top_right_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
+       (s_settings.top_right_slot == SLOT_CUSTOM_URL && !s_custom_url_labels[CUSTOM_SLOT_TOP_RIGHT][0])) &&
       side_slot_has_optional_label(s_settings.top_right_slot);
 
   const bool left_large = left_calendar || left_label_hidden ||
@@ -3321,14 +3346,14 @@ static void update_header_content(void) {
   // Long values use a 28px medium font before Pebble can ellipsize.
   const bool left_medium_for_fit =
       left_label_hidden &&
-      side_slot_needs_medium_hidden_font(s_settings.top_left_slot);
+      side_slot_needs_medium_hidden_font(s_settings.top_left_slot, CUSTOM_SLOT_TOP_LEFT);
   const bool center_medium_for_fit =
       (center_label_hidden &&
-       side_slot_needs_medium_hidden_font(s_settings.top_center_slot)) ||
+       side_slot_needs_medium_hidden_font(s_settings.top_center_slot, CUSTOM_SLOT_TOP_CENTER)) ||
       s_settings.top_center_slot == SLOT_BATTERY_PERCENT;
   const bool right_medium_for_fit =
       right_label_hidden &&
-      side_slot_needs_medium_hidden_font(s_settings.top_right_slot);
+      side_slot_needs_medium_hidden_font(s_settings.top_right_slot, CUSTOM_SLOT_TOP_RIGHT);
 
   text_layer_set_font(
       s_top_left_val,
@@ -3484,15 +3509,15 @@ static void update_footer_content(void) {
 
   const bool left_label_hidden =
       (s_settings.left_hide_label ||
-       (s_settings.left_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
+       (s_settings.left_slot == SLOT_CUSTOM_URL && !s_custom_url_labels[CUSTOM_SLOT_LEFT][0])) &&
       side_slot_has_optional_label(s_settings.left_slot);
   const bool center_label_hidden =
       (s_settings.center_hide_label ||
-       (s_settings.center_slot == CENTER_CUSTOM_URL && !s_custom_url_label[0])) &&
+       (s_settings.center_slot == CENTER_CUSTOM_URL && !s_custom_url_labels[CUSTOM_SLOT_CENTER][0])) &&
       center_slot_has_optional_label(s_settings.center_slot);
   const bool right_label_hidden =
       (s_settings.right_hide_label ||
-       (s_settings.right_slot == SLOT_CUSTOM_URL && !s_custom_url_label[0])) &&
+       (s_settings.right_slot == SLOT_CUSTOM_URL && !s_custom_url_labels[CUSTOM_SLOT_RIGHT][0])) &&
       side_slot_has_optional_label(s_settings.right_slot);
 
   const bool left_large = left_calendar || left_label_hidden ||
@@ -3534,14 +3559,14 @@ static void update_footer_content(void) {
 
   const bool left_medium_for_fit =
       left_label_hidden &&
-      side_slot_needs_medium_hidden_font(s_settings.left_slot);
+      side_slot_needs_medium_hidden_font(s_settings.left_slot, CUSTOM_SLOT_LEFT);
   const bool center_medium_for_fit =
       (center_label_hidden &&
        center_slot_needs_medium_hidden_font(s_settings.center_slot)) ||
       s_settings.center_slot == CENTER_BATTERY_PERCENT;
   const bool right_medium_for_fit =
       right_label_hidden &&
-      side_slot_needs_medium_hidden_font(s_settings.right_slot);
+      side_slot_needs_medium_hidden_font(s_settings.right_slot, CUSTOM_SLOT_RIGHT);
 
   text_layer_set_font(
       s_left_val,
@@ -4910,6 +4935,31 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         }
         break;
 
+      case KEY_TOP_LEFT_CUSTOM_URL_LABEL: case KEY_TOP_CENTER_CUSTOM_URL_LABEL: case KEY_TOP_RIGHT_CUSTOM_URL_LABEL:
+      case KEY_LEFT_CUSTOM_URL_LABEL: case KEY_CENTER_CUSTOM_URL_LABEL: case KEY_RIGHT_CUSTOM_URL_LABEL: {
+        if (t->type == TUPLE_CSTRING) {
+          CustomUrlSlotIndex idx = CUSTOM_SLOT_TOP_LEFT;
+          if (t->key == KEY_TOP_CENTER_CUSTOM_URL_LABEL) idx=CUSTOM_SLOT_TOP_CENTER; else if (t->key == KEY_TOP_RIGHT_CUSTOM_URL_LABEL) idx=CUSTOM_SLOT_TOP_RIGHT;
+          else if (t->key == KEY_LEFT_CUSTOM_URL_LABEL) idx=CUSTOM_SLOT_LEFT; else if (t->key == KEY_CENTER_CUSTOM_URL_LABEL) idx=CUSTOM_SLOT_CENTER; else if (t->key == KEY_RIGHT_CUSTOM_URL_LABEL) idx=CUSTOM_SLOT_RIGHT;
+          snprintf(s_custom_url_labels[idx], sizeof(s_custom_url_labels[idx]), "%s", t->value->cstring);
+          persist_write_string(CUSTOM_URL_SLOT_LABEL_PERSIST_BASE + idx, s_custom_url_labels[idx]);
+          layout_changed = true;
+        }
+        break;
+      }
+      case KEY_TOP_LEFT_CUSTOM_URL_VALUE: case KEY_TOP_CENTER_CUSTOM_URL_VALUE: case KEY_TOP_RIGHT_CUSTOM_URL_VALUE:
+      case KEY_LEFT_CUSTOM_URL_VALUE: case KEY_CENTER_CUSTOM_URL_VALUE: case KEY_RIGHT_CUSTOM_URL_VALUE: {
+        if (t->type == TUPLE_CSTRING) {
+          CustomUrlSlotIndex idx = CUSTOM_SLOT_TOP_LEFT;
+          if (t->key == KEY_TOP_CENTER_CUSTOM_URL_VALUE) idx=CUSTOM_SLOT_TOP_CENTER; else if (t->key == KEY_TOP_RIGHT_CUSTOM_URL_VALUE) idx=CUSTOM_SLOT_TOP_RIGHT;
+          else if (t->key == KEY_LEFT_CUSTOM_URL_VALUE) idx=CUSTOM_SLOT_LEFT; else if (t->key == KEY_CENTER_CUSTOM_URL_VALUE) idx=CUSTOM_SLOT_CENTER; else if (t->key == KEY_RIGHT_CUSTOM_URL_VALUE) idx=CUSTOM_SLOT_RIGHT;
+          snprintf(s_custom_url_values[idx], sizeof(s_custom_url_values[idx]), "%s", t->value->cstring);
+          persist_write_string(CUSTOM_URL_SLOT_VALUE_PERSIST_BASE + idx, s_custom_url_values[idx]);
+          layout_changed = true;
+        }
+        break;
+      }
+
 #if WATCHFACE_PRO
       case KEY_ACCENT_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
@@ -5990,6 +6040,12 @@ static void init(void) {
     persist_read_string(CUSTOM_URL_LABEL_PERSIST_KEY, s_custom_url_label, sizeof(s_custom_url_label));
   } else {
     s_custom_url_label[0] = '\0';
+  }
+  for (int i = 0; i < CUSTOM_SLOT_COUNT; ++i) {
+    if (persist_exists(CUSTOM_URL_SLOT_VALUE_PERSIST_BASE + i)) persist_read_string(CUSTOM_URL_SLOT_VALUE_PERSIST_BASE + i, s_custom_url_values[i], sizeof(s_custom_url_values[i]));
+    else s_custom_url_values[i][0] = '\0';
+    if (persist_exists(CUSTOM_URL_SLOT_LABEL_PERSIST_BASE + i)) persist_read_string(CUSTOM_URL_SLOT_LABEL_PERSIST_BASE + i, s_custom_url_labels[i], sizeof(s_custom_url_labels[i]));
+    else s_custom_url_labels[i][0] = '\0';
   }
 
   // weather_cache_load() restores the raw Celsius value and availability flag.
