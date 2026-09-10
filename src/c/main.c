@@ -4893,7 +4893,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       }
 
       case KEY_CUSTOM_URL_LABEL:
-        if (t->type == TUPLE_CSTRING && t->value && t->value->cstring) {
+        if (t->type == TUPLE_CSTRING) {
           snprintf(s_custom_url_label, sizeof(s_custom_url_label), "%s", t->value->cstring);
           persist_write_string(CUSTOM_URL_LABEL_PERSIST_KEY, s_custom_url_label);
           layout_changed = true;
@@ -4902,7 +4902,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
 
       case KEY_CUSTOM_URL_VALUE:
-        if (t->type == TUPLE_CSTRING && t->value && t->value->cstring) {
+        if (t->type == TUPLE_CSTRING) {
           snprintf(s_custom_url_value, sizeof(s_custom_url_value), "%s", t->value->cstring);
           persist_write_string(CUSTOM_URL_VALUE_PERSIST_KEY, s_custom_url_value);
           layout_changed = true;
