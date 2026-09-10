@@ -221,6 +221,17 @@ function customClay(minified) {
     var quietTimeIndicator = clayPage.getItemByMessageKey('QUIET_TIME_INDICATOR');
     var timeStyle = clayPage.getItemByMessageKey('ROUNDED_TIME');
     var expandDigitalClock = clayPage.getItemByMessageKey('EXPAND_DIGITAL_CLOCK');
+    var separateDataBackground = clayPage.getItemByMessageKey('SEPARATE_DATA_BACKGROUND_COLOR');
+    var topDataBackground = clayPage.getItemByMessageKey('TOP_DATA_BACKGROUND_COLOR');
+    var bottomDataBackground = clayPage.getItemByMessageKey('BOTTOM_DATA_BACKGROUND_COLOR');
+
+    function syncDataBackgroundControls() {
+      var separate = separateDataBackground && !!separateDataBackground.get();
+      if (topDataBackground) { if (separate) topDataBackground.show(); else topDataBackground.hide(); }
+      if (bottomDataBackground) { if (separate) bottomDataBackground.show(); else bottomDataBackground.hide(); }
+    }
+    syncDataBackgroundControls();
+    if (separateDataBackground) separateDataBackground.on('change', syncDataBackgroundControls);
 
     // In digital mode, Hour/Minute Color remain governed by the existing split
     // toggle. In analog mode they are the actual hand colors for Pro users.
@@ -404,6 +415,9 @@ function customClay(minified) {
         setValue('CENTER_12H', false);
         setValue('RAISE_WAKE', '0');
         setValue('BACKGROUND_COLOR', '0x000000');
+        setValue('SEPARATE_DATA_BACKGROUND_COLOR', false);
+        setValue('TOP_DATA_BACKGROUND_COLOR', '0x000000');
+        setValue('BOTTOM_DATA_BACKGROUND_COLOR', '0x000000');
         setValue('TEMP_UNIT', '0');
         setValue('LANGUAGE', '0');
         setValue('WEATHER_REFRESH', '60');
