@@ -177,8 +177,8 @@
     "watchapp": {
       "watchface": true
     },
-    "versionLabel": "1.4.10"
+    "versionLabel": "1.5"
   },
-  "version": "1.4.10",
-  "versionLabel": "1.4.12"
+  "version": "1.5.0",
+  "versionLabel": "1.5"
 }
