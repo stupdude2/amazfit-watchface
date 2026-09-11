@@ -160,6 +160,8 @@ static bool conditional_ui_is_visible(void);
 #define KEY_LEFT_CUSTOM_URL_VALUE 86
 #define KEY_CENTER_CUSTOM_URL_VALUE 87
 #define KEY_RIGHT_CUSTOM_URL_VALUE 88
+#define KEY_SEPARATE_TIME_BACKGROUND 89
+#define KEY_TIME_BACKGROUND_COLOR 90
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -581,6 +583,8 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define CUSTOM_URL_LABEL_PERSIST_KEY       1121
 #define CUSTOM_URL_SLOT_VALUE_PERSIST_BASE 1130
 #define CUSTOM_URL_SLOT_LABEL_PERSIST_BASE 1140
+#define SEPARATE_TIME_BACKGROUND_PERSIST_KEY 1150
+#define TIME_BACKGROUND_COLOR_PERSIST_KEY 1151
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -720,6 +724,8 @@ static bool key_is_pro_customization(uint32_t key) {
     case KEY_SECOND_HAND_COLOR:
     case KEY_PROGRESS_TRACK_BATTERY:
     case KEY_EXPAND_DIGITAL_CLOCK:
+    case KEY_SEPARATE_TIME_BACKGROUND:
+    case KEY_TIME_BACKGROUND_COLOR:
       return true;
     default:
       return false;
@@ -1247,6 +1253,8 @@ static GColor s_hour_color;
 static GColor s_minute_color;
 static GColor s_second_hand_color;
 static bool s_split_clock_colors = false;
+static bool s_separate_time_background = false;
+static GColor s_time_background_color;
 static bool s_flash_colon = false;
 static bool s_bluetooth_colon = false;
 static bool s_quiet_time_indicator = false;
@@ -1267,6 +1275,12 @@ static TimeStyle s_time_style = TIME_STYLE_SQUARE;
 static bool s_second_tick_mode = false;
 // Drawing helpers use this transient color so their geometry remains unchanged.
 static GColor s_clock_draw_color;
+
+static GColor effective_time_background_color(void) {
+  return (s_pro_unlocked && s_separate_time_background)
+      ? s_time_background_color
+      : s_settings.background_color;
+}
 static uint8_t s_top_left_time_zone = 0;
 static uint8_t s_top_right_time_zone = 0;
 static uint8_t s_left_time_zone = 0;
@@ -1281,6 +1295,16 @@ static void load_split_clock_colors(void) {
   s_minute_color = s_settings.clock_color;
   s_second_hand_color = GColorWhite;
   s_split_clock_colors = false;
+  s_separate_time_background = false;
+  s_time_background_color = s_settings.background_color;
+
+  if (persist_exists(SEPARATE_TIME_BACKGROUND_PERSIST_KEY)) {
+    s_separate_time_background = persist_read_int(SEPARATE_TIME_BACKGROUND_PERSIST_KEY) != 0;
+  }
+  if (persist_exists(TIME_BACKGROUND_COLOR_PERSIST_KEY)) {
+    uint32_t hex = (uint32_t)persist_read_int(TIME_BACKGROUND_COLOR_PERSIST_KEY) & 0xFFFFFF;
+    s_time_background_color = GColorFromHEX(hex);
+  }
 
   if (persist_exists(HOUR_COLOR_PERSIST_KEY)) {
     uint32_t hex = (uint32_t)persist_read_int(HOUR_COLOR_PERSIST_KEY) & 0xFFFFFF;
@@ -1576,7 +1600,7 @@ static void draw_colon_dot(GContext *ctx, int x, int y, int radius,
     // Draw a true hollow rectangle for status indication. Carving a smaller
     // filled shape out of the normal colon dot made the narrow side strokes
     // visually disappear, which could read as an equals sign.
-    graphics_context_set_fill_color(ctx, s_settings.background_color);
+    graphics_context_set_fill_color(ctx, effective_time_background_color());
     graphics_fill_rect(ctx, outer, 0, GCornerNone);
 
     // Build the border explicitly from four filled bars. graphics_draw_rect()
@@ -2045,7 +2069,7 @@ static void analog_draw_tapered_marker_state(GContext *ctx,
   GRect outline_rect = GRect(left, center_y - marker_height / 2,
                              right - left + 1, marker_height);
 
-  graphics_context_set_fill_color(ctx, s_settings.background_color);
+  graphics_context_set_fill_color(ctx, effective_time_background_color());
   graphics_fill_rect(ctx, outline_rect, 0, GCornerNone);
 
   // Explicit four-sided border; this keeps the short vertical ends visible
@@ -2210,7 +2234,7 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   // Keep the analog dial furniture readable against the selected background.
   // Use the same contrast rule as the rest of Big Time: white on dark
   // backgrounds and black once the background is light enough.
-  GColor marker_color = gcolor_legible_over(s_settings.background_color);
+  GColor marker_color = gcolor_legible_over(effective_time_background_color());
   // Pro users can customize each analog hand. Free users get the complete
   // analog face (including the optional second hand) with fixed white hands,
   // so analog is fully usable without exposing premium color controls.
@@ -2274,7 +2298,7 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
 // ── Clock ─────────────────────────────────────────────────────────────────────
 static void clock_update_proc(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  graphics_context_set_fill_color(ctx, s_settings.background_color);
+  graphics_context_set_fill_color(ctx, effective_time_background_color());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   if (s_analog_clock) {
@@ -4741,6 +4765,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   bool analog_clock_before = s_analog_clock;
   bool analog_second_before = s_analog_second_hand;
   bool expand_digital_before = s_expand_digital_clock;
+  bool separate_time_background_before = s_separate_time_background;
+  GColor time_background_color_before = s_time_background_color;
   TimeStyle time_style_before = s_time_style;
   bool progress_battery_before = s_progress_track_battery;
   uint8_t stepbar_visibility_before = s_stepbar_visibility;
@@ -5387,6 +5413,30 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         break;
       }
 
+      case KEY_SEPARATE_TIME_BACKGROUND: {
+        bool enabled = tuple_to_int32(t, s_separate_time_background ? 1 : 0) != 0;
+        if (enabled != s_separate_time_background) {
+          s_separate_time_background = enabled;
+          persist_write_int(SEPARATE_TIME_BACKGROUND_PERSIST_KEY, enabled ? 1 : 0);
+          if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+          APP_LOG(APP_LOG_LEVEL_INFO, "Separate time background -> %d", enabled ? 1 : 0);
+        }
+        break;
+      }
+
+      case KEY_TIME_BACKGROUND_COLOR:
+        if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
+          uint32_t value = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
+          GColor color = GColorFromHEX(value);
+          if (color.argb != s_time_background_color.argb) {
+            s_time_background_color = color;
+            persist_write_int(TIME_BACKGROUND_COLOR_PERSIST_KEY, (int32_t)value);
+            if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+            APP_LOG(APP_LOG_LEVEL_INFO, "Time background color -> 0x%06lX", (unsigned long)value);
+          }
+        }
+        break;
+
       case KEY_BACKGROUND_COLOR:
         if (t->type == TUPLE_INT || t->type == TUPLE_UINT) {
           new_background_hex = (uint32_t)tuple_to_int32(t, 0x000000) & 0xFFFFFF;
@@ -5479,6 +5529,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       tz_top_right_before != s_top_right_time_zone ||
       tz_left_before != s_left_time_zone ||
       tz_right_before != s_right_time_zone;
+
+  const bool time_background_changed =
+      separate_time_background_before != s_separate_time_background ||
+      time_background_color_before.argb != s_time_background_color.argb;
 
   // Reconcile from actual before/after state, not merely from tuples Clay sent.
   // This guarantees every structural setting is applied immediately on Save,
@@ -5599,6 +5653,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     layer_mark_dirty(s_clock_layer);
     APP_LOG(APP_LOG_LEVEL_INFO, "Clock color applied: 0x%06lX",
             (unsigned long)new_clock_hex);
+  }
+
+  if (time_background_changed && s_clock_layer) {
+    layer_mark_dirty(s_clock_layer);
   }
 
   if (background_changed) {

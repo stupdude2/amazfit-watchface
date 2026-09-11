@@ -341,7 +341,12 @@ if (edition.isPro) {
       { "type": "toggle", "messageKey": "EXPAND_DIGITAL_CLOCK", "defaultValue": false,
         "label": "Expand Digital Clock",
         "description": "Vertically expands the digital digits into space freed when the top bar, bottom bar, or progress bar is hidden." },
-      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" }
+      { "type": "color", "messageKey": "BACKGROUND_COLOR", "defaultValue": "0x000000", "label": "Background Color", "layout": "COLOR" },
+      { "type": "toggle", "messageKey": "SEPARATE_TIME_BACKGROUND", "defaultValue": false,
+        "label": "Separate Time Background Color",
+        "description": "Use a different background color behind the main digital or analog clock." },
+      { "type": "color", "messageKey": "TIME_BACKGROUND_COLOR", "defaultValue": "0x000000",
+        "label": "Time Background Color", "layout": "COLOR" }
     ]
   });
 

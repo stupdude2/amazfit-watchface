@@ -106,7 +106,9 @@
       "TOP_RIGHT_CUSTOM_URL_VALUE": 85,
       "LEFT_CUSTOM_URL_VALUE": 86,
       "CENTER_CUSTOM_URL_VALUE": 87,
-      "RIGHT_CUSTOM_URL_VALUE": 88
+      "RIGHT_CUSTOM_URL_VALUE": 88,
+      "SEPARATE_TIME_BACKGROUND": 89,
+      "TIME_BACKGROUND_COLOR": 90
     },
     "projectType": "native",
     "resources": {

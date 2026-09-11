@@ -221,6 +221,8 @@ function customClay(minified) {
     var quietTimeIndicator = clayPage.getItemByMessageKey('QUIET_TIME_INDICATOR');
     var timeStyle = clayPage.getItemByMessageKey('ROUNDED_TIME');
     var expandDigitalClock = clayPage.getItemByMessageKey('EXPAND_DIGITAL_CLOCK');
+    var separateTimeBackground = clayPage.getItemByMessageKey('SEPARATE_TIME_BACKGROUND');
+    var timeBackgroundColor = clayPage.getItemByMessageKey('TIME_BACKGROUND_COLOR');
 
     // In digital mode, Hour/Minute Color remain governed by the existing split
     // toggle. In analog mode they are the actual hand colors for Pro users.
@@ -270,6 +272,20 @@ function customClay(minified) {
     }
 
     syncClockColorControls();
+
+    function syncTimeBackgroundControls() {
+      if (!timeBackgroundColor) return;
+      if (separateTimeBackground && separateTimeBackground.get()) {
+        timeBackgroundColor.show();
+      } else {
+        timeBackgroundColor.hide();
+      }
+    }
+
+    syncTimeBackgroundControls();
+    if (separateTimeBackground) {
+      separateTimeBackground.on('change', syncTimeBackgroundControls);
+    }
     if (splitClockColors) {
       splitClockColors.on('change', function() {
         // Turning separate colors off means the independent values should no
