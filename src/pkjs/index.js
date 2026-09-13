@@ -815,23 +815,30 @@ Pebble.addEventListener('webviewclosed', function(e) {
       if (settings && typeof settings[key] !== 'undefined') delete settings[key];
     });
 
-    if (settings && Number(settings.TRY_PRO_FREE) !== 0) {
+    // Clay converts messageKey names to numeric AppMessage keys.
+    // Only start the trial when the actual TRY_PRO_FREE toggle is present and ON.
+    // Using settings.TRY_PRO_FREE here is incorrect: that property is undefined,
+    // and Number(undefined) is NaN, which previously made every Settings save
+    // look like a trial-start request.
+    var trialKey = messageKeys.TRY_PRO_FREE;
+    if (settings && typeof settings[trialKey] !== 'undefined' &&
+        Number(settings[trialKey]) !== 0) {
       var now = Math.floor(Date.now() / 1000);
       var existingExpiry = getStoredTrialExpiry();
 
       if (trialWasUsedOnPhone()) {
         if (existingExpiry > now) {
           // Trial already exists: restore the original end time, never restart it.
-          settings.TRY_PRO_FREE = existingExpiry;
+          settings[trialKey] = existingExpiry;
         } else {
           // Trial was already used and has expired. Do not send a new start.
-          delete settings.TRY_PRO_FREE;
+          delete settings[trialKey];
           console.log('Pro trial already used; refusing to restart');
         }
       } else {
-        settings.TRY_PRO_FREE = persistNewTrialOnPhone();
+        settings[trialKey] = persistNewTrialOnPhone();
         sessionTrialUsed = true;
-        console.log('Stored new Pro trial expiry=' + settings.TRY_PRO_FREE);
+        console.log('Stored new Pro trial expiry=' + settings[trialKey]);
       }
     }
 
