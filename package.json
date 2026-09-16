@@ -108,7 +108,9 @@
       "CENTER_CUSTOM_URL_VALUE": 87,
       "RIGHT_CUSTOM_URL_VALUE": 88,
       "SEPARATE_TIME_BACKGROUND": 89,
-      "TIME_BACKGROUND_COLOR": 90
+      "TIME_BACKGROUND_COLOR": 90,
+      "ANALOG_MINUTE_TICKS": 91,
+      "ANALOG_HAND_STYLE": 92
     },
     "projectType": "native",
     "resources": {
@@ -177,8 +179,8 @@
     "watchapp": {
       "watchface": true
     },
-    "versionLabel": "3.4"
+    "versionLabel": "1.5"
   },
-  "version": "3.4.1",
-  "versionLabel": "3.4"
+  "version": "1.5.1",
+  "versionLabel": "1.5"
 }

@@ -215,6 +215,8 @@ function customClay(minified) {
     var minuteColor = clayPage.getItemByMessageKey('MINUTE_COLOR');
     var clockFace = clayPage.getItemByMessageKey('CLOCK_FACE');
     var analogSecondHand = clayPage.getItemByMessageKey('ANALOG_SECOND_HAND');
+    var analogMinuteTicks = clayPage.getItemByMessageKey('ANALOG_MINUTE_TICKS');
+    var analogHandStyle = clayPage.getItemByMessageKey('ANALOG_HAND_STYLE');
     var secondHandColor = clayPage.getItemByMessageKey('SECOND_HAND_COLOR');
     var secondsColon = clayPage.getItemByMessageKey('FLASH_COLON');
     var bluetoothColon = clayPage.getItemByMessageKey('BLUETOOTH_COLON');
@@ -247,6 +249,14 @@ function customClay(minified) {
       if (analogSecondHand) {
         if (analog) analogSecondHand.show();
         else analogSecondHand.hide();
+      }
+      if (analogMinuteTicks) {
+        if (analog) analogMinuteTicks.show();
+        else analogMinuteTicks.hide();
+      }
+      if (analogHandStyle) {
+        if (analog) analogHandStyle.show();
+        else analogHandStyle.hide();
       }
       if (secondHandColor) {
         if (analog) secondHandColor.show();
@@ -413,6 +423,8 @@ function customClay(minified) {
         setValue('QUIET_TIME_INDICATOR', false);
         setValue('CLOCK_FACE', '0');
         setValue('ANALOG_SECOND_HAND', false);
+        setValue('ANALOG_MINUTE_TICKS', false);
+        setValue('ANALOG_HAND_STYLE', '0');
         setValue('PROGRESS_TRACK_BATTERY', false);
         setValue('ROUNDED_TIME', '0');
         setValue('EXPAND_DIGITAL_CLOCK', false);

@@ -231,6 +231,28 @@ var config = [
         "defaultValue": false,
         "label": "Analog Second Hand",
         "description": "Show a moving second hand on the analog face. Available in the free version."
+      },
+      {
+        "type": "toggle",
+        "messageKey": "ANALOG_MINUTE_TICKS",
+        "defaultValue": false,
+        "label": "Analog Minute Ticks",
+        "description": "Show thin minute ticks between the larger hour markers."
+      },
+      {
+        "type": "select",
+        "messageKey": "ANALOG_HAND_STYLE",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Analog Hand Style",
+        "options": [
+          { "label": "Baton", "value": "0" },
+          { "label": "Dauphine", "value": "1" },
+          { "label": "Sword", "value": "2" },
+          { "label": "Leaf", "value": "3" },
+          { "label": "Pencil", "value": "4" },
+          { "label": "Mercedes", "value": "5" }
+        ]
       }
     ]
   },
