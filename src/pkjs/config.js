@@ -253,6 +253,23 @@ var config = [
           { "label": "Pencil", "value": "4" },
           { "label": "Mercedes", "value": "5" }
         ]
+      },
+      {
+        "type": "select",
+        "messageKey": "ANALOG_HAND_THICKNESS",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Hand Thickness Offset",
+        "description": "Adjust the thickness of the selected analog hand style.",
+        "options": [
+          { "label": "-2", "value": "-2" },
+          { "label": "-1", "value": "-1" },
+          { "label": "Default", "value": "0" },
+          { "label": "+1", "value": "1" },
+          { "label": "+2", "value": "2" },
+          { "label": "+3", "value": "3" },
+          { "label": "+4", "value": "4" }
+        ]
       }
     ]
   },

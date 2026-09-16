@@ -164,6 +164,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_TIME_BACKGROUND_COLOR 90
 #define KEY_ANALOG_MINUTE_TICKS 91
 #define KEY_ANALOG_HAND_STYLE 92
+#define KEY_ANALOG_HAND_THICKNESS 93
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -589,6 +590,7 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define TIME_BACKGROUND_COLOR_PERSIST_KEY 1151
 #define ANALOG_MINUTE_TICKS_PERSIST_KEY 1152
 #define ANALOG_HAND_STYLE_PERSIST_KEY 1153
+#define ANALOG_HAND_THICKNESS_PERSIST_KEY 1154
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -690,7 +692,8 @@ static bool key_is_free_customization(uint32_t key) {
          key == KEY_CLOCK_FACE ||
          key == KEY_ANALOG_SECOND_HAND ||
          key == KEY_ANALOG_MINUTE_TICKS ||
-         key == KEY_ANALOG_HAND_STYLE;
+         key == KEY_ANALOG_HAND_STYLE ||
+         key == KEY_ANALOG_HAND_THICKNESS;
 }
 
 static bool key_is_pro_customization(uint32_t key) {
@@ -1281,6 +1284,7 @@ typedef enum {
   ANALOG_HAND_MERCEDES = 5
 } AnalogHandStyle;
 static AnalogHandStyle s_analog_hand_style = ANALOG_HAND_BATON;
+static int s_analog_hand_thickness_offset = 0;
 static bool s_progress_track_battery = false;
 typedef enum {
   TIME_STYLE_SQUARE = 0,
@@ -1360,6 +1364,10 @@ static void load_split_clock_colors(void) {
     if (style >= ANALOG_HAND_BATON && style <= ANALOG_HAND_MERCEDES) {
       s_analog_hand_style = (AnalogHandStyle)style;
     }
+  }
+  if (persist_exists(ANALOG_HAND_THICKNESS_PERSIST_KEY)) {
+    int offset = persist_read_int(ANALOG_HAND_THICKNESS_PERSIST_KEY);
+    if (offset >= -2 && offset <= 4) s_analog_hand_thickness_offset = offset;
   }
   s_expand_digital_clock =
       persist_exists(EXPAND_DIGITAL_CLOCK_PERSIST_KEY) &&
@@ -2121,6 +2129,12 @@ static void analog_draw_marker(GContext *ctx, GRect bounds, int minute_index,
     GPoint inner = analog_ray_point(bounds, angle, 6, 6, 86);
     analog_draw_tapered_marker(ctx, inner, outer, marker_color);
   } else if (s_analog_minute_ticks) {
+    // Preserve every existing large tick, but leave extra breathing room around
+    // the cardinal markers by omitting only these optional thin minute ticks.
+    if (minute_index == 1 || minute_index == 2 || minute_index == 58 || minute_index == 59 ||
+        minute_index == 14 || minute_index == 16 ||
+        minute_index == 29 || minute_index == 31 ||
+        minute_index == 44 || minute_index == 46) return;
     GPoint outer = analog_ray_point(bounds, angle, 7, 7, 100);
     GPoint inner = analog_ray_point(bounds, angle, 7, 7, 95);
     graphics_context_set_stroke_color(ctx, marker_color);
@@ -2280,12 +2294,14 @@ static void analog_draw_styled_hand(GContext *ctx, GRect bounds, int32_t angle,
                                     int length, int base_width, GColor color,
                                     AnalogHandStyle style, bool is_hour) {
   GPoint c = GPoint(bounds.size.w / 2, bounds.size.h / 2);
+  int adjusted_width = base_width + s_analog_hand_thickness_offset;
+  if (adjusted_width < 1) adjusted_width = 1;
   if (style == ANALOG_HAND_BATON) {
-    analog_draw_hand_to_length(ctx, bounds, angle, length, base_width, color);
+    analog_draw_hand_to_length(ctx, bounds, angle, length, adjusted_width, color);
     return;
   }
 
-  int half = base_width / 2;
+  int half = adjusted_width / 2;
   if (half < 2) half = 2;
   GPoint pts[8];
   uint32_t n = 0;
@@ -2326,7 +2342,9 @@ static void analog_draw_styled_hand(GContext *ctx, GRect bounds, int32_t angle,
       }
       // Classic dive-watch interpretation: narrow stem, circular hour emblem,
       // and a pointed tip. Keep it compact enough for Big Time's rectangular dial.
-      analog_draw_hand_to_length(ctx, bounds, angle, length, 3, color);
+      analog_draw_hand_to_length(ctx, bounds, angle, length,
+                                   (3 + s_analog_hand_thickness_offset < 1) ? 1 :
+                                   3 + s_analog_hand_thickness_offset, color);
       {
         int emblem_at = length * 55 / 100;
         GPoint emblem = analog_offset_point(c, angle, emblem_at, 0);
@@ -2339,7 +2357,7 @@ static void analog_draw_styled_hand(GContext *ctx, GRect bounds, int32_t angle,
       }
       return;
     default:
-      analog_draw_hand_to_length(ctx, bounds, angle, length, base_width, color);
+      analog_draw_hand_to_length(ctx, bounds, angle, length, adjusted_width, color);
       return;
   }
   analog_fill_polygon(ctx, pts, n, color);
@@ -2399,8 +2417,10 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   if (s_analog_second_hand) {
     // The second hand is now one continuous custom color from pivot to tip.
     // No accent/highlight segment is layered on the end.
+    int second_width = 2 + s_analog_hand_thickness_offset;
+    if (second_width < 1) second_width = 1;
     analog_draw_hand_to_length(ctx, bounds, second_angle, second_length,
-                               2, second_color);
+                               second_width, second_color);
   }
 
   // Pivot is topmost of all — deliberately compact, with no oversized circle.
@@ -5519,6 +5539,18 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         persist_write_int(ANALOG_HAND_STYLE_PERSIST_KEY, style);
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Analog hand style -> %d", style);
+        break;
+      }
+
+      case KEY_ANALOG_HAND_THICKNESS: {
+        int offset = tuple_to_int32(t, s_analog_hand_thickness_offset);
+        if (offset < -2) offset = -2;
+        if (offset > 4) offset = 4;
+        if (offset == s_analog_hand_thickness_offset) break;
+        s_analog_hand_thickness_offset = offset;
+        persist_write_int(ANALOG_HAND_THICKNESS_PERSIST_KEY, offset);
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Analog hand thickness offset -> %d", offset);
         break;
       }
 

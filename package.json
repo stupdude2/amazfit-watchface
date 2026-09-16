@@ -110,7 +110,8 @@
       "SEPARATE_TIME_BACKGROUND": 89,
       "TIME_BACKGROUND_COLOR": 90,
       "ANALOG_MINUTE_TICKS": 91,
-      "ANALOG_HAND_STYLE": 92
+      "ANALOG_HAND_STYLE": 92,
+      "ANALOG_HAND_THICKNESS": 93
     },
     "projectType": "native",
     "resources": {
