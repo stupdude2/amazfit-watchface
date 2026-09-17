@@ -1,0 +1,8 @@
+Big Time 1.5.2 Release Audit
+- Package version: 1.5.2
+- Version label: 1.5.2
+- CONFIG_TEST_MODE (C): 0
+- CONFIG_TEST_MODE (JS): false
+- KIEZELPAY_LOG_VERBOSE: 0
+- UUID: ced51275-d445-4b7e-89f6-9e41110ed4da
+- Includes latest analog hand/tick refinements and robust Quiet Time refresh behavior.

@@ -180,8 +180,8 @@
     "watchapp": {
       "watchface": true
     },
-    "versionLabel": "1.5"
+    "versionLabel": "1.5.2"
   },
-  "version": "1.5.1",
-  "versionLabel": "1.5"
+  "version": "1.5.2",
+  "versionLabel": "1.5.2"
 }
