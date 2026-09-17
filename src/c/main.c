@@ -1281,7 +1281,8 @@ typedef enum {
   ANALOG_HAND_SWORD = 2,
   ANALOG_HAND_LEAF = 3,
   ANALOG_HAND_PENCIL = 4,
-  ANALOG_HAND_MERCEDES = 5
+  ANALOG_HAND_MERCEDES = 5,
+  ANALOG_HAND_RECTANGLE = 6
 } AnalogHandStyle;
 static AnalogHandStyle s_analog_hand_style = ANALOG_HAND_BATON;
 static int s_analog_hand_thickness_offset = 0;
@@ -1361,7 +1362,7 @@ static void load_split_clock_colors(void) {
       persist_read_int(ANALOG_MINUTE_TICKS_PERSIST_KEY) != 0;
   if (persist_exists(ANALOG_HAND_STYLE_PERSIST_KEY)) {
     int style = persist_read_int(ANALOG_HAND_STYLE_PERSIST_KEY);
-    if (style >= ANALOG_HAND_BATON && style <= ANALOG_HAND_MERCEDES) {
+    if (style >= ANALOG_HAND_BATON && style <= ANALOG_HAND_RECTANGLE) {
       s_analog_hand_style = (AnalogHandStyle)style;
     }
   }
@@ -2334,6 +2335,14 @@ static void analog_draw_styled_hand(GContext *ctx, GRect bounds, int32_t angle,
       pts[n++] = analog_offset_point(c, angle, length * 82 / 100, half);
       pts[n++] = analog_offset_point(c, angle, -3, half);
       break;
+    case ANALOG_HAND_RECTANGLE:
+      // Square-ended version of Baton. The tip and tail are deliberately flat,
+      // while using the exact same target length as every other hand style.
+      pts[n++] = analog_offset_point(c, angle, -3, -half);
+      pts[n++] = analog_offset_point(c, angle, length, -half);
+      pts[n++] = analog_offset_point(c, angle, length, half);
+      pts[n++] = analog_offset_point(c, angle, -3, half);
+      break;
     case ANALOG_HAND_MERCEDES:
       if (!is_hour) {
         analog_draw_styled_hand(ctx, bounds, angle, length, base_width, color,
@@ -2361,6 +2370,20 @@ static void analog_draw_styled_hand(GContext *ctx, GRect bounds, int32_t angle,
       return;
   }
   analog_fill_polygon(ctx, pts, n, color);
+}
+
+static void analog_draw_styled_hand_outlined(GContext *ctx, GRect bounds, int32_t angle,
+                                               int length, int base_width, GColor color,
+                                               AnalogHandStyle style, bool is_hour) {
+  // Draw a two-pixel background-colored silhouette first. This gives the upper
+  // hand a clean separator wherever it crosses dial furniture or a lower hand.
+  // The colored hand is then drawn at its normal geometry on top.
+  int saved_offset = s_analog_hand_thickness_offset;
+  s_analog_hand_thickness_offset = saved_offset + 4;
+  analog_draw_styled_hand(ctx, bounds, angle, length, base_width,
+                          effective_time_background_color(), style, is_hour);
+  s_analog_hand_thickness_offset = saved_offset;
+  analog_draw_styled_hand(ctx, bounds, angle, length, base_width, color, style, is_hour);
 }
 
 static void draw_analog_clock(GContext *ctx, GRect bounds) {
@@ -2409,16 +2432,21 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
     proportional_hour_length = hour_shortest;
   }
 
-  analog_draw_styled_hand(ctx, bounds, hour_angle, proportional_hour_length,
-                          7, hour_color, s_analog_hand_style, true);
-  analog_draw_styled_hand(ctx, bounds, minute_angle, minute_length,
-                          4, minute_color, s_analog_hand_style, false);
+  // All styles receive these exact same computed lengths. Style changes only
+  // the hand silhouette, never its reach. Draw in watch-hand stack order:
+  // hour (bottom), minute, then second (top).
+  analog_draw_styled_hand_outlined(ctx, bounds, hour_angle, proportional_hour_length,
+                                   7, hour_color, s_analog_hand_style, true);
+  analog_draw_styled_hand_outlined(ctx, bounds, minute_angle, minute_length,
+                                   4, minute_color, s_analog_hand_style, false);
 
   if (s_analog_second_hand) {
     // The second hand is now one continuous custom color from pivot to tip.
     // No accent/highlight segment is layered on the end.
     int second_width = 2 + s_analog_hand_thickness_offset;
     if (second_width < 1) second_width = 1;
+    analog_draw_hand_to_length(ctx, bounds, second_angle, second_length,
+                               second_width + 4, effective_time_background_color());
     analog_draw_hand_to_length(ctx, bounds, second_angle, second_length,
                                second_width, second_color);
   }
@@ -5533,7 +5561,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_ANALOG_HAND_STYLE: {
         int style = tuple_to_int32(t, (int)s_analog_hand_style);
-        if (style < ANALOG_HAND_BATON || style > ANALOG_HAND_MERCEDES) style = ANALOG_HAND_BATON;
+        if (style < ANALOG_HAND_BATON || style > ANALOG_HAND_RECTANGLE) style = ANALOG_HAND_BATON;
         if (style == (int)s_analog_hand_style) break;
         s_analog_hand_style = (AnalogHandStyle)style;
         persist_write_int(ANALOG_HAND_STYLE_PERSIST_KEY, style);

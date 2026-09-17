@@ -251,7 +251,8 @@ var config = [
           { "label": "Sword", "value": "2" },
           { "label": "Leaf", "value": "3" },
           { "label": "Pencil", "value": "4" },
-          { "label": "Mercedes", "value": "5" }
+          { "label": "Mercedes", "value": "5" },
+          { "label": "Rectangle", "value": "6" }
         ]
       },
       {
