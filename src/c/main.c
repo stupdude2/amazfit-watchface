@@ -4211,17 +4211,6 @@ static void backlight_handler(bool on) {
   refresh_conditional_ui();
 }
 
-static void quiet_time_handler(bool quiet_time_active) {
-  APP_LOG(APP_LOG_LEVEL_DEBUG,
-          "Quiet Time event: %s",
-          quiet_time_active ? "ACTIVE" : "INACTIVE");
-
-  // Quiet Time can change while the watchface is idle/asleep. Redraw the
-  // clock immediately so the digital upper colon dot and analog 9 o'clock
-  // marker always reflect the current system state without waiting for a tick.
-  if (s_clock_layer) layer_mark_dirty(s_clock_layer);
-}
-
 static void refresh_quiet_time_indicator(void) {
   if (!s_quiet_time_indicator || !s_clock_layer) return;
 
@@ -6429,7 +6418,6 @@ static void init(void) {
   update_bar_input_services();
   update_raise_wake_service();
   app_focus_service_subscribe(focus_handler);
-  quiet_time_service_subscribe(quiet_time_handler);
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif
@@ -6462,7 +6450,6 @@ static void deinit(void) {
   s_tap_reveal_active = false;
   if (s_raise_accel_subscribed) accel_data_service_unsubscribe();
   app_focus_service_unsubscribe();
-  quiet_time_service_unsubscribe();
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
 #endif
