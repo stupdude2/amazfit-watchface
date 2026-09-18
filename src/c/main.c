@@ -1290,10 +1290,32 @@ static AnalogHandStyle s_analog_hand_style = ANALOG_HAND_BATON;
 static int s_analog_hand_thickness_offset = 0;
 typedef enum {
   ANALOG_SECOND_TICK = 0,
-  ANALOG_SECOND_SWEEP = 1
+  // Value 1 is retained for backward compatibility with the original 4 Hz
+  // Smooth Sweep option. Values 5-12 directly represent their sweep rate.
+  ANALOG_SECOND_SWEEP_4HZ = 1,
+  ANALOG_SECOND_SWEEP_5HZ = 5,
+  ANALOG_SECOND_SWEEP_6HZ = 6,
+  ANALOG_SECOND_SWEEP_7HZ = 7,
+  ANALOG_SECOND_SWEEP_8HZ = 8,
+  ANALOG_SECOND_SWEEP_9HZ = 9,
+  ANALOG_SECOND_SWEEP_10HZ = 10,
+  ANALOG_SECOND_SWEEP_11HZ = 11,
+  ANALOG_SECOND_SWEEP_12HZ = 12
 } AnalogSecondMotion;
 static AnalogSecondMotion s_analog_second_motion = ANALOG_SECOND_TICK;
-#define ANALOG_SWEEP_INTERVAL_MS 250
+
+static int analog_sweep_hz(void) {
+  if (s_analog_second_motion == ANALOG_SECOND_SWEEP_4HZ) return 4;
+  if ((int)s_analog_second_motion >= 5 && (int)s_analog_second_motion <= 12) {
+    return (int)s_analog_second_motion;
+  }
+  return 0;
+}
+
+static uint32_t analog_sweep_interval_ms(void) {
+  int hz = analog_sweep_hz();
+  return hz > 0 ? (uint32_t)(1000 / hz) : 250;
+}
 static AppTimer *s_analog_sweep_timer = NULL;
 static bool s_window_visible = false;
 static bool s_progress_track_battery = false;
@@ -1382,7 +1404,8 @@ static void load_split_clock_colors(void) {
   }
   if (persist_exists(ANALOG_SECOND_MOTION_PERSIST_KEY)) {
     int motion = persist_read_int(ANALOG_SECOND_MOTION_PERSIST_KEY);
-    if (motion >= ANALOG_SECOND_TICK && motion <= ANALOG_SECOND_SWEEP) {
+    if (motion == ANALOG_SECOND_TICK || motion == ANALOG_SECOND_SWEEP_4HZ ||
+        (motion >= ANALOG_SECOND_SWEEP_5HZ && motion <= ANALOG_SECOND_SWEEP_12HZ)) {
       s_analog_second_motion = (AnalogSecondMotion)motion;
     }
   }
@@ -2426,15 +2449,15 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   int32_t hour_angle = (TRIG_MAX_ANGLE * (hour12 * 60 + s_minute)) / (12 * 60);
   int32_t minute_angle = (TRIG_MAX_ANGLE * (s_minute * 60 + s_second)) / (60 * 60);
   int32_t second_angle;
-  if (s_analog_second_hand && s_analog_second_motion == ANALOG_SECOND_SWEEP) {
+  if (s_analog_second_hand && analog_sweep_hz() > 0) {
     time_t now_seconds;
     uint16_t now_ms = 0;
     time_ms(&now_seconds, &now_ms);
     struct tm *now_tm = localtime(&now_seconds);
     int sweep_second = now_tm ? now_tm->tm_sec : s_second;
-    // 4 Hz is a deliberate compromise: four distinct positions per second
-    // looks convincingly continuous on Pebble's display without the redraw
-    // and battery cost of animation-style 10-30 Hz updates.
+    // The selected 4-12 Hz redraw rate controls how often this continuously
+    // calculated position is painted. The angle itself uses real milliseconds,
+    // so every refresh lands at the correct point in the current second.
     second_angle = (int32_t)(((int64_t)TRIG_MAX_ANGLE *
         ((int64_t)sweep_second * 1000 + now_ms)) / 60000);
   } else {
@@ -5630,7 +5653,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
       case KEY_ANALOG_SECOND_MOTION: {
         int motion = tuple_to_int32(t, (int)s_analog_second_motion);
-        if (motion < ANALOG_SECOND_TICK || motion > ANALOG_SECOND_SWEEP) {
+        if (!(motion == ANALOG_SECOND_TICK || motion == ANALOG_SECOND_SWEEP_4HZ ||
+              (motion >= ANALOG_SECOND_SWEEP_5HZ && motion <= ANALOG_SECOND_SWEEP_12HZ))) {
           motion = ANALOG_SECOND_TICK;
         }
         if (motion == (int)s_analog_second_motion) break;
@@ -5638,8 +5662,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         persist_write_int(ANALOG_SECOND_MOTION_PERSIST_KEY, motion);
         update_analog_sweep_timer();
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
-        APP_LOG(APP_LOG_LEVEL_INFO, "Analog second motion -> %s",
-                motion == ANALOG_SECOND_SWEEP ? "SWEEP" : "TICK");
+        if (motion == ANALOG_SECOND_TICK) {
+          APP_LOG(APP_LOG_LEVEL_INFO, "Analog second motion -> TICK");
+        } else {
+          APP_LOG(APP_LOG_LEVEL_INFO, "Analog second motion -> SWEEP %d Hz", analog_sweep_hz());
+        }
         break;
       }
 
@@ -5968,17 +5995,17 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 static void analog_sweep_timer_handler(void *context) {
   s_analog_sweep_timer = NULL;
   if (!s_window_visible || !s_analog_clock || !s_analog_second_hand ||
-      s_analog_second_motion != ANALOG_SECOND_SWEEP) {
+      analog_sweep_hz() == 0) {
     return;
   }
   if (s_clock_layer) layer_mark_dirty(s_clock_layer);
-  s_analog_sweep_timer = app_timer_register(ANALOG_SWEEP_INTERVAL_MS,
+  s_analog_sweep_timer = app_timer_register(analog_sweep_interval_ms(),
                                              analog_sweep_timer_handler, NULL);
 }
 
 static void update_analog_sweep_timer(void) {
   bool should_run = s_window_visible && s_analog_clock && s_analog_second_hand &&
-                    s_analog_second_motion == ANALOG_SECOND_SWEEP;
+                    analog_sweep_hz() > 0;
   if (!should_run) {
     if (s_analog_sweep_timer) {
       app_timer_cancel(s_analog_sweep_timer);
@@ -5987,7 +6014,7 @@ static void update_analog_sweep_timer(void) {
     return;
   }
   if (!s_analog_sweep_timer) {
-    s_analog_sweep_timer = app_timer_register(ANALOG_SWEEP_INTERVAL_MS,
+    s_analog_sweep_timer = app_timer_register(analog_sweep_interval_ms(),
                                                analog_sweep_timer_handler, NULL);
   }
 }

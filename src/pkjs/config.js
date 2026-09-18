@@ -238,10 +238,18 @@ var config = [
         "defaultValue": "0",
         "serializeValueAs": "integer",
         "label": "Second Hand Motion",
-        "description": "Tick once per second or use a battery-conscious smooth sweep.",
+        "description": "Choose a traditional one-second tick or a smooth sweep rate. Higher rates look smoother but use more battery.",
         "options": [
-          { "label": "Tick", "value": "0" },
-          { "label": "Smooth Sweep", "value": "1" }
+          { "label": "Tick (1 Hz)", "value": "0" },
+          { "label": "Smooth - 4 Hz", "value": "1" },
+          { "label": "Smooth - 5 Hz", "value": "5" },
+          { "label": "Smooth - 6 Hz", "value": "6" },
+          { "label": "Smooth - 7 Hz", "value": "7" },
+          { "label": "Smooth - 8 Hz", "value": "8" },
+          { "label": "Smooth - 9 Hz", "value": "9" },
+          { "label": "Smooth - 10 Hz", "value": "10" },
+          { "label": "Smooth - 11 Hz", "value": "11" },
+          { "label": "Smooth - 12 Hz", "value": "12" }
         ]
       },
       {
