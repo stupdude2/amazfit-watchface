@@ -233,6 +233,18 @@ var config = [
         "description": "Show a moving second hand on the analog face. Available in the free version."
       },
       {
+        "type": "select",
+        "messageKey": "ANALOG_SECOND_MOTION",
+        "defaultValue": "0",
+        "serializeValueAs": "integer",
+        "label": "Second Hand Motion",
+        "description": "Tick once per second or use a battery-conscious smooth sweep.",
+        "options": [
+          { "label": "Tick", "value": "0" },
+          { "label": "Smooth Sweep", "value": "1" }
+        ]
+      },
+      {
         "type": "toggle",
         "messageKey": "ANALOG_MINUTE_TICKS",
         "defaultValue": false,

@@ -165,6 +165,7 @@ static bool conditional_ui_is_visible(void);
 #define KEY_ANALOG_MINUTE_TICKS 91
 #define KEY_ANALOG_HAND_STYLE 92
 #define KEY_ANALOG_HAND_THICKNESS 93
+#define KEY_ANALOG_SECOND_MOTION 94
 #define KEY_CLOCK_FACE              53
 #define KEY_ANALOG_SECOND_HAND      54
 #define KEY_SECOND_HAND_COLOR        55
@@ -591,6 +592,7 @@ static bool s_pro_unlocked = CONFIG_TEST_MODE ? true : false;
 #define ANALOG_MINUTE_TICKS_PERSIST_KEY 1152
 #define ANALOG_HAND_STYLE_PERSIST_KEY 1153
 #define ANALOG_HAND_THICKNESS_PERSIST_KEY 1154
+#define ANALOG_SECOND_MOTION_PERSIST_KEY 1155
 #define PRO_TRIAL_SECONDS      (48 * 60 * 60)
 static bool s_trial_active = false;
 static bool s_kiezelpay_licensed = false;
@@ -1286,6 +1288,14 @@ typedef enum {
 } AnalogHandStyle;
 static AnalogHandStyle s_analog_hand_style = ANALOG_HAND_BATON;
 static int s_analog_hand_thickness_offset = 0;
+typedef enum {
+  ANALOG_SECOND_TICK = 0,
+  ANALOG_SECOND_SWEEP = 1
+} AnalogSecondMotion;
+static AnalogSecondMotion s_analog_second_motion = ANALOG_SECOND_TICK;
+#define ANALOG_SWEEP_INTERVAL_MS 250
+static AppTimer *s_analog_sweep_timer = NULL;
+static bool s_window_visible = false;
 static bool s_progress_track_battery = false;
 typedef enum {
   TIME_STYLE_SQUARE = 0,
@@ -1369,6 +1379,12 @@ static void load_split_clock_colors(void) {
   if (persist_exists(ANALOG_HAND_THICKNESS_PERSIST_KEY)) {
     int offset = persist_read_int(ANALOG_HAND_THICKNESS_PERSIST_KEY);
     if (offset >= -2 && offset <= 4) s_analog_hand_thickness_offset = offset;
+  }
+  if (persist_exists(ANALOG_SECOND_MOTION_PERSIST_KEY)) {
+    int motion = persist_read_int(ANALOG_SECOND_MOTION_PERSIST_KEY);
+    if (motion >= ANALOG_SECOND_TICK && motion <= ANALOG_SECOND_SWEEP) {
+      s_analog_second_motion = (AnalogSecondMotion)motion;
+    }
   }
   s_expand_digital_clock =
       persist_exists(EXPAND_DIGITAL_CLOCK_PERSIST_KEY) &&
@@ -2409,7 +2425,21 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
   int hour12 = s_hour % 12;
   int32_t hour_angle = (TRIG_MAX_ANGLE * (hour12 * 60 + s_minute)) / (12 * 60);
   int32_t minute_angle = (TRIG_MAX_ANGLE * (s_minute * 60 + s_second)) / (60 * 60);
-  int32_t second_angle = (TRIG_MAX_ANGLE * s_second) / 60;
+  int32_t second_angle;
+  if (s_analog_second_hand && s_analog_second_motion == ANALOG_SECOND_SWEEP) {
+    time_t now_seconds;
+    uint16_t now_ms = 0;
+    time_ms(&now_seconds, &now_ms);
+    struct tm *now_tm = localtime(&now_seconds);
+    int sweep_second = now_tm ? now_tm->tm_sec : s_second;
+    // 4 Hz is a deliberate compromise: four distinct positions per second
+    // looks convincingly continuous on Pebble's display without the redraw
+    // and battery cost of animation-style 10-30 Hz updates.
+    second_angle = (int32_t)(((int64_t)TRIG_MAX_ANGLE *
+        ((int64_t)sweep_second * 1000 + now_ms)) / 60000);
+  } else {
+    second_angle = (TRIG_MAX_ANGLE * s_second) / 60;
+  }
 
   // Minute and second hands keep the rectangular behavior near 12/6, but their
   // true radial length is capped at their 3/9 reach. This removes the unnatural
@@ -2978,6 +3008,7 @@ static void footer_update_proc(Layer *layer, GContext *ctx) {
 static void update_time(struct tm *tick_time);
 static void tick_handler(struct tm *tick_time, TimeUnits changed);
 static void update_tick_service(void);
+static void update_analog_sweep_timer(void);
 
 typedef enum {
   TXT_WEATHER,
@@ -5528,6 +5559,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         s_analog_clock = enabled;
         persist_write_int(CLOCK_FACE_PERSIST_KEY, enabled ? 1 : 0);
         update_tick_service();
+        update_analog_sweep_timer();
         update_stepbar_layout();
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Clock face -> %s",
@@ -5556,6 +5588,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         s_analog_second_hand = enabled;
         persist_write_int(ANALOG_SECOND_PERSIST_KEY, enabled ? 1 : 0);
         update_tick_service();
+        update_analog_sweep_timer();
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Analog second hand -> %d",
                 enabled ? 1 : 0);
@@ -5592,6 +5625,21 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         persist_write_int(ANALOG_HAND_THICKNESS_PERSIST_KEY, offset);
         if (s_clock_layer) layer_mark_dirty(s_clock_layer);
         APP_LOG(APP_LOG_LEVEL_INFO, "Analog hand thickness offset -> %d", offset);
+        break;
+      }
+
+      case KEY_ANALOG_SECOND_MOTION: {
+        int motion = tuple_to_int32(t, (int)s_analog_second_motion);
+        if (motion < ANALOG_SECOND_TICK || motion > ANALOG_SECOND_SWEEP) {
+          motion = ANALOG_SECOND_TICK;
+        }
+        if (motion == (int)s_analog_second_motion) break;
+        s_analog_second_motion = (AnalogSecondMotion)motion;
+        persist_write_int(ANALOG_SECOND_MOTION_PERSIST_KEY, motion);
+        update_analog_sweep_timer();
+        if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Analog second motion -> %s",
+                motion == ANALOG_SECOND_SWEEP ? "SWEEP" : "TICK");
         break;
       }
 
@@ -5917,6 +5965,33 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 }
 
 // ── Time / date update ────────────────────────────────────────────────────────
+static void analog_sweep_timer_handler(void *context) {
+  s_analog_sweep_timer = NULL;
+  if (!s_window_visible || !s_analog_clock || !s_analog_second_hand ||
+      s_analog_second_motion != ANALOG_SECOND_SWEEP) {
+    return;
+  }
+  if (s_clock_layer) layer_mark_dirty(s_clock_layer);
+  s_analog_sweep_timer = app_timer_register(ANALOG_SWEEP_INTERVAL_MS,
+                                             analog_sweep_timer_handler, NULL);
+}
+
+static void update_analog_sweep_timer(void) {
+  bool should_run = s_window_visible && s_analog_clock && s_analog_second_hand &&
+                    s_analog_second_motion == ANALOG_SECOND_SWEEP;
+  if (!should_run) {
+    if (s_analog_sweep_timer) {
+      app_timer_cancel(s_analog_sweep_timer);
+      s_analog_sweep_timer = NULL;
+    }
+    return;
+  }
+  if (!s_analog_sweep_timer) {
+    s_analog_sweep_timer = app_timer_register(ANALOG_SWEEP_INTERVAL_MS,
+                                               analog_sweep_timer_handler, NULL);
+  }
+}
+
 static bool seconds_display_is_used(void) {
   return s_settings.top_left_slot == SLOT_SECONDS ||
          s_settings.top_center_slot == SLOT_SECONDS ||
@@ -5994,6 +6069,8 @@ static void health_handler(HealthEventType event, void *context) {
 
 // ── Window load ───────────────────────────────────────────────────────────────
 static void window_appear(Window *window) {
+  s_window_visible = true;
+  update_analog_sweep_timer();
   APP_LOG(APP_LOG_LEVEL_DEBUG,
           "Window appear: light=%d",
           light_is_on() ? 1 : 0);
@@ -6007,6 +6084,8 @@ static void window_appear(Window *window) {
 }
 
 static void window_disappear(Window *window) {
+  s_window_visible = false;
+  update_analog_sweep_timer();
   // No physical backlight state is cached. An active sunlight fallback remains
   // bounded and can expire while this window is off-screen.
 }
@@ -6425,6 +6504,11 @@ static void init(void) {
 
 static void deinit(void) {
   hide_purchase_window();
+  s_window_visible = false;
+  if (s_analog_sweep_timer) {
+    app_timer_cancel(s_analog_sweep_timer);
+    s_analog_sweep_timer = NULL;
+  }
   tick_timer_service_unsubscribe();
   if (s_appmsg_handlers_registered) {
     events_app_message_unsubscribe(s_appmsg_received_handle);

@@ -215,6 +215,7 @@ function customClay(minified) {
     var minuteColor = clayPage.getItemByMessageKey('MINUTE_COLOR');
     var clockFace = clayPage.getItemByMessageKey('CLOCK_FACE');
     var analogSecondHand = clayPage.getItemByMessageKey('ANALOG_SECOND_HAND');
+    var analogSecondMotion = clayPage.getItemByMessageKey('ANALOG_SECOND_MOTION');
     var analogMinuteTicks = clayPage.getItemByMessageKey('ANALOG_MINUTE_TICKS');
     var analogHandStyle = clayPage.getItemByMessageKey('ANALOG_HAND_STYLE');
     var analogHandThickness = clayPage.getItemByMessageKey('ANALOG_HAND_THICKNESS');
@@ -250,6 +251,10 @@ function customClay(minified) {
       if (analogSecondHand) {
         if (analog) analogSecondHand.show();
         else analogSecondHand.hide();
+      }
+      if (analogSecondMotion) {
+        if (analog && analogSecondHand && !!analogSecondHand.get()) analogSecondMotion.show();
+        else analogSecondMotion.hide();
       }
       if (analogMinuteTicks) {
         if (analog) analogMinuteTicks.show();
@@ -319,6 +324,7 @@ function customClay(minified) {
       });
     }
     if (clockFace) clockFace.on('change', syncClockColorControls);
+    if (analogSecondHand) analogSecondHand.on('change', syncClockColorControls);
 
 
     var resetButton = clayPage.getItemById('restore_defaults');
@@ -428,6 +434,7 @@ function customClay(minified) {
         setValue('QUIET_TIME_INDICATOR', false);
         setValue('CLOCK_FACE', '0');
         setValue('ANALOG_SECOND_HAND', false);
+        setValue('ANALOG_SECOND_MOTION', '0');
         setValue('ANALOG_MINUTE_TICKS', false);
         setValue('ANALOG_HAND_STYLE', '0');
         setValue('ANALOG_HAND_THICKNESS', '0');

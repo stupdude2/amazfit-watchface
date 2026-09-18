@@ -111,7 +111,8 @@
       "TIME_BACKGROUND_COLOR": 90,
       "ANALOG_MINUTE_TICKS": 91,
       "ANALOG_HAND_STYLE": 92,
-      "ANALOG_HAND_THICKNESS": 93
+      "ANALOG_HAND_THICKNESS": 93,
+      "ANALOG_SECOND_MOTION": 94
     },
     "projectType": "native",
     "resources": {
@@ -180,8 +181,8 @@
     "watchapp": {
       "watchface": true
     },
-    "versionLabel": "3.4.2"
+    "versionLabel": "1.5.2"
   },
-  "version": "3.4.2",
-  "versionLabel": "3.4.2"
+  "version": "1.5.2",
+  "versionLabel": "1.5.2"
 }
