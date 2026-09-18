@@ -1291,24 +1291,19 @@ static int s_analog_hand_thickness_offset = 0;
 typedef enum {
   ANALOG_SECOND_TICK = 0,
   // Value 1 is retained for backward compatibility with the original 4 Hz
-  // Smooth Sweep option. Values 5-12 directly represent their sweep rate.
+  // Smooth Sweep option. Other values directly represent their sweep rate.
   ANALOG_SECOND_SWEEP_4HZ = 1,
-  ANALOG_SECOND_SWEEP_5HZ = 5,
   ANALOG_SECOND_SWEEP_6HZ = 6,
-  ANALOG_SECOND_SWEEP_7HZ = 7,
-  ANALOG_SECOND_SWEEP_8HZ = 8,
-  ANALOG_SECOND_SWEEP_9HZ = 9,
-  ANALOG_SECOND_SWEEP_10HZ = 10,
-  ANALOG_SECOND_SWEEP_11HZ = 11,
-  ANALOG_SECOND_SWEEP_12HZ = 12
+  ANALOG_SECOND_SWEEP_12HZ = 12,
+  ANALOG_SECOND_SWEEP_18HZ = 18,
+  ANALOG_SECOND_SWEEP_24HZ = 24
 } AnalogSecondMotion;
 static AnalogSecondMotion s_analog_second_motion = ANALOG_SECOND_TICK;
 
 static int analog_sweep_hz(void) {
   if (s_analog_second_motion == ANALOG_SECOND_SWEEP_4HZ) return 4;
-  if ((int)s_analog_second_motion >= 5 && (int)s_analog_second_motion <= 12) {
-    return (int)s_analog_second_motion;
-  }
+  int motion = (int)s_analog_second_motion;
+  if (motion == 6 || motion == 12 || motion == 18 || motion == 24) return motion;
   return 0;
 }
 
@@ -1405,7 +1400,8 @@ static void load_split_clock_colors(void) {
   if (persist_exists(ANALOG_SECOND_MOTION_PERSIST_KEY)) {
     int motion = persist_read_int(ANALOG_SECOND_MOTION_PERSIST_KEY);
     if (motion == ANALOG_SECOND_TICK || motion == ANALOG_SECOND_SWEEP_4HZ ||
-        (motion >= ANALOG_SECOND_SWEEP_5HZ && motion <= ANALOG_SECOND_SWEEP_12HZ)) {
+        motion == ANALOG_SECOND_SWEEP_6HZ || motion == ANALOG_SECOND_SWEEP_12HZ ||
+        motion == ANALOG_SECOND_SWEEP_18HZ || motion == ANALOG_SECOND_SWEEP_24HZ) {
       s_analog_second_motion = (AnalogSecondMotion)motion;
     }
   }
@@ -2455,7 +2451,7 @@ static void draw_analog_clock(GContext *ctx, GRect bounds) {
     time_ms(&now_seconds, &now_ms);
     struct tm *now_tm = localtime(&now_seconds);
     int sweep_second = now_tm ? now_tm->tm_sec : s_second;
-    // The selected 4-12 Hz redraw rate controls how often this continuously
+    // The selected smooth redraw rate controls how often this continuously
     // calculated position is painted. The angle itself uses real milliseconds,
     // so every refresh lands at the correct point in the current second.
     second_angle = (int32_t)(((int64_t)TRIG_MAX_ANGLE *
@@ -5654,7 +5650,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       case KEY_ANALOG_SECOND_MOTION: {
         int motion = tuple_to_int32(t, (int)s_analog_second_motion);
         if (!(motion == ANALOG_SECOND_TICK || motion == ANALOG_SECOND_SWEEP_4HZ ||
-              (motion >= ANALOG_SECOND_SWEEP_5HZ && motion <= ANALOG_SECOND_SWEEP_12HZ))) {
+              motion == ANALOG_SECOND_SWEEP_6HZ || motion == ANALOG_SECOND_SWEEP_12HZ ||
+              motion == ANALOG_SECOND_SWEEP_18HZ || motion == ANALOG_SECOND_SWEEP_24HZ)) {
           motion = ANALOG_SECOND_TICK;
         }
         if (motion == (int)s_analog_second_motion) break;
